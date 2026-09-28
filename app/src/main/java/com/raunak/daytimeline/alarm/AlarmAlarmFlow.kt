@@ -2,7 +2,7 @@ package com.raunak.daytimeline.alarm
 
 import kotlin.math.max
 
-/** Pure state machine for a ringing alarm; UI and Android sensors can drive it. */
+/** Pure ringing-alarm state machine. Android UI/sensors drive it; state remains deterministic and testable. */
 class AlarmAlarmFlow(
     private val missions: List<AlarmMission>,
     private val policy: AlarmMissionPolicy = AlarmMissionPolicy().validated()
@@ -30,10 +30,12 @@ class AlarmAlarmFlow(
         return false
     }
     fun verifyText(input: String): Boolean {
-        val expected = currentMission()?.payload?.trim()?.lowercase() ?: return false
-        return input.trim().lowercase() == expected && recordProgress(1)
+        val mission = currentMission() ?: return false
+        val expected = mission.payload.trim().lowercase()
+        if (mission.type != MissionType.TYPING || input.trim().lowercase() != expected) return false
+        return recordProgress(1)
     }
-    fun verifyMath(input: Int): Boolean = currentMission()?.type == MissionType.MATH && input == currentMission()?.target && recordProgress(1)
+    fun advanceAfterCorrectMath(): Boolean = if (currentMission()?.type == MissionType.MATH) recordProgress(1) else false
     fun dismiss(): Boolean { dismissed = true; return true }
     fun isDismissed(): Boolean = dismissed
 }
