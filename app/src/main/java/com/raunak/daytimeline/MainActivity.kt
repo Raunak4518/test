@@ -10,19 +10,12 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 
 class MainActivity : ComponentActivity() {
-    private val notifPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { }
-
+    private val notifPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
-            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
-        setContent {
-            DayTimelineApp(appContext = applicationContext)
-        }
+        setContent { PremiumHome() }
     }
 }
