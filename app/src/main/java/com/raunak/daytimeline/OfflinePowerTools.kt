@@ -1,8 +1,8 @@
 package com.raunak.daytimeline
 
 import android.content.Context
-import android.content.Intent
-import androidx.compose.foundation.background
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -23,7 +23,6 @@ import com.raunak.daytimeline.features.Habit
 import com.raunak.daytimeline.features.LocalFeatureStore
 import com.raunak.daytimeline.features.QuickNote
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -33,7 +32,7 @@ private val ToolInk = Color(0xFF18221F)
 private val ToolSage = Color(0xFF55786A)
 private val ToolMuted = Color(0xFF727B76)
 
-/** Deep offline tools: scheduling audit, global local search and ICS export. */
+/** Deep offline tools: local search, schedule intelligence and real ICS export. */
 @Composable
 fun OfflinePowerTools(onClose: () -> Unit) {
     val context = LocalContext.current
@@ -45,6 +44,14 @@ fun OfflinePowerTools(onClose: () -> Unit) {
     val notes by store.notes.collectAsStateWithLifecycle()
     var query by rememberSaveable { mutableStateOf("") }
     var exported by remember { mutableStateOf(false) }
+    var pendingIcs by remember { mutableStateOf("") }
+    val saveIcs = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/calendar")) { uri ->
+        if (uri != null && pendingIcs.isNotBlank()) {
+            runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(pendingIcs.toByteArray(Charsets.UTF_8)) } }
+            exported = true
+        }
+        pendingIcs = ""
+    }
 
     Surface(Modifier.fillMaxSize(), color = ToolBg) {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -64,7 +71,7 @@ fun OfflinePowerTools(onClose: () -> Unit) {
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Default.Search, null) },
-                    placeholder = { Text("Search tasks, notes and habits") },
+                    placeholder = { Text("Search today's tasks, notes and habits") },
                     shape = RoundedCornerShape(18.dp)
                 )
             }
@@ -79,7 +86,13 @@ fun OfflinePowerTools(onClose: () -> Unit) {
                 items(habitHits, key = { "h${it.id}" }) { SearchHabit(it) }
             }
             item { ScheduleAudit(tasks) }
-            item { ExportCard(context, tasks, vm, exported) { exported = it } }
+            item {
+                ExportCard(
+                    tasks = tasks,
+                    exported = exported,
+                    onExport = { pendingIcs = buildIcs(tasks); saveIcs.launch("daytimeline-${LocalDate.now()}.ics") }
+                )
+            }
             item { OfflinePrinciples() }
             item { Spacer(Modifier.height(30.dp)) }
         }
@@ -116,24 +129,12 @@ fun OfflinePowerTools(onClose: () -> Unit) {
     Surface(Modifier.weight(1f), RoundedCornerShape(15.dp), color = Color(0xFFEEF1EC)) { Column(Modifier.padding(11.dp)) { Text(label, color = ToolMuted, style = MaterialTheme.typography.labelSmall); Text(value, color = ToolInk, style = MaterialTheme.typography.titleMedium) } }
 }
 
-@Composable private fun ExportCard(context: Context, tasks: List<TaskModel>, vm: PlannerViewModel, exported: Boolean, setExported: (Boolean) -> Unit) {
-    var pending by remember { mutableStateOf(false) }
+@Composable private fun ExportCard(tasks: List<TaskModel>, exported: Boolean, onExport: () -> Unit) {
     Surface(RoundedCornerShape(24.dp), color = ToolInk) {
         Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
             Text("Calendar interoperability", color = Color.White, style = MaterialTheme.typography.titleLarge)
-            Text("Export today's timeline as a standard .ics calendar file. It stays completely on-device until you choose where to save it.", color = Color(0xFFC5D0CB))
-            Button(onClick = {
-                pending = true
-                val text = buildIcs(tasks)
-                val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
-                    type = "text/calendar"
-                    putExtra(Intent.EXTRA_TITLE, "daytimeline-${LocalDate.now()}.ics")
-                    putExtra("daytimeline.ics.content", text)
-                }
-                context.startActivity(intent)
-                setExported(true)
-                pending = false
-            }, enabled = !pending) { Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(7.dp)); Text(if (exported) "Export again" else "Export .ics") }
+            Text("Export today's timeline as a real standard .ics calendar file. The Android document picker chooses the destination; no upload occurs.", color = Color(0xFFC5D0CB))
+            Button(onClick = onExport) { Icon(Icons.Default.FileDownload, null); Spacer(Modifier.width(7.dp)); Text(if (exported) "Export again" else "Export .ics") }
         }
     }
 }
@@ -147,6 +148,7 @@ private fun buildIcs(tasks: List<TaskModel>): String {
         appendLine("BEGIN:VCALENDAR")
         appendLine("VERSION:2.0")
         appendLine("PRODID:-//DayTimeline//Offline Calendar//EN")
+        appendLine("CALSCALE:GREGORIAN")
         tasks.forEach { t ->
             val start = date.atStartOfDay().plusMinutes(t.startMinute.toLong()).atZone(zone).format(fmt)
             val end = date.atStartOfDay().plusMinutes(t.endMinute.toLong()).atZone(zone).format(fmt)
