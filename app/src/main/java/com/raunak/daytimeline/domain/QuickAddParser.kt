@@ -3,8 +3,8 @@ package com.raunak.daytimeline.domain
 import java.time.LocalDate
 
 object QuickAddParser {
-    private val range = Regex("(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?", RegexOption.IGNORE_CASE)
-    private val duration = Regex("(\d{1,2})h(?:\s*(\d{1,2})m)?", RegexOption.IGNORE_CASE)
+    private val range = Regex("""(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*-\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?""", RegexOption.IGNORE_CASE)
+    private val duration = Regex("""(\d{1,2})h(?:\s*(\d{1,2})m)?""", RegexOption.IGNORE_CASE)
 
     fun parse(raw: String, nowDate: LocalDate): QuickTaskInput? {
         val text = raw.trim()
