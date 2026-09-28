@@ -1,0 +1,161 @@
+package com.raunak.daytimeline.data
+
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import com.raunak.daytimeline.domain.ConflictDetector
+import com.raunak.daytimeline.domain.QuickAddParser
+import com.raunak.daytimeline.domain.RecurrenceEngine
+import com.raunak.daytimeline.domain.TaskModel
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+import java.time.LocalDate
+
+class TaskRepository(
+    private val taskDao: TaskDao,
+    private val checklistDao: ChecklistDao,
+    private val pomodoroDao: PomodoroDao,
+    private val reminderScheduler: ReminderScheduler
+) {
+    private val gson = Gson()
+
+    fun observeTasks(date: LocalDate): Flow<List<TaskModel>> {
+        val dateEpoch = date.toEpochDay()
+        return taskDao.observeForDate(dateEpoch).map { entities ->
+            entities
+                .filter { RecurrenceEngine.occursOn(it, date) }
+                .map { it.toModel(date) }
+        }
+    }
+
+    suspend fun addTask(task: TaskEntity): Long {
+        val id = taskDao.insert(task)
+        val inserted = task.copy(id = id)
+        reminderScheduler.schedule(inserted)
+        return id
+    }
+
+    suspend fun updateTask(task: TaskEntity) {
+        taskDao.update(task)
+        reminderScheduler.schedule(task)
+    }
+
+    suspend fun deleteTask(taskId: Long) {
+        reminderScheduler.cancel(taskId)
+        taskDao.delete(taskId)
+    }
+
+    suspend fun duplicateTask(taskId: Long): Long {
+        val existing = taskDao.byId(taskId) ?: return 0
+        return addTask(existing.copy(id = 0, title = "${existing.title} (copy)", completed = false))
+    }
+
+    suspend fun markComplete(taskId: Long, completed: Boolean) {
+        val task = taskDao.byId(taskId) ?: return
+        taskDao.update(task.copy(completed = completed))
+    }
+
+    fun checklist(taskId: Long): Flow<List<ChecklistItemEntity>> = checklistDao.observeForTask(taskId)
+
+    suspend fun upsertChecklistItem(item: ChecklistItemEntity) {
+        checklistDao.insert(item)
+    }
+
+    suspend fun toggleChecklistItem(item: ChecklistItemEntity) {
+        checklistDao.update(item.copy(checked = !item.checked))
+    }
+
+    suspend fun deleteChecklistItem(itemId: Long) {
+        checklistDao.delete(itemId)
+    }
+
+    fun observePomodoro() = pomodoroDao.observe().map { it ?: PomodoroStateEntity() }
+
+    suspend fun savePomodoro(state: PomodoroStateEntity) = pomodoroDao.upsert(state)
+
+    suspend fun quickAdd(input: String, date: LocalDate): Long? {
+        val parsed = QuickAddParser.parse(input, date) ?: return null
+        val task = TaskEntity(
+            title = parsed.title,
+            dateEpochDay = parsed.date.toEpochDay(),
+            startMinute = parsed.startMinute,
+            endMinute = parsed.endMinute,
+            pomodoroEnabled = parsed.pomodoro
+        )
+        return addTask(task)
+    }
+
+    suspend fun detectConflicts(candidate: TaskEntity): Int {
+        val sameDay = taskDao.forExactDate(candidate.dateEpochDay)
+        return ConflictDetector.maxOverlapMinutes(candidate, sameDay.filter { it.id != candidate.id })
+    }
+
+    suspend fun exportJson(): String {
+        val tasks = taskDao.all()
+        val checklist = checklistDao.forTasks(tasks.map { it.id })
+        return gson.toJson(mapOf("tasks" to tasks, "checklist" to checklist))
+    }
+
+    suspend fun importJson(json: String): Result<Unit> {
+        return runCatching {
+            val mapType = object : TypeToken<Map<String, List<Map<String, Any>>>>() {}.type
+            val parsed: Map<String, List<Map<String, Any>>> = gson.fromJson(json, mapType)
+            val tasksRaw = parsed["tasks"].orEmpty()
+            val checklistRaw = parsed["checklist"].orEmpty()
+            tasksRaw.forEach { raw ->
+                val id = addTask(
+                    TaskEntity(
+                        title = raw["title"] as? String ?: "Task",
+                        dateEpochDay = (raw["dateEpochDay"] as? Number)?.toLong() ?: LocalDate.now().toEpochDay(),
+                        startMinute = (raw["startMinute"] as? Number)?.toInt() ?: 540,
+                        endMinute = (raw["endMinute"] as? Number)?.toInt() ?: 600,
+                        category = raw["category"] as? String ?: "Other",
+                        priority = (raw["priority"] as? Number)?.toInt() ?: 1,
+                        notes = raw["notes"] as? String ?: "",
+                        pomodoroEnabled = raw["pomodoroEnabled"] as? Boolean ?: false,
+                        tags = raw["tags"] as? String ?: "",
+                        reminderMode = raw["reminderMode"] as? String ?: "NONE",
+                        reminderOffsetMinutes = (raw["reminderOffsetMinutes"] as? Number)?.toInt() ?: 0,
+                        completed = raw["completed"] as? Boolean ?: false,
+                        recurrenceType = raw["recurrenceType"] as? String ?: "NONE",
+                        recurrenceDays = raw["recurrenceDays"] as? String ?: ""
+                    )
+                )
+                checklistRaw
+                    .filter { (it["taskId"] as? Number)?.toLong() == (raw["id"] as? Number)?.toLong() }
+                    .forEachIndexed { index, cl ->
+                        checklistDao.insert(
+                            ChecklistItemEntity(
+                                taskId = id,
+                                text = cl["text"] as? String ?: "",
+                                checked = cl["checked"] as? Boolean ?: false,
+                                position = index
+                            )
+                        )
+                    }
+            }
+
+            suspend fun rescheduleAllReminders() {
+                    taskDao.all().forEach { if (it.reminderMode != "NONE") reminderScheduler.schedule(it) }
+            }
+        }
+    }
+}
+
+private fun TaskEntity.toModel(date: LocalDate): TaskModel = TaskModel(
+    id = id,
+    title = title,
+    date = date,
+    startMinute = startMinute,
+    endMinute = endMinute,
+    category = category,
+    colorHex = colorHex,
+    priority = priority,
+    notes = notes,
+    pomodoroEnabled = pomodoroEnabled,
+    tags = tags,
+    reminderMode = reminderMode,
+    reminderOffsetMinutes = reminderOffsetMinutes,
+    completed = completed,
+    recurrenceType = recurrenceType,
+    recurrenceDays = recurrenceDays
+)
