@@ -15,6 +15,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".alarm.AlarmRingingActivity" android:excludeFromRecents="true" android:exported="false" android:showWhenLocked="true" android:turnScreenOn="true" />
+        <receiver android:name=".alarm.AlarmTriggerReceiver" android:exported="false" />
         <receiver android:name=".receiver.ReminderReceiver" android:exported="false" />
         <receiver android:name=".receiver.NotificationActionReceiver" android:exported="false" />
         <receiver android:name=".alarm.AlarmChallengeReceiver" android:exported="false" />
