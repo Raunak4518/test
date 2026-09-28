@@ -62,7 +62,7 @@ class AlarmRingingActivity : ComponentActivity() {
             when (type) {
                 AlarmMissionType.MATH -> { Text("${math.first} = ?", style = MaterialTheme.typography.headlineMedium); OutlinedTextField(answer,{answer=it.filter(Char::isDigit)},label={Text("Answer")}); Button(onClick={if(AlarmChallengeEngine.validateMath(answer.toIntOrNull()?:Int.MIN_VALUE,math.second)) nextOrDismiss() else {answer="";math=AlarmChallengeEngine.math(2)}}){Text("Check")} }
                 AlarmMissionType.TYPING -> { Text("Type exactly: ${mission?.payload}"); OutlinedTextField(answer,{answer=it},label={Text("Phrase")}); Button(onClick={if(AlarmChallengeEngine.validateTyping(answer,mission?.payload.orEmpty()))nextOrDismiss()}){Text("Verify")} }
-                AlarmMissionType.MEMORY -> { Text("Repeat: ${mission?.payload}"); OutlinedTextField(memoryInput,{memoryInput=it.filter { c -> c.isDigit() || c == ',' }},label={Text("Sequence")}); Button(onClick={if(memoryInput.replace(" ","")==mission?.payload.orEmpty().replace(",", ""))nextOrDismiss()}){Text("Verify")} }
+                AlarmMissionType.MEMORY -> { Text("Repeat: ${mission?.payload}"); OutlinedTextField(memoryInput,{memoryInput=it.filter { c -> c.isDigit() || c == ',' }},label={Text("Sequence")}); Button(onClick={if(memoryInput.replace(",","").replace(" ","")==mission?.payload.orEmpty().replace(",", "").replace(" ",""))nextOrDismiss()}){Text("Verify")} }
                 AlarmMissionType.SHAKE, AlarmMissionType.WALK -> Text("Progress: $progress / ${mission?.target}",style=MaterialTheme.typography.headlineMedium)
                 AlarmMissionType.SQUAT -> { Text("Complete ${mission?.target ?: 10} squats"); Text("Count them yourself, then hold the button below."); LongPressDismissButton(activeConfig?.longPressMs ?: 1200L){nextOrDismiss()} }
                 AlarmMissionType.PHOTO -> { Text("Take a wake-up photo"); Button(onClick={cameraCallback={if(it!=null)nextOrDismiss()};camera.launch(null)}){Text("Open camera")} }
@@ -70,7 +70,7 @@ class AlarmRingingActivity : ComponentActivity() {
                 AlarmMissionType.MULTI -> nextOrDismiss()
             }
             val maxSnoozes=activeConfig?.maxSnoozes?:3
-            OutlinedButton(onClick={if(f.snooze()){scheduleSnooze();dismissAlarm(cancelSnooze=false)}},enabled=f.canSnooze()){Text("Snooze ${activeConfig?.snoozeMinutes?:5} min (${f.snoozesUsed()}/$maxSnoozes)")}
+            OutlinedButton(onClick={if(f.snooze()){scheduleSnooze();dismissAlarm(cancelSnooze=false,rescheduleRepeat=false)}},enabled=f.canSnooze()){Text("Snooze ${activeConfig?.snoozeMinutes?:5} min (${f.snoozesUsed()}/$maxSnoozes)")}
         }
     }
 
@@ -83,13 +83,13 @@ class AlarmRingingActivity : ComponentActivity() {
 
     private fun nextOrDismiss() { val f=flow?:return; if(f.recordProgress(maxOf(1,f.currentMission()?.target?:1))) dismissAlarm() }
     private fun scheduleSnooze(){activeConfig?.let{AlarmManagerBridge(this).scheduleSnooze(it)}}
-    private fun dismissAlarm(cancelSnooze: Boolean = true){
+    private fun dismissAlarm(cancelSnooze: Boolean = true, rescheduleRepeat: Boolean = true){
         val config=activeConfig ?: return
         runtime.release(); timeoutHandler.removeCallbacksAndMessages(null)
         getSystemService(NotificationManager::class.java)?.cancel((config.id xor (config.id ushr 32)).toInt())
         val bridge=AlarmManagerBridge(this)
         if(cancelSnooze) bridge.cancel(config.id) else bridge.cancelScheduledCycle(config.id)
-        if(config.enabled && config.repeatDays.isNotEmpty()) bridge.schedule(config)
+        if(rescheduleRepeat && config.enabled && config.repeatDays.isNotEmpty()) bridge.schedule(config)
         flow?.dismiss()
         finishAndRemoveTask()
     }
