@@ -21,9 +21,7 @@ class TaskRepository(
     fun observeTasks(date: LocalDate): Flow<List<TaskModel>> {
         val dateEpoch = date.toEpochDay()
         return taskDao.observeForDate(dateEpoch).map { entities ->
-            entities
-                .filter { RecurrenceEngine.occursOn(it, date) }
-                .map { it.toModel(date) }
+            entities.filter { RecurrenceEngine.occursOn(it, date) }.map { it.toModel(date) }
         }
     }
 
@@ -56,17 +54,13 @@ class TaskRepository(
 
     fun checklist(taskId: Long): Flow<List<ChecklistItemEntity>> = checklistDao.observeForTask(taskId)
 
-    suspend fun upsertChecklistItem(item: ChecklistItemEntity) {
-        checklistDao.insert(item)
-    }
+    suspend fun upsertChecklistItem(item: ChecklistItemEntity) { checklistDao.insert(item) }
 
     suspend fun toggleChecklistItem(item: ChecklistItemEntity) {
         checklistDao.update(item.copy(checked = !item.checked))
     }
 
-    suspend fun deleteChecklistItem(itemId: Long) {
-        checklistDao.delete(itemId)
-    }
+    suspend fun deleteChecklistItem(itemId: Long) { checklistDao.delete(itemId) }
 
     fun observePomodoro() = pomodoroDao.observe().map { it ?: PomodoroStateEntity() }
 
@@ -95,48 +89,48 @@ class TaskRepository(
         return gson.toJson(mapOf("tasks" to tasks, "checklist" to checklist))
     }
 
-    suspend fun importJson(json: String): Result<Unit> {
-        return runCatching {
-            val mapType = object : TypeToken<Map<String, List<Map<String, Any>>>>() {}.type
-            val parsed: Map<String, List<Map<String, Any>>> = gson.fromJson(json, mapType)
-            val tasksRaw = parsed["tasks"].orEmpty()
-            val checklistRaw = parsed["checklist"].orEmpty()
-            tasksRaw.forEach { raw ->
-                val id = addTask(
-                    TaskEntity(
-                        title = raw["title"] as? String ?: "Task",
-                        dateEpochDay = (raw["dateEpochDay"] as? Number)?.toLong() ?: LocalDate.now().toEpochDay(),
-                        startMinute = (raw["startMinute"] as? Number)?.toInt() ?: 540,
-                        endMinute = (raw["endMinute"] as? Number)?.toInt() ?: 600,
-                        category = raw["category"] as? String ?: "Other",
-                        priority = (raw["priority"] as? Number)?.toInt() ?: 1,
-                        notes = raw["notes"] as? String ?: "",
-                        pomodoroEnabled = raw["pomodoroEnabled"] as? Boolean ?: false,
-                        tags = raw["tags"] as? String ?: "",
-                        reminderMode = raw["reminderMode"] as? String ?: "NONE",
-                        reminderOffsetMinutes = (raw["reminderOffsetMinutes"] as? Number)?.toInt() ?: 0,
-                        completed = raw["completed"] as? Boolean ?: false,
-                        recurrenceType = raw["recurrenceType"] as? String ?: "NONE",
-                        recurrenceDays = raw["recurrenceDays"] as? String ?: ""
-                    )
+    suspend fun importJson(json: String): Result<Unit> = runCatching {
+        val mapType = object : TypeToken<Map<String, List<Map<String, Any>>>>() {}.type
+        val parsed: Map<String, List<Map<String, Any>>> = gson.fromJson(json, mapType)
+        val tasksRaw = parsed["tasks"].orEmpty()
+        val checklistRaw = parsed["checklist"].orEmpty()
+        tasksRaw.forEach { raw ->
+            val id = addTask(
+                TaskEntity(
+                    title = raw["title"] as? String ?: "Task",
+                    dateEpochDay = (raw["dateEpochDay"] as? Number)?.toLong() ?: LocalDate.now().toEpochDay(),
+                    startMinute = (raw["startMinute"] as? Number)?.toInt() ?: 540,
+                    endMinute = (raw["endMinute"] as? Number)?.toInt() ?: 600,
+                    category = raw["category"] as? String ?: "Other",
+                    priority = (raw["priority"] as? Number)?.toInt() ?: 1,
+                    notes = raw["notes"] as? String ?: "",
+                    pomodoroEnabled = raw["pomodoroEnabled"] as? Boolean ?: false,
+                    tags = raw["tags"] as? String ?: "",
+                    reminderMode = raw["reminderMode"] as? String ?: "NONE",
+                    reminderOffsetMinutes = (raw["reminderOffsetMinutes"] as? Number)?.toInt() ?: 0,
+                    completed = raw["completed"] as? Boolean ?: false,
+                    recurrenceType = raw["recurrenceType"] as? String ?: "NONE",
+                    recurrenceDays = raw["recurrenceDays"] as? String ?: ""
                 )
-                checklistRaw
-                    .filter { (it["taskId"] as? Number)?.toLong() == (raw["id"] as? Number)?.toLong() }
-                    .forEachIndexed { index, cl ->
-                        checklistDao.insert(
-                            ChecklistItemEntity(
-                                taskId = id,
-                                text = cl["text"] as? String ?: "",
-                                checked = cl["checked"] as? Boolean ?: false,
-                                position = index
-                            )
+            )
+            checklistRaw
+                .filter { (it["taskId"] as? Number)?.toLong() == (raw["id"] as? Number)?.toLong() }
+                .forEachIndexed { index, cl ->
+                    checklistDao.insert(
+                        ChecklistItemEntity(
+                            taskId = id,
+                            text = cl["text"] as? String ?: "",
+                            checked = cl["checked"] as? Boolean ?: false,
+                            position = index
                         )
-                    }
-            }
+                    )
+                }
+        }
+    }
 
-            suspend fun rescheduleAllReminders() {
-                    taskDao.all().forEach { if (it.reminderMode != "NONE") reminderScheduler.schedule(it) }
-            }
+    suspend fun rescheduleAllReminders() {
+        taskDao.all().forEach { task ->
+            if (task.reminderMode != "NONE") reminderScheduler.schedule(task)
         }
     }
 }
