@@ -32,18 +32,25 @@ class MainActivity : ComponentActivity() {
         ) notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent {
             var advanced by remember { mutableStateOf(false) }
+            var suite by remember { mutableStateOf(false) }
             Box(Modifier.fillMaxSize()) {
                 PowerHome()
-                if (!advanced) {
+                if (!advanced && !suite) {
                     FloatingActionButton(
                         onClick = { advanced = true },
                         modifier = Modifier.padding(start = 18.dp, top = 10.dp),
                         containerColor = androidx.compose.ui.graphics.Color(0xFF55786A),
                         contentColor = androidx.compose.ui.graphics.Color.White
-                    ) { Icon(Icons.Default.AutoAwesome, "Open advanced productivity tools") }
+                    ) { Icon(Icons.Default.AutoAwesome, "Open productivity tools") }
                 }
             }
-            if (advanced) AdvancedHub { advanced = false }
+            if (advanced) {
+                AdvancedHub {
+                    advanced = false
+                    suite = true
+                }
+            }
+            if (suite) OfflineSuite { suite = false }
         }
     }
 }
