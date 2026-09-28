@@ -43,8 +43,6 @@ class AdvancedStore(context: Context) {
     val journal = _journal.asStateFlow()
     private val _timeLogs = MutableStateFlow(read("timelogs", emptyList<TimeLog>()))
     val timeLogs = _timeLogs.asStateFlow()
-    private val _achievements = MutableStateFlow(read("achievements", emptyList<Achievement>()))
-    val achievements = _achievements.asStateFlow()
 
     fun addRoutine(name: String, steps: List<RoutineStep>) = update(_routines, "routines") { it + Routine(System.currentTimeMillis(), name, steps) }
     fun deleteRoutine(id: Long) = update(_routines, "routines") { it.filterNot { r -> r.id == id } }
@@ -64,8 +62,6 @@ data class Routine(val id: Long, val name: String, val steps: List<RoutineStep>)
 data class RoutineStep(val name: String, val minutes: Int)
 data class JournalEntry(val date: String, val mood: Int, val energy: Int, val wins: String, val blockers: String, val gratitude: String)
 data class TimeLog(val id: Long, val label: String, val start: Long, val end: Long)
-data class Achievement(val title: String, val description: String, val earnedAt: Long)
-
 data class UsageStat(val packageName: String, val millis: Long)
 
 @Composable
@@ -76,12 +72,11 @@ fun AdvancedHub(onClose: () -> Unit) {
     val journal by store.journal.collectAsState()
     val logs by store.timeLogs.collectAsState()
     var section by rememberSaveable { mutableStateOf("Overview") }
+    val sections = listOf("Overview", "Routines", "Journal", "Time", "Device")
     MaterialTheme(colorScheme = lightColorScheme(background = ABg, surface = ACard, primary = ASage, onSurface = AInk)) {
         Scaffold(topBar = { TopAppBar(title = { Text("Productivity Lab", fontWeight = FontWeight.Bold) }, navigationIcon = { IconButton(onClose) { Icon(Icons.Default.Close, "Close") } }) }) { pad ->
             Column(Modifier.fillMaxSize().padding(pad)) {
-                ScrollableTabRow(selectedTabIndex = listOf("Overview","Routines","Journal","Time","Device").indexOf(section), edgePadding = 12.dp) {
-                    listOf("Overview","Routines","Journal","Time","Device").forEach { label -> Tab(section == label, { section = label }, text = { Text(label) }) }
-                }
+                ScrollableTabRow(selectedTabIndex = sections.indexOf(section), edgePadding = 12.dp) { sections.forEach { label -> Tab(section == label, { section = label }, text = { Text(label) }) } }
                 when (section) {
                     "Overview" -> AdvancedOverview(routines, journal, logs)
                     "Routines" -> RoutineScreen(routines, store)
@@ -100,7 +95,7 @@ fun AdvancedHub(onClose: () -> Unit) {
     val minutes = todayLogs.sumOf { endOrNow(it) - it.start }.coerceAtLeast(0) / 60000
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Productivity cockpit", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Deep local tools. No account, backend or paid service.", color = AMuted) }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Metric("Routines", routines.size.toString()); Metric("Actual time", "${minutes}m"); Metric("Journal", journal.size.toString()) } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Metric("Routines", routines.size.toString(), Modifier.weight(1f)); Metric("Actual time", "${minutes}m", Modifier.weight(1f)); Metric("Journal", journal.size.toString(), Modifier.weight(1f)) } }
         item { FeatureCard(Icons.Default.AutoAwesome, "Daily reflection", "Record mood, energy, wins, blockers and gratitude so your review has real context.") }
         item { FeatureCard(Icons.Default.Timelapse, "Actual time tracking", "Measure elapsed work independently from planned blocks and compare plan against reality.") }
         item { FeatureCard(Icons.Default.Repeat, "Routines", "Reusable multi-step sequences with explicit durations rather than decorative labels.") }
@@ -108,12 +103,11 @@ fun AdvancedHub(onClose: () -> Unit) {
     }
 }
 
-@Composable private fun Metric(label: String, value: String) { Surface(RoundedCornerShape(18.dp), color = ACard, modifier = Modifier.weight(1f)) { Column(Modifier.padding(13.dp)) { Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(label, color = AMuted, style = MaterialTheme.typography.labelSmall) } } }
+@Composable private fun Metric(label: String, value: String, modifier: Modifier = Modifier) { Surface(RoundedCornerShape(18.dp), color = ACard, modifier = modifier) { Column(Modifier.padding(13.dp)) { Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(label, color = AMuted, style = MaterialTheme.typography.labelSmall) } } }
 @Composable private fun FeatureCard(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, body: String) { Surface(RoundedCornerShape(22.dp), color = ACard) { Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.Top) { Icon(icon, null, tint = ASage); Spacer(Modifier.width(12.dp)); Column { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = AMuted, style = MaterialTheme.typography.bodySmall) } } } }
 
 @Composable private fun RoutineScreen(routines: List<Routine>, store: AdvancedStore) {
-    var name by remember { mutableStateOf("") }
-    var showAdd by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }; var showAdd by remember { mutableStateOf(false) }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Column { Text("Routines", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Reusable duration-aware sequences", color = AMuted) }; IconButton({ showAdd = true }) { Icon(Icons.Default.Add, "Add routine") } } }
         items(routines, key = { it.id }) { r -> Surface(RoundedCornerShape(22.dp), color = ACard) { Column(Modifier.padding(16.dp)) { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) { Text(r.name, fontWeight = FontWeight.SemiBold); Text("${r.steps.sumOf { it.minutes }} min", color = ASage) }; r.steps.forEachIndexed { i, s -> Text("${i + 1}. ${s.name} · ${s.minutes}m", color = AMuted, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 5.dp)) }; TextButton({ store.deleteRoutine(r.id) }) { Text("Delete") } } } }
@@ -122,8 +116,7 @@ fun AdvancedHub(onClose: () -> Unit) {
 }
 
 @Composable private fun JournalScreen(entries: List<JournalEntry>, store: AdvancedStore) {
-    var editor by remember { mutableStateOf(false) }
-    var wins by remember { mutableStateOf("") }; var blockers by remember { mutableStateOf("") }; var gratitude by remember { mutableStateOf("") }
+    var editor by remember { mutableStateOf(false) }; var wins by remember { mutableStateOf("") }; var blockers by remember { mutableStateOf("") }; var gratitude by remember { mutableStateOf("") }
     val today = LocalDate.now().toString()
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, Alignment.CenterVertically) { Column { Text("Daily journal", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Reflection becomes searchable history.", color = AMuted) }; IconButton({ editor = true }) { Icon(Icons.Default.EditNote, "Write") } } }
@@ -133,9 +126,7 @@ fun AdvancedHub(onClose: () -> Unit) {
 }
 
 @Composable private fun TimeTrackingScreen(logs: List<TimeLog>, store: AdvancedStore) {
-    var label by remember { mutableStateOf("") }
-    val running = logs.lastOrNull { it.end == 0L }
-    val today = logs.filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.start), java.time.ZoneId.systemDefault()).toLocalDate() == LocalDate.now() }
+    var label by remember { mutableStateOf("") }; val running = logs.lastOrNull { it.end == 0L }; val today = logs.filter { LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(it.start), java.time.ZoneId.systemDefault()).toLocalDate() == LocalDate.now() }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Text("Actual time", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold); Text("Compare planned blocks with real elapsed work.", color = AMuted) }
         item { Surface(RoundedCornerShape(22.dp), color = ACard) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) { OutlinedTextField(label, { label = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("What are you working on?") }); Button({ if (label.isNotBlank() && running == null) { store.startTimer(label); label = "" } else if (running != null) store.stopTimer(running.id) }, Modifier.fillMaxWidth()) { Icon(if (running == null) Icons.Default.PlayArrow else Icons.Default.Stop, null); Text(if (running == null) "Start timer" else "Stop · ${running.label}") } } } }
