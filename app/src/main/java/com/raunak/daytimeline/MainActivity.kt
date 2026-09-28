@@ -7,11 +7,10 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.getValue
@@ -33,15 +32,25 @@ class MainActivity : ComponentActivity() {
         setContent {
             var advanced by remember { mutableStateOf(false) }
             var suite by remember { mutableStateOf(false) }
+            var powerTools by remember { mutableStateOf(false) }
             Box(Modifier.fillMaxSize()) {
                 PowerHome()
-                if (!advanced && !suite) {
-                    FloatingActionButton(
-                        onClick = { advanced = true },
+                if (!advanced && !suite && !powerTools) {
+                    Column(
                         modifier = Modifier.padding(start = 18.dp, top = 10.dp),
-                        containerColor = androidx.compose.ui.graphics.Color(0xFF55786A),
-                        contentColor = androidx.compose.ui.graphics.Color.White
-                    ) { Icon(Icons.Default.AutoAwesome, "Open productivity tools") }
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        FloatingActionButton(
+                            onClick = { advanced = true },
+                            containerColor = androidx.compose.ui.graphics.Color(0xFF55786A),
+                            contentColor = androidx.compose.ui.graphics.Color.White
+                        ) { Icon(Icons.Default.AutoAwesome, "Open productivity tools") }
+                        FloatingActionButton(
+                            onClick = { powerTools = true },
+                            containerColor = androidx.compose.ui.graphics.Color(0xFF18221F),
+                            contentColor = androidx.compose.ui.graphics.Color.White
+                        ) { Icon(Icons.Default.Build, "Open offline power tools") }
+                    }
                 }
             }
             if (advanced) {
@@ -51,6 +60,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
             if (suite) OfflineSuite { suite = false }
+            if (powerTools) OfflinePowerTools { powerTools = false }
         }
     }
 }
