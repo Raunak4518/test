@@ -6,10 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 
-/** Android scheduling boundary. All alarm decisions come from the persistent domain model. */
 class AlarmManagerBridge(private val context: Context) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-
     fun schedule(config: AlarmPersistentConfig) {
         if (!config.enabled) { cancel(config.id); return }
         val primary = AlarmSchedulePlanner.nextOccurrence(config)
@@ -18,35 +16,17 @@ class AlarmManagerBridge(private val context: Context) {
         AlarmSchedulePlanner.wakeCheckAt(primary, config)?.let { set(it, requestCode(config.id, 2), config.id, AlarmKind.WAKE_CHECK) }
         AlarmSchedulePlanner.bedtimeAt(primary, config)?.let { if (it > System.currentTimeMillis()) set(it, requestCode(config.id, 3), config.id, AlarmKind.BEDTIME) }
     }
-
-    fun scheduleSnooze(config: AlarmPersistentConfig) {
-        val at = System.currentTimeMillis() + config.snoozeMinutes * 60_000L
-        set(at, requestCode(config.id, 10), config.id, AlarmKind.SNOOZE)
+    fun scheduleSnooze(config: AlarmPersistentConfig) { set(System.currentTimeMillis()+config.snoozeMinutes*60_000L,requestCode(config.id,10),config.id,AlarmKind.SNOOZE) }
+    fun cancel(id: Long) { listOf(0,1,2,3,10).forEach { val p=pending(id,it); alarmManager.cancel(p); p.cancel() } }
+    private fun set(at: Long, code: Int, id: Long, kind: AlarmKind) {
+        val p=pending(id,code,kind)
+        try {
+            if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,at,p)
+            else if (Build.VERSION.SDK_INT >= 23) alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,at,p) else alarmManager.setExact(AlarmManager.RTC_WAKEUP,at,p)
+        } catch (_: SecurityException) { alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,at,p) }
     }
-
-    fun cancel(id: Long) {
-        listOf(0,1,2,3,10).forEach { code ->
-            val pi = pending(id, code)
-            alarmManager.cancel(pi)
-            pi.cancel()
-        }
-    }
-
-    private fun set(at: Long, requestCode: Int, alarmId: Long, kind: AlarmKind) {
-        val pi = pending(alarmId, requestCode, kind)
-        if (Build.VERSION.SDK_INT >= 23) alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi)
-        else alarmManager.setExact(AlarmManager.RTC_WAKEUP, at, pi)
-    }
-
-    private fun pending(id: Long, code: Int, kind: AlarmKind = AlarmKind.PRIMARY): PendingIntent {
-        val intent = Intent(context, AlarmTriggerReceiver::class.java).apply {
-            putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, id)
-            putExtra(AlarmTriggerReceiver.EXTRA_KIND, kind.name)
-        }
-        return PendingIntent.getBroadcast(context, requestCode(id, code), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
-    }
-
-    private fun requestCode(id: Long, slot: Int): Int = ((id xor (id ushr 32)).toInt() * 31) + slot
+    private fun pending(id: Long, code: Int, kind: AlarmKind = AlarmKind.PRIMARY): PendingIntent = PendingIntent.getBroadcast(context,requestCode(id,code),Intent(context,AlarmTriggerReceiver::class.java).apply { putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID,id); putExtra(AlarmTriggerReceiver.EXTRA_KIND,kind.name) },PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    private fun requestCode(id: Long, slot: Int)=((id xor(id ushr 32)).toInt()*31)+slot
 }
 
 enum class AlarmKind { PRIMARY, BACKUP, WAKE_CHECK, BEDTIME, SNOOZE }
