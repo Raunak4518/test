@@ -17,9 +17,8 @@
             </intent-filter>
         </activity>
 
-        <receiver
-            android:name=".receiver.ReminderReceiver"
-            android:exported="false" />
+        <receiver android:name=".receiver.ReminderReceiver" android:exported="false" />
+        <receiver android:name=".receiver.NotificationActionReceiver" android:exported="false" />
 
         <receiver
             android:name=".receiver.BootReceiver"
