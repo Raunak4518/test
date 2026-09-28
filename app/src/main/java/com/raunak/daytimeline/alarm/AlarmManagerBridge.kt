@@ -17,7 +17,10 @@ class AlarmManagerBridge(private val context: Context) {
         AlarmSchedulePlanner.bedtimeAt(primary, config)?.let { if (it > System.currentTimeMillis()) set(it, requestCode(config.id, 3), config.id, AlarmKind.BEDTIME) }
     }
     fun scheduleSnooze(config: AlarmPersistentConfig) { set(System.currentTimeMillis()+config.snoozeMinutes*60_000L,requestCode(config.id,10),config.id,AlarmKind.SNOOZE) }
-    fun cancel(id: Long) { listOf(0,1,2,3,10).forEach { val p=pending(id,it); alarmManager.cancel(p); p.cancel() } }
+    fun cancel(id: Long) { listOf(0,1,2,3,10).forEach { cancelSlot(id,it) } }
+    fun cancelScheduledCycle(id: Long) { listOf(0,1,2,3).forEach { cancelSlot(id,it) } }
+    fun cancelSnooze(id: Long) { cancelSlot(id,10) }
+    private fun cancelSlot(id: Long, slot: Int) { val p=pending(id,slot); alarmManager.cancel(p); p.cancel() }
     private fun set(at: Long, code: Int, id: Long, kind: AlarmKind) {
         val p=pending(id,code,kind)
         try {
@@ -25,7 +28,7 @@ class AlarmManagerBridge(private val context: Context) {
             else if (Build.VERSION.SDK_INT >= 23) alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,at,p) else alarmManager.setExact(AlarmManager.RTC_WAKEUP,at,p)
         } catch (_: SecurityException) { alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,at,p) }
     }
-    private fun pending(id: Long, code: Int, kind: AlarmKind = AlarmKind.PRIMARY): PendingIntent = PendingIntent.getBroadcast(context,requestCode(id,code),Intent(context,AlarmTriggerReceiver::class.java).apply { putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID,id); putExtra(AlarmTriggerReceiver.EXTRA_KIND,kind.name) },PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
+    private fun pending(id: Long, code: Int, kind: AlarmKind = AlarmKind.PRIMARY): PendingIntent = PendingIntent.getBroadcast(context,requestCode(id,code),Intent(context,AlarmTriggerReceiver::class.java).apply { putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID,id);putExtra(AlarmTriggerReceiver.EXTRA_KIND,kind.name) },PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
     private fun requestCode(id: Long, slot: Int)=((id xor(id ushr 32)).toInt()*31)+slot
 }
 
