@@ -16,6 +16,7 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,7 +31,7 @@ class MainActivity : ComponentActivity() {
             ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) notifPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         setContent {
-            var advanced by mutableStateOf(false)
+            var advanced by remember { mutableStateOf(false) }
             Box(Modifier.fillMaxSize()) {
                 PowerHome()
                 if (!advanced) {
