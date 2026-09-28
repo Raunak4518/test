@@ -5,10 +5,9 @@ import android.hardware.Sensor
 import android.hardware.SensorEvent
 import android.hardware.SensorEventListener
 import android.hardware.SensorManager
-import android.media.AudioManager
-import android.media.MediaPlayer
+import android.media.Ringtone
+import android.media.RingtoneManager
 import android.os.SystemClock
-import android.provider.Settings
 import kotlin.math.sqrt
 
 /** Offline runtime primitives used by the ringing alarm activity. */
@@ -16,29 +15,18 @@ class AlarmMissionRuntime(private val context: Context) {
     private val sensorManager = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
     private var shakeListener: SensorEventListener? = null
     private var stepListener: SensorEventListener? = null
-    private var mediaPlayer: MediaPlayer? = null
+    private var ringtone: Ringtone? = null
     private var baselineSteps = -1
     private var shakes = 0
     private var lastShake = 0L
 
-    fun startAlarmSound(resId: Int, volume: Float = 1f, vibrate: Boolean = true) {
+    fun startDefaultAlarmSound() {
         stopSound()
-        mediaPlayer = MediaPlayer.create(context, resId)?.apply {
-            isLooping = true
-            setVolume(volume.coerceIn(0f, 1f), volume.coerceIn(0f, 1f))
-            start()
-        }
-        if (vibrate) {
-            val audio = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-            audio.ringerMode = AudioManager.RINGER_MODE_NORMAL
-        }
+        val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+        ringtone = RingtoneManager.getRingtone(context, uri)?.also { it.play() }
     }
-
-    fun stopSound() {
-        mediaPlayer?.runCatching { stop() }
-        mediaPlayer?.release()
-        mediaPlayer = null
-    }
+    fun stopSound() { ringtone?.runCatching { stop() }; ringtone = null }
 
     fun startShake(target: Int, onProgress: (Int) -> Unit, onComplete: () -> Unit) {
         shakes = 0
@@ -48,9 +36,7 @@ class AlarmMissionRuntime(private val context: Context) {
                 val g = sqrt(event.values[0] * event.values[0] + event.values[1] * event.values[1] + event.values[2] * event.values[2])
                 val now = SystemClock.elapsedRealtime()
                 if (g > 14f && now - lastShake > 250) {
-                    lastShake = now
-                    shakes++
-                    onProgress(shakes)
+                    lastShake = now; shakes++; onProgress(shakes)
                     if (shakes >= target) { stopShake(); onComplete() }
                 }
             }
@@ -58,8 +44,7 @@ class AlarmMissionRuntime(private val context: Context) {
         }
         sensorManager.registerListener(shakeListener, sensor, SensorManager.SENSOR_DELAY_GAME)
     }
-
-    fun stopShake() { shakeListener?.let { sensorManager.unregisterListener(it) }; shakeListener = null }
+    fun stopShake() { shakeListener?.let(sensorManager::unregisterListener); shakeListener = null }
 
     fun startSteps(target: Int, onProgress: (Int) -> Unit, onComplete: () -> Unit) {
         val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return
@@ -76,12 +61,7 @@ class AlarmMissionRuntime(private val context: Context) {
         }
         sensorManager.registerListener(stepListener, sensor, SensorManager.SENSOR_DELAY_NORMAL)
     }
-
-    fun stopSteps() { stepListener?.let { sensorManager.unregisterListener(it) }; stepListener = null }
-
+    fun stopSteps() { stepListener?.let(sensorManager::unregisterListener); stepListener = null }
     fun cameraAvailable(): Boolean = context.packageManager.hasSystemFeature("android.hardware.camera.any")
-    fun barcodeAvailable(): Boolean = cameraAvailable()
-    fun exactAlarmAllowed(): Boolean = if (android.os.Build.VERSION.SDK_INT >= 31) Settings.canDrawOverlays(context) || true else true
-
     fun release() { stopShake(); stopSteps(); stopSound() }
 }
