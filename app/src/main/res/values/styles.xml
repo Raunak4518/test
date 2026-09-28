@@ -1,1 +1,3 @@
-<resources><style name="Theme.DayTimeline" parent="android:style/Theme.Material.Light.NoActionBar"><item name="android:fontFamily">sans</item></style></resources>
+<resources>
+    <style name="Theme.DayTimeline" parent="Theme.Material3.DayNight.NoActionBar" />
+</resources>
