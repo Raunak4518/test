@@ -1,0 +1,277 @@
+package com.raunak.daytimeline.features
+
+import android.content.Context
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.temporal.ChronoUnit
+
+/**
+ * Local-only productivity engine. No network, account, API key or backend is required.
+ * This deliberately keeps the secondary productivity model independent from the Room task model
+ * so it can be evolved without destructive database migrations.
+ */
+class OfflineProductivityStore(context: Context) {
+    private val prefs = context.getSharedPreferences("offline_productivity_v2", Context.MODE_PRIVATE)
+    private val gson = GsonBuilder().setPrettyPrinting().create()
+
+    private val _habits = MutableStateFlow(read("habits", emptyList<OfflineHabit>()))
+    val habits: StateFlow<List<OfflineHabit>> = _habits.asStateFlow()
+    private val _goals = MutableStateFlow(read("goals", emptyList<OfflineGoal>()))
+    val goals: StateFlow<List<OfflineGoal>> = _goals.asStateFlow()
+    private val _routines = MutableStateFlow(read("routines", defaultRoutines()))
+    val routines: StateFlow<List<OfflineRoutine>> = _routines.asStateFlow()
+    private val _projects = MutableStateFlow(read("projects", emptyList<OfflineProject>()))
+    val projects: StateFlow<List<OfflineProject>> = _projects.asStateFlow()
+    private val _timeEntries = MutableStateFlow(read("timeEntries", emptyList<OfflineTimeEntry>()))
+    val timeEntries: StateFlow<List<OfflineTimeEntry>> = _timeEntries.asStateFlow()
+    private val _achievements = MutableStateFlow(read("achievements", emptyList<OfflineAchievement>()))
+    val achievements: StateFlow<List<OfflineAchievement>> = _achievements.asStateFlow()
+    private val _journal = MutableStateFlow(read("journal", emptyList<OfflineJournalEntry>()))
+    val journal: StateFlow<List<OfflineJournalEntry>> = _journal.asStateFlow()
+    private val _challenges = MutableStateFlow(read("challenges", defaultChallenges()))
+    val challenges: StateFlow<List<OfflineChallenge>> = _challenges.asStateFlow()
+    private val _settings = MutableStateFlow(read("settings", OfflineSettings()))
+    val settings: StateFlow<OfflineSettings> = _settings.asStateFlow()
+
+    fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "") {
+        if (name.isBlank()) return
+        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, emptySet()) }
+    }
+
+    fun deleteHabit(id: Long) = update(_habits, "habits") { it.filterNot { h -> h.id == id } }
+
+    fun toggleHabit(id: Long, date: LocalDate = LocalDate.now()) = update(_habits, "habits") { list ->
+        list.map { h ->
+            if (h.id != id) h else {
+                val key = date.toString()
+                val done = h.completedDates.toMutableSet()
+                if (!done.add(key)) done.remove(key)
+                h.copy(completedDates = done)
+            }
+        }
+    }
+
+    fun habitStreak(habit: OfflineHabit, today: LocalDate = LocalDate.now()): Int {
+        var cursor = today
+        var streak = 0
+        while (habit.completedDates.contains(cursor.toString())) {
+            streak++
+            cursor = cursor.minusDays(1)
+        }
+        return streak
+    }
+
+    fun addGoal(title: String, target: Int, deadline: LocalDate? = null) {
+        if (title.isBlank()) return
+        update(_goals, "goals") { it + OfflineGoal(id(), title.trim(), 0, target.coerceAtLeast(1), deadline?.toString(), emptyList(), false) }
+    }
+
+    fun setGoalProgress(id: Long, progress: Int) = update(_goals, "goals") { list ->
+        list.map { if (it.id == id) it.copy(progress = progress.coerceIn(0, it.target), completed = progress >= it.target) else it }
+    }
+
+    fun addProject(name: String, color: Long = 0xFF55786A) {
+        if (name.isBlank()) return
+        update(_projects, "projects") { it + OfflineProject(id(), name.trim(), color, emptyList(), null) }
+    }
+
+    fun deleteProject(id: Long) = update(_projects, "projects") { it.filterNot { p -> p.id == id } }
+
+    fun addRoutine(name: String, steps: List<OfflineRoutineStep>) {
+        if (name.isBlank() || steps.isEmpty()) return
+        update(_routines, "routines") { it + OfflineRoutine(id(), name.trim(), steps, false) }
+    }
+
+    fun deleteRoutine(id: Long) = update(_routines, "routines") { it.filterNot { r -> r.id == id } }
+
+    fun setRoutineCompleted(id: Long, date: LocalDate = LocalDate.now()) = update(_routines, "routines") { list ->
+        list.map { if (it.id == id) it.copy(lastCompletedDate = date.toString()) else it }
+    }
+
+    fun startTimeEntry(label: String, projectId: Long? = null): OfflineTimeEntry {
+        val entry = OfflineTimeEntry(id(), label.trim().ifBlank { "Untitled" }, projectId, System.currentTimeMillis(), null, "", emptySet())
+        update(_timeEntries, "timeEntries") { it + entry }
+        return entry
+    }
+
+    fun stopTimeEntry(id: Long, note: String = "") = update(_timeEntries, "timeEntries") { list ->
+        list.map { if (it.id == id && it.endEpochMillis == null) it.copy(endEpochMillis = System.currentTimeMillis(), note = note) else it }
+    }
+
+    fun addManualTime(label: String, start: LocalDateTime, end: LocalDateTime, projectId: Long? = null, tags: Set<String> = emptySet()) {
+        if (end.isBefore(start) || label.isBlank()) return
+        update(_timeEntries, "timeEntries") { it + OfflineTimeEntry(id(), label.trim(), projectId, start.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), end.atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli(), "", tags) }
+    }
+
+    fun todayTrackedMinutes(today: LocalDate = LocalDate.now()): Long {
+        val start = today.atStartOfDay().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val end = today.plusDays(1).atStartOfDay().atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return _timeEntries.value.sumOf { e ->
+            val s = maxOf(e.startEpochMillis, start)
+            val finish = minOf(e.endEpochMillis ?: System.currentTimeMillis(), end)
+            ((finish - s).coerceAtLeast(0L) / 60_000L)
+        }
+    }
+
+    fun addJournal(date: LocalDate, mood: Int, energy: Int, wins: String, blockers: String, gratitude: String, note: String) {
+        update(_journal, "journal") { list ->
+            val entry = OfflineJournalEntry(date.toString(), mood.coerceIn(1, 5), energy.coerceIn(1, 5), wins, blockers, gratitude, note)
+            (list.filterNot { it.date == entry.date } + entry).sortedByDescending { it.date }.take(365)
+        }
+    }
+
+    fun completeChallenge(id: Long) = update(_challenges, "challenges") { list -> list.map { if (it.id == id) it.copy(progress = (it.progress + 1).coerceAtMost(it.target)) else it } }
+
+    fun awardAchievement(key: String, title: String, description: String) = update(_achievements, "achievements") { list ->
+        if (list.any { it.key == key }) list else list + OfflineAchievement(key, title, description, System.currentTimeMillis())
+    }
+
+    fun updateSettings(transform: (OfflineSettings) -> OfflineSettings) {
+        val next = transform(_settings.value)
+        _settings.value = next
+        prefs.edit().putString("settings", gson.toJson(next)).apply()
+    }
+
+    fun exportJson(): String = gson.toJson(OfflineBackup(
+        schema = 2,
+        exportedAt = System.currentTimeMillis(),
+        habits = _habits.value,
+        goals = _goals.value,
+        routines = _routines.value,
+        projects = _projects.value,
+        timeEntries = _timeEntries.value,
+        achievements = _achievements.value,
+        journal = _journal.value,
+        challenges = _challenges.value,
+        settings = _settings.value
+    ))
+
+    /** Replaces the secondary local store only after the complete JSON has parsed successfully. */
+    fun importJson(json: String): Result<Unit> = runCatching {
+        val backup = gson.fromJson(json, OfflineBackup::class.java) ?: error("Empty backup")
+        require(backup.schema in 1..2) { "Unsupported backup schema ${backup.schema}" }
+        val habits = backup.habits ?: emptyList()
+        val goals = backup.goals ?: emptyList()
+        val routines = backup.routines ?: defaultRoutines()
+        val projects = backup.projects ?: emptyList()
+        val entries = backup.timeEntries ?: emptyList()
+        val achievements = backup.achievements ?: emptyList()
+        val journal = backup.journal ?: emptyList()
+        val challenges = backup.challenges ?: defaultChallenges()
+        val settings = backup.settings ?: OfflineSettings()
+        prefs.edit()
+            .putString("habits", gson.toJson(habits))
+            .putString("goals", gson.toJson(goals))
+            .putString("routines", gson.toJson(routines))
+            .putString("projects", gson.toJson(projects))
+            .putString("timeEntries", gson.toJson(entries))
+            .putString("achievements", gson.toJson(achievements))
+            .putString("journal", gson.toJson(journal))
+            .putString("challenges", gson.toJson(challenges))
+            .putString("settings", gson.toJson(settings))
+            .apply()
+        _habits.value = habits
+        _goals.value = goals
+        _routines.value = routines
+        _projects.value = projects
+        _timeEntries.value = entries
+        _achievements.value = achievements
+        _journal.value = journal
+        _challenges.value = challenges
+        _settings.value = settings
+    }
+
+    fun resetAll() {
+        prefs.edit().clear().apply()
+        _habits.value = emptyList()
+        _goals.value = emptyList()
+        _routines.value = defaultRoutines()
+        _projects.value = emptyList()
+        _timeEntries.value = emptyList()
+        _achievements.value = emptyList()
+        _journal.value = emptyList()
+        _challenges.value = defaultChallenges()
+        _settings.value = OfflineSettings()
+    }
+
+    private fun id(): Long = System.currentTimeMillis() * 1000 + ((0..999).random())
+    private fun <T> update(flow: MutableStateFlow<List<T>>, key: String, transform: (List<T>) -> List<T>) {
+        val next = transform(flow.value)
+        flow.value = next
+        prefs.edit().putString(key, gson.toJson(next)).apply()
+    }
+    private inline fun <reified T> read(key: String, fallback: T): T = try {
+        prefs.getString(key, null)?.let { gson.fromJson<T>(it, object : TypeToken<T>() {}.type) } ?: fallback
+    } catch (_: Exception) { fallback }
+
+    private fun defaultRoutines() = listOf(
+        OfflineRoutine(1, "Morning Reset", listOf(OfflineRoutineStep("Hydrate", 5), OfflineRoutineStep("Move", 20), OfflineRoutineStep("Plan", 10)), false),
+        OfflineRoutine(2, "Deep Work", listOf(OfflineRoutineStep("Prepare", 5), OfflineRoutineStep("Focus", 50), OfflineRoutineStep("Break", 10), OfflineRoutineStep("Focus", 50), OfflineRoutineStep("Review", 5)), false),
+        OfflineRoutine(3, "Night Shutdown", listOf(OfflineRoutineStep("Clear tasks", 10), OfflineRoutineStep("Journal", 10), OfflineRoutineStep("Plan tomorrow", 10), OfflineRoutineStep("Wind down", 20)), false)
+    )
+
+    private fun defaultChallenges() = listOf(
+        OfflineChallenge(1, "First Focus", "Complete one focus session", 1, 0),
+        OfflineChallenge(2, "Three Wins", "Complete three planned tasks", 3, 0),
+        OfflineChallenge(3, "Deep Day", "Track 120 minutes of focused work", 120, 0)
+    )
+}
+
+data class OfflineHabit(val id: Long, val name: String, val targetPerWeek: Int, val preferredTime: String, val completedDates: Set<String>)
+data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean)
+data class OfflineProject(val id: Long, val name: String, val color: Long, val taskIds: List<Long>, val deadline: String?)
+data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null)
+data class OfflineRoutineStep(val title: String, val minutes: Int)
+data class OfflineTimeEntry(val id: Long, val label: String, val projectId: Long?, val startEpochMillis: Long, val endEpochMillis: Long?, val note: String, val tags: Set<String>)
+data class OfflineAchievement(val key: String, val title: String, val description: String, val unlockedAt: Long)
+data class OfflineJournalEntry(val date: String, val mood: Int, val energy: Int, val wins: String, val blockers: String, val gratitude: String, val note: String)
+data class OfflineChallenge(val id: Long, val title: String, val description: String, val target: Int, val progress: Int)
+data class OfflineSettings(
+    val theme: String = "SYSTEM",
+    val weekStartsMonday: Boolean = true,
+    val dayStartMinute: Int = 360,
+    val dayEndMinute: Int = 1440,
+    val snapMinutes: Int = 15,
+    val haptics: Boolean = true,
+    val sounds: Boolean = true,
+    val autoScrollNow: Boolean = true,
+    val showCompleted: Boolean = true,
+    val defaultTaskMinutes: Int = 30,
+    val defaultFocusMinutes: Int = 25
+)
+data class OfflineBackup(
+    val schema: Int,
+    val exportedAt: Long,
+    val habits: List<OfflineHabit>?,
+    val goals: List<OfflineGoal>?,
+    val routines: List<OfflineRoutine>?,
+    val projects: List<OfflineProject>?,
+    val timeEntries: List<OfflineTimeEntry>?,
+    val achievements: List<OfflineAchievement>?,
+    val journal: List<OfflineJournalEntry>?,
+    val challenges: List<OfflineChallenge>?,
+    val settings: OfflineSettings?
+)
+
+fun OfflineHabit.streak(today: LocalDate = LocalDate.now()): Int {
+    var cursor = today
+    var count = 0
+    while (completedDates.contains(cursor.toString())) {
+        count++
+        cursor = cursor.minusDays(1)
+    }
+    return count
+}
+
+fun OfflineHabit.weekCompletion(today: LocalDate = LocalDate.now()): Int {
+    val monday = today.with(DayOfWeek.MONDAY)
+    return (0L..6L).count { completedDates.contains(monday.plusDays(it).toString()) }
+}
