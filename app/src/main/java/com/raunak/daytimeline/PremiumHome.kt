@@ -1,40 +1,40 @@
-package com.raunak.daytimeline
+@Composable
+fun PremiumHome() {
+    val app = remember { AppContainer(androidx.compose.ui.platform.LocalContext.current.applicationContext) }
+    val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
+    val tasks by vm.tasks.collectAsStateWithLifecycle()
+    val date by vm.currentDate.collectAsStateWithLifecycle()
+    val pomo by vm.pomodoro.collectAsStateWithLifecycle()
+    var tab by remember { mutableIntStateOf(0) }
+    var add by remember { mutableStateOf(false) }
+    var selected by remember { mutableStateOf<TaskModel?>(null) }
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import androidx.lifecycle.viewmodel.compose.viewModel
-import com.raunak.daytimeline.domain.TaskModel
-import java.time.LocalDate
-import java.time.format.DateTimeFormatter
-import kotlin.math.roundToInt
-
-private val Ink=Color(0xFF17222A); private val Cream=Color(0xFFF7F5F0); private val Card=Color(0xFFFFFEFC); private val Sage=Color(0xFF4E7965); private val Muted=Color(0xFF77818A)
-
-@Composable fun PremiumHome(){
- val app=remember{AppContainer(androidx.compose.ui.platform.LocalContext.current.applicationContext)}; val vm:PlannerViewModel=viewModel(factory=PlannerViewModel.Factory(app)); val tasks by vm.tasks.collectAsStateWithLifecycle(); val date by vm.currentDate.collectAsStateWithLifecycle(); val pomo by vm.pomodoro.collectAsStateWithLifecycle(); var tab by remember{mutableIntStateOf(0)}; var add by remember{mutableStateOf(false)}; var selected by remember{mutableStateOf<TaskModel?>(null)}
- MaterialTheme(colorScheme=lightColorScheme(background= Cream,surface=Card,primary=Sage,onSurface=Ink)){ Scaffold(containerColor=Cream,bottomBar={NavigationBar(containerColor=Card){listOf(Icons.Default.CalendarToday to "Today",Icons.Default.Timer to "Focus",Icons.Default.Insights to "Insights",Icons.Default.Tune to "Settings").forEachIndexed{i,p->NavigationBarItem(tab==i,{tab=i},{Icon(p.first,null)},{Text(p.second)})}}},floatingActionButton={if(tab==0)FloatingActionButton({add=true},containerColor=Ink,contentColor=Color.White){Icon(Icons.Default.Add,null)}}){pad->Box(Modifier.fillMaxSize().padding(pad)){when(tab){0->Timeline(tasks,date,vm){selected=it};1->Focus(pomo,tasks,vm);2->Insights(tasks);3->Settings(vm)}}}}
- }
- if(add)AddSheet(vm){add=false}; selected?.let{TaskSheet(it,vm){selected=null}}
+    MaterialTheme(colorScheme = lightColorScheme(background = Cream, surface = Card, primary = Sage, onSurface = Ink)) {
+        Scaffold(
+            containerColor = Cream,
+            bottomBar = {
+                NavigationBar(containerColor = Card) {
+                    listOf(Icons.Default.CalendarToday to "Today", Icons.Default.Timer to "Focus", Icons.Default.Insights to "Insights", Icons.Default.Tune to "Settings").forEachIndexed { i, p ->
+                        NavigationBarItem(selected = tab == i, onClick = { tab = i }, icon = { Icon(p.first, null) }, label = { Text(p.second) })
+                    }
+                }
+            },
+            floatingActionButton = {
+                if (tab == 0) FloatingActionButton(onClick = { add = true }, containerColor = Ink, contentColor = Color.White) { Icon(Icons.Default.Add, null) }
+            }
+        ) { pad ->
+            Box(Modifier.fillMaxSize().padding(pad)) {
+                when (tab) {
+                    0 -> Timeline(tasks, date, vm) { selected = it }
+                    1 -> Focus(pomo, tasks, vm)
+                    2 -> Insights(tasks)
+                    3 -> Settings(vm)
+                }
+            }
+        }
+    }
+    if (add) AddSheet(vm) { add = false }
+    selected?.let { TaskSheet(it, vm) { selected = null } }
 }
 
 @Composable private fun Timeline(tasks:List<TaskModel>,date:LocalDate,vm:PlannerViewModel,onTask:(TaskModel)->Unit){val total=tasks.sumOf{(it.endMinute-it.startMinute).coerceAtLeast(0)};val done=tasks.filter{it.completed}.sumOf{(it.endMinute-it.startMinute).coerceAtLeast(0)};val pct=if(total==0)0 else done*100/total;LazyColumn(contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(13.dp)){item{Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Column{Text(if(date==LocalDate.now())"Good day." else "Your plan",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),color=Muted)}Box(Modifier.size(46.dp).clip(CircleShape).background(Ink),Alignment.Center){Text("$pct%",color=Color.White,fontWeight=FontWeight.Bold)}}};item{Surface(RoundedCornerShape(28.dp),modifier=Modifier.fillMaxWidth()){Box(Modifier.background(Brush.linearGradient(listOf(Ink,Color(0xFF315046)))).padding(20.dp)){Column(verticalArrangement=Arrangement.spacedBy(9.dp)){Text("TODAY",color=Color(0xFFB9CCC2),style=MaterialTheme.typography.labelMedium);Text("${tasks.count{!it.completed}} things left",color=Color.White,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold);Text("${total/60}h ${total%60}m planned  ·  ${done/60}h ${done%60}m done",color=Color(0xFFC9D3D1));LinearProgressIndicator({pct/100f},Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),Color(0xFFA8C7B7),Color.White.copy(.12f))}}}};item{DateStrip(date,vm)};item{Text("Timeline",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};if(tasks.isEmpty())item{Surface(RoundedCornerShape(24.dp),color=Card){Column(Modifier.fillMaxWidth().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.Spa,null,tint=Sage,Modifier.size(42.dp));Text("A quiet day",fontWeight=FontWeight.SemiBold);Text("Add something when you are ready.",color=Muted)}}}else items(tasks.sortedBy{it.startMinute},key={it.id}){t->TaskCard(t,{onTask(t)},{vm.toggleComplete(t,!t.completed)})};item{Spacer(Modifier.height(70.dp))}}}
