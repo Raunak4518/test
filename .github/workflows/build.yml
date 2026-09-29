@@ -41,7 +41,6 @@ jobs:
 
       - name: Run unit tests
         id: tests
-        continue-on-error: true
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
       - name: Build debug APK
@@ -65,10 +64,4 @@ jobs:
           if-no-files-found: error
 
       - name: Report test status
-        if: always()
-        run: |
-          if [ "${{ steps.tests.outcome }}" != "success" ]; then
-            echo "Unit tests did not pass; APK build was intentionally allowed to continue."
-            exit 0
-          fi
-          echo "Unit tests passed."
+        run: echo "Unit tests passed and APK build completed."
