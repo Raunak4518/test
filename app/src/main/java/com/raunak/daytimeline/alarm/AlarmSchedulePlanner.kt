@@ -20,6 +20,12 @@ object AlarmSchedulePlanner {
     fun nextOccurrence(config: AlarmPersistentConfig, now: LocalDateTime = LocalDateTime.now()): Long {
         val requested = LocalTime.of(config.hour, config.minute)
         val rule = config.advancedRepeat()
+        if (rule.mode == AlarmScheduleMode.ONE_SHOT && rule.anchorDate != null) {
+            val candidate = LocalDateTime.of(rule.anchorDate, requested)
+            return if (candidate.isAfter(now.plusSeconds(1))) {
+                candidate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+            } else Long.MAX_VALUE
+        }
         for (offset in 0..366) {
             val date = now.toLocalDate().plusDays(offset.toLong())
             val candidate = LocalDateTime.of(date, requested)
@@ -28,14 +34,11 @@ object AlarmSchedulePlanner {
                 return candidate.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
             }
         }
-        return LocalDateTime.of(now.toLocalDate().plusDays(1), requested)
-            .atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
+        return Long.MAX_VALUE
     }
 
     fun matches(config: AlarmPersistentConfig, dateTime: LocalDateTime, rule: AdvancedRepeatRule = config.advancedRepeat()): Boolean {
-        if (rule.mode == AlarmScheduleMode.WEEKLY && config.repeatDays.isEmpty()) {
-            return true
-        }
+        if (rule.mode == AlarmScheduleMode.WEEKLY && config.repeatDays.isEmpty()) return false
         return AlarmRepeatPlanner.matches(dateTime, rule, dateTime)
     }
 
