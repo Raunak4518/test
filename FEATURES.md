@@ -72,6 +72,29 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Website blocking in Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, DuckDuckGo, Vivaldi and Kiwi (domains or path prefixes; during focus or all day) | 🆕 | Focus Guard → Blocked websites |
 | "Chronora Focus" home-screen widget: live Pomodoro countdown, Start/Pause, Quick add, garden level, habits done today | 🆕 | `FocusWidget` |
 
+## Digital wellbeing (Free Pro Suite → Wellbeing)
+
+Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one sec, AppBlock, Lock Me Out and YourHour offer, including their paid tiers.
+
+| Feature | Status |
+|---|---|
+| Dashboard: screen time, pickups (unlocks), app opens, notifications, first pickup, longest session | 🆕 |
+| Hourly chart, 7-day chart with goal line, daily average, change vs previous week, any of the last 7 days | 🆕 |
+| Per-app detail: 7-day usage and opens, plus every limit for that app in one place | 🆕 |
+| App timers with separate weekday and weekend limits, enforced even while the app stays open | 🆕 |
+| Warning notification 1–15 minutes before a limit | 🆕 |
+| Group limits (Social, Video, Games, News from Android categories, or custom groups) | 🆕 |
+| Total daily screen-time limit | 🆕 |
+| Open-count limits (max launches per day) | 🆕 |
+| Session limits with enforced cooldown breaks | 🆕 |
+| Mindful pause that grows with every open (ScreenZen style) | 🆕 |
+| Block YouTube Shorts, Instagram Reels, Facebook Reels, Snapchat Spotlight and the TikTok feed while the rest of the app works (best-effort) | 🆕 |
+| Bedtime mode: schedule, allowed apps, Do Not Disturb, grayscale (grayscale needs a one-time ADB grant) | 🆕 |
+| Do Not Disturb during focus sessions | 🆕 |
+| Notification counts per app; quiet apps held back and delivered as a digest 1–4×/day | 🆕 |
+| Strict mode: during blocks, Chronora's settings, uninstall and accessibility pages are covered | 🆕 |
+| Screen-time and pickup goals, under-goal streak, daily report notification, weekly comparison on Sundays | 🆕 |
+
 ## Web filter & firewall (Free Pro Suite → Web filter)
 
 | Feature | Status |
@@ -101,7 +124,10 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Permission | Why | Required? |
 |---|---|---|
 | Accessibility service "Chronora Focus Guard" | Detects which app opens so the block screen can cover it; in supported browsers it reads only the address bar. | Only for app blocking |
-| Usage access | Daily limits and screen-time stats | Only for limits |
+| Usage access | Screen time, pickups, app timers and limits | For wellbeing stats and limits |
+| Notification access | Notification counts and the digest | Only for those features |
+| Do Not Disturb access | Bedtime and focus DND | Only for DND |
+| WRITE_SECURE_SETTINGS (granted once via ADB) | Grayscale at bedtime | Optional |
 | Fine and background location | Arrive/leave reminders while the app is closed | Only for Places |
 | Foreground service (media playback) | Keeps the timer and focus sounds alive with the screen off | Automatic |
 | VPN (local, DNS only) | Web filter and app firewall; DNS goes to the chosen resolver, other traffic is untouched | Only for the web filter |

@@ -7,7 +7,18 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.os.Handler
+import android.os.Looper
+import android.os.PowerManager
 import android.view.accessibility.AccessibilityEvent
+import android.widget.Toast
+import com.raunak.daytimeline.wellbeing.UsageRepository
+import com.raunak.daytimeline.wellbeing.UsageSnapshot
+import com.raunak.daytimeline.wellbeing.WellbeingAlarmReceiver
+import com.raunak.daytimeline.wellbeing.WellbeingDecision
+import com.raunak.daytimeline.wellbeing.WellbeingEngine
+import com.raunak.daytimeline.wellbeing.WellbeingModes
+import com.raunak.daytimeline.wellbeing.WellbeingStore
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
@@ -21,40 +32,178 @@ class FocusGuardService : AccessibilityService() {
     private var launchers: Set<String> = emptySet()
     private var lastPackage = ""
     private var lastShownAt = 0L
-    private val usageCache = mutableMapOf<String, Pair<Long, Int>>()
     private var lastSiteCheck = 0L
     private var lastBlockedUrl = ""
 
     override fun onServiceConnected() {
         store = FocusGuardStore(this)
+        wellbeing = WellbeingStore(this)
         launchers = homePackages(this)
+        handler.post(ticker)
+    }
+
+    override fun onDestroy() {
+        handler.removeCallbacks(ticker)
+        super.onDestroy()
+    }
+
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var wellbeing: WellbeingStore
+    private var foreground: String? = null
+    private var sessionPkg: String? = null
+    private var sessionStart = 0L
+    private var lastLeftAt = 0L
+    private var lastShortCheck = 0L
+    private var lastStrictCheck = 0L
+    private var lastToastAt = 0L
+    private var totalsCache: Pair<Long, Pair<Map<String, Int>, Int>>? = null
+
+    /** Re-checks limits every 20 s so an app is stopped when its time runs out, not only when reopened. */
+    private val ticker = object : Runnable {
+        override fun run() {
+            runCatching { tick() }
+            handler.postDelayed(this, 20_000)
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
         if (pkg in browserUrlBars) checkBrowser(pkg)
+        if (strictGuard(pkg)) return
+        checkShortForm(pkg)
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        if (pkg == packageName) return
-        val nowMillis = System.currentTimeMillis()
-        if (pkg == lastPackage && nowMillis - lastShownAt < 1500) return
+        onForeground(pkg)
+    }
 
+    private fun isNeutral(pkg: String) = pkg == "com.android.systemui" || pkg in inputMethods()
+
+    private fun onForeground(pkg: String) {
+        if (isNeutral(pkg)) return
+        val nowMillis = System.currentTimeMillis()
+        if (pkg == packageName || pkg in launchers) {
+            if (foreground != null && foreground != pkg) lastLeftAt = nowMillis
+            foreground = pkg
+            return
+        }
+        val isNewForeground = pkg != foreground
+        if (isNewForeground) {
+            if (pkg != sessionPkg || nowMillis - lastLeftAt > 60_000) { sessionPkg = pkg; sessionStart = nowMillis }
+            if (pkg !in FocusGuardEngine.alwaysAllowed) wellbeing.recordOpen(pkg)
+            foreground = pkg
+        }
+        if (pkg == lastPackage && nowMillis - lastShownAt < 1500) return
+        evaluate(pkg, fromOpen = isNewForeground)
+    }
+
+    private fun evaluate(pkg: String, fromOpen: Boolean) {
+        val nowMillis = System.currentTimeMillis()
+        val now = LocalDateTime.now()
         val config = store.config
         val focusBlocking = FocusSoundPrefs(this).blockDuringFocus && PomodoroFocusFlag.isFocusRunning(this, nowMillis)
-        val effective = if (focusBlocking && !FocusGuardEngine.sessionActive(config, nowMillis)) config.copy(sessionUntil = nowMillis + 1) else config
-        val decision = FocusGuardEngine.decide(
-            effective, store.runtime, pkg, LocalDateTime.now(), nowMillis,
-            usedMinutesToday = if (pkg in config.dailyLimits) usedMinutes(pkg, nowMillis) else 0,
-            extraAllowed = launchers + inputMethods()
-        )
+        // Daily app timers are handled below so weekend limits can differ from weekdays.
+        val effective = config.copy(dailyLimits = emptyMap()).let { if (focusBlocking && !FocusGuardEngine.sessionActive(it, nowMillis)) it.copy(sessionUntil = nowMillis + 1) else it }
+        val decision = FocusGuardEngine.decide(effective, store.runtime, pkg, now, nowMillis, extraAllowed = launchers + inputMethods())
         when (decision) {
-            GuardDecision.Allow -> Unit
             is GuardDecision.Block -> {
                 store.runtime = FocusGuardEngine.recordBlocked(store.runtime, pkg, LocalDate.now())
                 show(pkg, BlockActivity.MODE_BLOCK, decision.reason, decision.canUnlock, decision.unlockDelaySeconds)
+                return
             }
-            is GuardDecision.Intervene -> show(pkg, BlockActivity.MODE_INTERVENE, "Take a breath first", true, decision.seconds)
+            is GuardDecision.Intervene -> if (fromOpen) {
+                val opens = wellbeing.opensToday()[pkg] ?: 1
+                show(pkg, BlockActivity.MODE_INTERVENE, "Take a breath first · opened ${opens}× today", true, WellbeingEngine.pauseSeconds(decision.seconds, wellbeing.config.progressiveDelayStep, opens))
+                return
+            }
+            GuardDecision.Allow -> Unit
         }
+        if (pkg in FocusGuardEngine.alwaysAllowed || pkg in launchers) return
+
+        val wb = wellbeing.config
+        val needsUsage = wb.totalDailyLimitMinutes > 0 || wb.groupLimits.isNotEmpty() || pkg in config.dailyLimits || pkg in wb.weekendLimits
+        val (perApp, total) = if (needsUsage) todayTotals(nowMillis) else emptyMap<String, Int>() to 0
+        val snapshot = UsageSnapshot(
+            todayMinutes = perApp,
+            opensToday = wellbeing.opensToday(),
+            totalTodayMinutes = total,
+            currentSessionMinutes = if (sessionPkg == pkg) ((nowMillis - sessionStart) / 60_000L).toInt() else 0,
+            cooldownUntil = wellbeing.cooldowns()[pkg] ?: 0
+        )
+        when (val w = WellbeingEngine.decide(wb, config.dailyLimits, pkg, now, nowMillis, snapshot)) {
+            is WellbeingDecision.Block -> {
+                if (w.sessionCooldown && snapshot.cooldownUntil <= nowMillis) {
+                    wb.sessionLimits[pkg]?.let { wellbeing.setCooldown(pkg, nowMillis + it.cooldownMinutes * 60_000L) }
+                    sessionPkg = null
+                }
+                store.runtime = FocusGuardEngine.recordBlocked(store.runtime, pkg, LocalDate.now())
+                val canUnlock = !config.lockedMode && FocusGuardEngine.emergencyRemaining(config, store.runtime, LocalDate.now()) > 0
+                show(pkg, BlockActivity.MODE_BLOCK, w.reason, canUnlock, config.unlockDelaySeconds)
+            }
+            is WellbeingDecision.Warn -> if (wellbeing.warnOnce("$pkg|${w.what}|${if (w.minutesLeft <= 1) 1 else 5}")) {
+                WellbeingAlarmReceiver.warn(this, "${w.minutesLeft} min left", "${WellbeingAlarmReceiver.label(this, pkg)} · ${w.what}")
+            }
+            WellbeingDecision.Allow -> Unit
+        }
+    }
+
+    private fun todayTotals(nowMillis: Long): Pair<Map<String, Int>, Int> {
+        totalsCache?.let { (at, v) -> if (nowMillis - at < 30_000) return v }
+        val v = UsageRepository.todayTotals(this)
+        totalsCache = nowMillis to v
+        return v
+    }
+
+    private fun tick() {
+        WellbeingModes.apply(this)
+        val power = getSystemService(PowerManager::class.java)
+        if (power?.isInteractive != true) {
+            if (foreground != null) lastLeftAt = System.currentTimeMillis()
+            foreground = null
+            return
+        }
+        if (foreground == null) rootInActiveWindow?.packageName?.toString()?.let { onForeground(it); return }
+        val fg = foreground ?: return
+        if (fg == packageName || fg in launchers || System.currentTimeMillis() - lastShownAt < 5_000) return
+        evaluate(fg, fromOpen = false)
+    }
+
+    /** Backs out of blocked short-video screens (Shorts, Reels, Spotlight) while the rest of the app works. */
+    private fun checkShortForm(pkg: String) {
+        val blocked = wellbeing.config.blockedShortForm.filter { it.packageName == pkg }
+        if (blocked.isEmpty()) return
+        val nowMillis = System.currentTimeMillis()
+        if (nowMillis - lastShortCheck < 600) return
+        lastShortCheck = nowMillis
+        val root = rootInActiveWindow ?: return
+        val hit = blocked.firstOrNull { sf -> sf.viewIds.any { id -> runCatching { root.findAccessibilityNodeInfosByViewId("$pkg:id/$id") }.getOrNull()?.any { it.isVisibleToUser } == true } }
+            ?: return
+        performGlobalAction(GLOBAL_ACTION_BACK)
+        toast("${hit.label} is blocked")
+    }
+
+    /** Strict mode: while blocks are active, cover pages that could uninstall or disable Chronora. */
+    private fun strictGuard(pkg: String): Boolean {
+        if (pkg !in strictPackages || !wellbeing.config.strictMode) return false
+        val nowMillis = System.currentTimeMillis()
+        if (nowMillis - lastStrictCheck < 500) return false
+        lastStrictCheck = nowMillis
+        val now = LocalDateTime.now()
+        val active = FocusGuardEngine.enforcing(store.config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(this, nowMillis) ||
+            WellbeingEngine.bedtimeActive(wellbeing.config.bedtime, now) || wellbeing.cooldowns().values.any { it > nowMillis }
+        if (!active) return false
+        val root = rootInActiveWindow ?: return false
+        val mentionsUs = runCatching { root.findAccessibilityNodeInfosByText(getString(com.raunak.daytimeline.R.string.app_name)) }.getOrNull()?.isNotEmpty() == true
+        if (!mentionsUs) return false
+        performGlobalAction(GLOBAL_ACTION_HOME)
+        toast("Strict mode: Chronora can't be changed during a block")
+        return true
+    }
+
+    private fun toast(text: String) {
+        val nowMillis = System.currentTimeMillis()
+        if (nowMillis - lastToastAt < 4000) return
+        lastToastAt = nowMillis
+        handler.post { Toast.makeText(this, text, Toast.LENGTH_SHORT).show() }
     }
 
     /** Reads the address bar of supported browsers and covers blocked websites. */
@@ -92,13 +241,6 @@ class FocusGuardService : AccessibilityService() {
         )
     }
 
-    private fun usedMinutes(pkg: String, nowMillis: Long): Int {
-        usageCache[pkg]?.let { (at, minutes) -> if (nowMillis - at < 30_000) return minutes }
-        val minutes = UsageAccess.todayMinutes(this, pkg)
-        usageCache[pkg] = nowMillis to minutes
-        return minutes
-    }
-
     private fun inputMethods(): Set<String> =
         Settings.Secure.getString(contentResolver, Settings.Secure.DEFAULT_INPUT_METHOD)
             ?.let { ComponentName.unflattenFromString(it)?.packageName }?.let { setOf(it) } ?: emptySet()
@@ -106,6 +248,11 @@ class FocusGuardService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     companion object {
+        private val strictPackages = setOf(
+            "com.android.settings", "com.android.packageinstaller", "com.google.android.packageinstaller",
+            "com.android.permissioncontroller", "com.google.android.permissioncontroller", "com.samsung.android.lool", "com.miui.securitycenter"
+        )
+
         /** Address-bar view ids of popular browsers. */
         val browserUrlBars = mapOf(
             "com.android.chrome" to listOf("url_bar"),

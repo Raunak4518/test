@@ -48,7 +48,7 @@ fun FreeProSuite(vm: PlannerViewModel, initialTab: Int = 0, onClose: () -> Unit)
                     IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
                 }
                 ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-                    listOf("Quick add", "Search", "Week", "Web filter", "Focus Guard", "Sounds", "Garden", "Energy plan", "Places", "Private journal").forEachIndexed { i, t ->
+                    listOf("Quick add", "Search", "Week", "Wellbeing", "Web filter", "Focus Guard", "Sounds", "Garden", "Energy plan", "Places", "Private journal").forEachIndexed { i, t ->
                         Tab(tab == i, { tab = i }, text = { Text(t) })
                     }
                 }
@@ -56,13 +56,14 @@ fun FreeProSuite(vm: PlannerViewModel, initialTab: Int = 0, onClose: () -> Unit)
                     0 -> QuickAddTab(vm)
                     1 -> SearchTab(vm, openDate)
                     2 -> WeekTab(vm, openDate)
-                    3 -> com.raunak.daytimeline.filter.WebFilterScreen()
-                    4 -> FocusGuardTab()
-                    5 -> SoundsTab(vm)
-                    6 -> GardenTab()
-                    7 -> EnergyTab(vm)
-                    8 -> PlacesTab()
-                    9 -> PrivateJournalTab()
+                    3 -> com.raunak.daytimeline.wellbeing.WellbeingScreen()
+                    4 -> com.raunak.daytimeline.filter.WebFilterScreen()
+                    5 -> FocusGuardTab()
+                    6 -> SoundsTab(vm)
+                    7 -> GardenTab()
+                    8 -> EnergyTab(vm)
+                    9 -> PlacesTab()
+                    10 -> PrivateJournalTab()
                 }
             }
         }
