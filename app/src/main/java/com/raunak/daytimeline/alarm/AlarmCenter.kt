@@ -47,7 +47,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
         return
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Alarm center") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) },
+        topBar = { TopAppBar(title = { Text("Chronora · Alarm center") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) },
         floatingActionButton = { FloatingActionButton(onClick = { editing = AlarmEditorModel() }) { Icon(Icons.Default.Add, "New alarm") } }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -144,6 +144,7 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (
         })
     }) { p ->
         Column(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            ChronoraBrandLine(Modifier.fillMaxWidth())
             OutlinedButton(onClick = { TimePickerDialog(context, { _, h, m -> current = current.copy(hour = h, minute = m) }, current.hour, current.minute, true).show() }) { Text(String.format("Alarm time  %02d:%02d", current.hour, current.minute)) }
             OutlinedTextField(current.label, { current = current.copy(label = it) }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
