@@ -64,7 +64,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                     context.startActivity(intent)
                 }, enabled = !protectionEnabled) { Text(if (protectionEnabled) "Protection active" else "Enable protection") }
                 if (protectionEnabled) {
-                    OutlinedButton(onClick = { context.startActivity(Intent(DevicePolicyManager.ACTION_DEVICE_ADMIN_SETTINGS)) }) { Text("Manage protection in Android settings") }
+                    OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_SECURITY_SETTINGS)) }) { Text("Manage protection in Android settings") }
                 }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
