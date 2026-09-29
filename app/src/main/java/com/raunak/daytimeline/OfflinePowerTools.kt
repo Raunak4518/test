@@ -50,7 +50,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
         }.onSuccess { json -> store.importJson(json).onSuccess { status = "Backup imported successfully" }.onFailure { status = "Import failed" } }
             .onFailure { status = "Import failed: cannot read file" }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Power tools") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) }) { padding ->
+    Scaffold(topBar = { TopAppBar(title = { Text("Chronora · Power tools") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Offline command center", style = MaterialTheme.typography.headlineSmall); Text("Projects, time tracking, challenges, achievements and portable backups. Everything remains local.") }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
