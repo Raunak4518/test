@@ -8,11 +8,13 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.input.pointer.pointerInput
 
 class AlarmRingingActivity : ComponentActivity() {
     companion object { const val EXTRA_TEST_MODE = "alarm_test_mode" }
@@ -123,6 +125,18 @@ class AlarmRingingActivity : ComponentActivity() {
                 AlarmMissionType.MULTI -> { Text("Mission chain"); Button(onClick = { nextOrDismiss() }) { Text("Continue") } }
             }
             if (feedback.isNotBlank()) Text(feedback, color = MaterialTheme.colorScheme.error)
+            if (config.longPressMs > 0) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .pointerInput(config.longPressMs) {
+                            detectTapGestures(onLongPress = { dismissAlarm() })
+                        },
+                    tonalElevation = 2.dp
+                ) {
+                    Text("Hold here for " + (config.longPressMs / 1000f) + "s to dismiss", modifier = Modifier.padding(16.dp))
+                }
+            }
             val policy = config.snoozePolicy()
             val nextSnooze = policy.nextDuration(f.snoozesUsed(), f.totalSnoozeMinutes(), java.time.LocalDateTime.now(), java.time.LocalDateTime.now())
             OutlinedButton(onClick = { if (f.snooze(nextSnooze)) { AlarmManagerBridge(this@AlarmRingingActivity).scheduleSnooze(config, nextSnooze); dismissAlarm(cancelSnooze = false, rescheduleRepeat = false) } }, enabled = nextSnooze > 0 && f.canSnooze()) {
