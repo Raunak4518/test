@@ -31,14 +31,16 @@ private val HomeSage = Color(0xFF55786A)
 private val HomeMuted = Color(0xFF74807A)
 
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun PowerHome(onOpenAlarms: () -> Unit = {}) {
-    val app = remember { AppContainer(LocalContext.current.applicationContext) }
+    val context = LocalContext.current
+    val app = remember(context) { AppContainer(context.applicationContext) }
     val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val date by vm.currentDate.collectAsStateWithLifecycle()
     val pomo by vm.pomodoro.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
-    val productivity = remember { OfflineProductivityStore(LocalContext.current.applicationContext) }
+    val productivity = remember(context) { OfflineProductivityStore(context.applicationContext) }
     val habits by productivity.habits.collectAsStateWithLifecycle()
     val goals by productivity.goals.collectAsStateWithLifecycle()
     val routines by productivity.routines.collectAsStateWithLifecycle()
