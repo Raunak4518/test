@@ -57,7 +57,7 @@ fun CalendarDialog(date: LocalDate, vm: PlannerViewModel, close: () -> Unit) {
             Row(Modifier.fillMaxWidth()){listOf("M","T","W","T","F","S","S").forEach{Text(it,Modifier.weight(1f))}}
             var day=1
             repeat(6){row->Row(Modifier.fillMaxWidth()){repeat(7){col->val i=row*7+col;if(i<offset||day>days)Spacer(Modifier.weight(1f).height(42.dp))else{val d=LocalDate.of(month.year,month.month,day++);OutlinedButton(onClick={vm.selectDate(d);close()},modifier=Modifier.weight(1f).padding(1.dp),contentPadding=PaddingValues(0.dp)){Text(d.dayOfMonth.toString())}}}}}
-            OutlinedButton(onClick={vm::onToday.then{close()}},modifier=Modifier.fillMaxWidth()){Text("Today")}
+            OutlinedButton(onClick={ { vm.onToday(); close() } },modifier=Modifier.fillMaxWidth()){Text("Today")}
         }
     },confirmButton={TextButton(onClick=close){Text("Close")}})
 }
