@@ -85,7 +85,13 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     if (newProjectDialog || projectEditor != null) ProjectEditDialog(projectEditor, store) { newProjectDialog = false; projectEditor = null }
 }
 
-@Composable private fun ProjectEditDialog(project: com.raunak.daytimeline.features.OfflineProject?, store: OfflineProductivityStore, close: () -> Unit) {\n    var name by remember { mutableStateOf(project?.name ?: \"\") }\n    var deadline by remember { mutableStateOf(project?.deadline ?: \"\") }\n    AlertDialog(onDismissRequest = close, title = { Text(if (project == null) \"New project\" else \"Edit project\") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(name, { name = it }, label = { Text(\"Project\") }); OutlinedTextField(deadline, { deadline = it }, label = { Text(\"Deadline YYYY-MM-DD\") }) } }, confirmButton = { Button(onClick = { val d = runCatching { java.time.LocalDate.parse(deadline) }.getOrNull(); if (project == null) store.addProject(name) else store.updateProject(project.id, name, d, project.color); close() }) { Text(\"Save\") } }, dismissButton = { TextButton(onClick = close) { Text(\"Cancel\") } })\n}\n\n@Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
+@Composable private fun ProjectEditDialog(project: com.raunak.daytimeline.features.OfflineProject?, store: OfflineProductivityStore, close: () -> Unit) {
+    var name by remember { mutableStateOf(project?.name ?: "") }
+    var deadline by remember { mutableStateOf(project?.deadline ?: "") }
+    AlertDialog(onDismissRequest = close, title = { Text(if (project == null) "New project" else "Edit project") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(name, { name = it }, label = { Text("Project") }); OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD") }) } }, confirmButton = { Button(onClick = { val d = runCatching { java.time.LocalDate.parse(deadline) }.getOrNull(); if (project == null) store.addProject(name) else store.updateProject(project.id, name, d, project.color); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+@Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
     var title by remember { mutableStateOf(challenge?.title ?: "") }
     var description by remember { mutableStateOf(challenge?.description ?: "") }
     var target by remember { mutableStateOf((challenge?.target ?: 1).toString()) }
