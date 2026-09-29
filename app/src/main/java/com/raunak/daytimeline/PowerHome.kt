@@ -123,7 +123,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
         }
         item { Text(date.dayOfWeek.toString().lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         items(visible.sortedBy { it.startMinute }, key = { it.id }) { task ->
-            TaskRow(task, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) })
+            TaskRow(task, vm, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) })
         }
         if (visible.isEmpty()) item { EmptyCard("Nothing scheduled", "Use + to add a block. Your day stays local and offline.") }
     }
@@ -132,7 +132,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
 @Composable private fun DayButton(text: String, modifier: Modifier, onClick: () -> Unit) { OutlinedButton(onClick = onClick, modifier = modifier) { Text(text) } }
 
 @Composable
-private fun TaskRow(task: TaskModel, onComplete: () -> Unit, onFocus: () -> Unit) {
+private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit) {
     Card(shape = RoundedCornerShape(20.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = task.completed, onCheckedChange = { onComplete() })
@@ -141,13 +141,22 @@ private fun TaskRow(task: TaskModel, onComplete: () -> Unit, onFocus: () -> Unit
                 Text("${clock(task.startMinute)}–${clock(task.endMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted, style = MaterialTheme.typography.bodySmall)
                 if (task.notes.isNotBlank()) Text(task.notes, color = HomeMuted, maxLines = 2)
             }
+            IconButton(onClick = { /* checklist opens below */ }) { }
             if (task.pomodoroEnabled) IconButton(onClick = onFocus) { Icon(Icons.Default.PlayArrow, "Focus") }
         }
     }
 }
 
-@Composable
-private fun FocusScreen(pomo: com.raunak.daytimeline.data.PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel) {
+@Composable private fun ChecklistDialog(task: TaskModel, vm: PlannerViewModel, close: () -> Unit) {
+    val items by vm.checklist(task.id).collectAsStateWithLifecycle(initialValue = emptyList())
+    var text by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = close, title = { Text("Checklist · ${task.title}") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.forEach { item -> Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(item.checked, { vm.toggleChecklistItem(item) }); Text(item.text, modifier = Modifier.weight(1f)); IconButton(onClick = { vm.deleteChecklistItem(item.id) }) { Icon(Icons.Default.Delete, "Delete") } } }
+        Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(text, { text = it }, label = { Text("Add item") }, modifier = Modifier.weight(1f)); IconButton(onClick = { if (text.isNotBlank()) { vm.addChecklistItem(task.id, text.trim()); text = "" } }) { Icon(Icons.Default.Add, "Add") } }
+    } }, confirmButton = { TextButton(onClick = close) { Text("Done") } })
+}
+
+@Composable private fun FocusScreen(pomo: com.raunak.daytimeline.data.PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel) {
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Spacer(Modifier.height(10.dp))
         Surface(shape = CircleShape, color = HomeInk, modifier = Modifier.size(250.dp)) {
