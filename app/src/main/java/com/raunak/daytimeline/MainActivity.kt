@@ -2,12 +2,15 @@ package com.raunak.daytimeline
 
 import android.Manifest
 import android.app.AlarmManager
+import android.app.KeyguardManager
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import com.raunak.daytimeline.productivity.ChronoraSecurityStore
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.ui.window.Dialog
@@ -25,6 +28,23 @@ class MainActivity : FragmentActivity() {
     private var unlocked = mutableStateOf(true)
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
     private val activityRecognitionPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
+
+    override fun onResume() {
+        super.onResume()
+        if (security.appLockEnabled && !authenticated && !authenticating) requestDeviceCredential()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        authenticated = false
+    }
+
+    private fun requestDeviceCredential() {
+        val manager = getSystemService(KEYGUARD_SERVICE) as KeyguardManager
+        if (!manager.isKeyguardSecure) return
+        val intent = manager.createConfirmDeviceCredentialIntent("Unlock Chronora", "Authenticate to continue")
+        if (intent != null) { authenticating = true; credentialLauncher.launch(intent) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
