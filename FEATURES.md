@@ -72,6 +72,22 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Website blocking in Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, DuckDuckGo, Vivaldi and Kiwi (domains or path prefixes; during focus or all day) | 🆕 | Focus Guard → Blocked websites |
 | "Chronora Focus" home-screen widget: live Pomodoro countdown, Start/Pause, Quick add, garden level, habits done today | 🆕 | `FocusWidget` |
 
+## Web filter & firewall (Free Pro Suite → Web filter)
+
+| Feature | Status |
+|---|---|
+| System-wide DNS filtering through a local DNS-only VPN (all apps and browsers, no Chronora server) | 🆕 |
+| Category blocklists bundled offline: adult, gambling, dating, social media, video/streaming, ads & trackers | 🆕 |
+| Adult keyword detection for unlisted sites, with false-positive exceptions (Essex, JavaScript…) | 🆕 |
+| Forced SafeSearch (Google, Bing, DuckDuckGo, Yandex) and YouTube Restricted Mode | 🆕 |
+| Blocks DNS-over-HTTPS resolvers, web proxies and VPN sites that would bypass the filter | 🆕 |
+| Family upstream DNS as a second layer: Cloudflare for Families, CleanBrowsing Family, AdGuard Family; also Quad9 and plain resolvers | 🆕 |
+| Custom block and allow lists (subdomains included) | 🆕 |
+| Import hosts, plain or AdBlock lists from a file, or download StevenBlack porn / gambling / social / unified lists once, then filter offline | 🆕 |
+| Per-app firewall: no internet, Wi-Fi only or mobile data only (Android 10+) | 🆕 |
+| Commitment lock: loosening protection needs a 5 min to 24 h wait | 🆕 |
+| Always-on VPN support, start on boot, blocked-today counter, recent block log, website tester | 🆕 |
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |
@@ -88,3 +104,4 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Usage access | Daily limits and screen-time stats | Only for limits |
 | Fine and background location | Arrive/leave reminders while the app is closed | Only for Places |
 | Foreground service (media playback) | Keeps the timer and focus sounds alive with the screen off | Automatic |
+| VPN (local, DNS only) | Web filter and app firewall; DNS goes to the chosen resolver, other traffic is untouched | Only for the web filter |

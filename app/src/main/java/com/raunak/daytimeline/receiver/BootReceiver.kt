@@ -19,6 +19,8 @@ class BootReceiver : BroadcastReceiver() {
             val store=AlarmPersistentStore(context); val scheduler=AlarmManagerBridge(context)
             store.all().filter { it.enabled }.forEach { scheduler.schedule(it) }
             com.raunak.daytimeline.pro.LocationReminderManager(context.applicationContext).registerAll()
+            val filter = com.raunak.daytimeline.filter.WebFilterStore(context).config
+            if (filter.enabled && filter.startOnBoot) runCatching { com.raunak.daytimeline.filter.WebFilterVpnService.start(context.applicationContext) }
         }
     }
 }
