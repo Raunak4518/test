@@ -102,7 +102,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "note" -> NoteDialog({ title, body, tags -> productivity.addNote(title, body, tags); dialog = null }, { dialog = null })
         "routine" -> RoutineDialog({ name, steps -> productivity.addRoutine(name, steps); dialog = null }, { dialog = null })
         "analytics" -> AnalyticsDialog(tasks, habits, entries, productivity) { dialog = null }
-        "smartplan" -> SmartPlanDialog(tasks) { dialog = null }
+        "smartplan" -> SmartPlanDialog(tasks, vm) { dialog = null }
         "notes" -> NotesManagerDialog(notes, productivity) { dialog = null }
         "goals" -> GoalManagerDialog(goals, productivity) { dialog = null }
         "journalHistory" -> JournalHistoryDialog(journal) { dialog = null }
@@ -273,7 +273,7 @@ private fun AnalyticsDialog(tasks: List<TaskModel>, habits: List<com.raunak.dayt
 }
 
 @Composable
-private fun SmartPlanDialog(tasks: List<TaskModel>, close: () -> Unit) {
+private fun SmartPlanDialog(tasks: List<TaskModel>, vm: PlannerViewModel, close: () -> Unit) {
     val day = LocalDate.now()
     val blocks = tasks.map { t -> SmartPlanningEngine.Block(LocalDateTime.of(day, java.time.LocalTime.of(t.startMinute / 60, t.startMinute % 60)), LocalDateTime.of(day, java.time.LocalTime.of(t.endMinute / 60, t.endMinute % 60)), t.title) }
     val gaps = SmartPlanningEngine.freeGaps(blocks, day, java.time.LocalTime.of(6, 0), java.time.LocalTime.of(23, 0))
@@ -284,6 +284,7 @@ private fun SmartPlanDialog(tasks: List<TaskModel>, close: () -> Unit) {
         Text(if (health.overlapMinutes > 0) "Schedule conflict: ${health.overlapMinutes} min overlap" else "No schedule overlap detected")
         if (suggestion != null) Text("Suggested 25m focus block: ${suggestion.start.toLocalTime()}–${suggestion.end.toLocalTime()}") else Text("No 25m free slot found")
         Text("Available gaps: ${gaps.size}")
+        if (suggestion != null) Button(onClick = { vm.addOrUpdateTask(null, "Smart focus block", suggestion.start.toLocalTime().hour * 60 + suggestion.start.toLocalTime().minute, suggestion.end.toLocalTime().hour * 60 + suggestion.end.toLocalTime().minute, true, "Created by Smart Planner", 2, "NONE", "NONE", 0); close() }) { Text("Add suggested block") }
     } }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
 }
 
