@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
 class AlarmRingingActivity : ComponentActivity() {
+    companion object { const val EXTRA_TEST_MODE = "alarm_test_mode" }
     private lateinit var runtime: AlarmMissionRuntime
     private lateinit var references: AlarmReferenceStore
     private var flow: AlarmAlarmFlow? = null
@@ -33,6 +34,7 @@ class AlarmRingingActivity : ComponentActivity() {
         runtime = AlarmMissionRuntime(this)
         references = AlarmReferenceStore(this)
         val id = intent.getLongExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, -1L)
+        val testMode = intent.getBooleanExtra(EXTRA_TEST_MODE, false)
         activeConfig = AlarmPersistentStore(this).find(id)
         val config = activeConfig ?: run { finish(); return }
         flow = AlarmAlarmFlow(config.missionChain, AlarmMissionPolicy(config.maxSnoozes, config.snoozeMinutes, config.longPressMs, config.timeoutMinutes, config.backupDelayMinutes).validated())
@@ -75,7 +77,7 @@ class AlarmRingingActivity : ComponentActivity() {
         }
 
         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("WAKE UP", style = MaterialTheme.typography.displaySmall)
+            Text(if (intent.getBooleanExtra(EXTRA_TEST_MODE, false)) "ALARM TEST" else "WAKE UP", style = MaterialTheme.typography.displaySmall)
             Text(config.label, style = MaterialTheme.typography.titleLarge)
             Text("Mission ${f.missionIndex() + 1} / ${config.missionChain.size}", style = MaterialTheme.typography.labelLarge)
             when (type) {
@@ -136,16 +138,24 @@ class AlarmRingingActivity : ComponentActivity() {
 
     private fun dismissAlarm(cancelSnooze: Boolean = true, rescheduleRepeat: Boolean = true) {
         val config = activeConfig ?: return
+        val testMode = intent.getBooleanExtra(EXTRA_TEST_MODE, false)
         runtime.release()
         timeoutHandler.removeCallbacksAndMessages(null)
         getSystemService(NotificationManager::class.java)?.cancel((config.id xor (config.id ushr 32)).toInt())
         val bridge = AlarmManagerBridge(this)
         bridge.cancelScheduledCycle(config.id)
-        val runtimeStore = AlarmRuntimeStore(this)
-        runtimeStore.markDismissed(config.id)
-        if (rescheduleRepeat && config.enabled && config.isRepeating() && !config.deleteAfterRinging) bridge.schedule(config)
-        if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
-        if (config.deleteAfterRinging && !config.isRepeating()) { bridge.cancel(config.id); AlarmPersistentStore(this).delete(config.id); references.clear(config.id); runtimeStore.clear(config.id) }
+        if (!testMode) {
+            val runtimeStore = AlarmRuntimeStore(this)
+            runtimeStore.markDismissed(config.id)
+            if (rescheduleRepeat && config.enabled && config.isRepeating() && !config.deleteAfterRinging) bridge.schedule(config)
+            if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
+            if (config.deleteAfterRinging && !config.isRepeating()) {
+                bridge.cancel(config.id)
+                AlarmPersistentStore(this).delete(config.id)
+                references.clear(config.id)
+                runtimeStore.clear(config.id)
+            }
+        }
         flow?.dismiss()
         finishAndRemoveTask()
     }
