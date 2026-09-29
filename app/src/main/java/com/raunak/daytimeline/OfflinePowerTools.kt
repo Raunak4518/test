@@ -93,6 +93,15 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 OutlinedButton(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Share productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Appearance & accessibility", style = MaterialTheme.typography.titleMedium)
+                Text("Theme is stored locally and applies immediately. Android font scale and system accessibility services remain respected.")
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("SYSTEM", "LIGHT", "DARK").forEach { mode ->
+                        FilterChip(selected = settings.theme == mode, onClick = { store.updateSettings { it.copy(theme = mode) } }, label = { Text(mode) })
+                    }
+                }
+            } }
+            item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Data safety", style = MaterialTheme.typography.titleMedium)
                 OutlinedButton(onClick = { store.resetAll(); status = "Secondary productivity data reset" }) { Text("Reset secondary data") }
             } } }
