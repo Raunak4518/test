@@ -84,6 +84,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                         if (alarm.wakeCheckMinutes > 0) Text("Wake check: ${alarm.wakeCheckMinutes}m + ${alarm.wakeCheckRetries} retries")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { scheduleWithExactAccess(context, scheduler, alarm) }) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Schedule") }
+                            OutlinedButton(onClick = { context.startActivity(Intent(context, AlarmRingingActivity::class.java).apply { putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, alarm.id); putExtra(AlarmRingingActivity.EXTRA_TEST_MODE, true) }) }) { Icon(Icons.Default.BugReport, null); Spacer(Modifier.width(4.dp)); Text("Test") }
                             OutlinedButton(onClick = { scheduler.skipNext(alarm); alarms = store.all() }) { Text("Skip next") }
                             IconButton(onClick = { editing = AlarmEditorModel.fromPersistent(alarm) }) { Icon(Icons.Default.Edit, "Edit") }
                             IconButton(onClick = { scheduler.cancel(alarm.id); store.delete(alarm.id); AlarmReferenceStore(context).clear(alarm.id); alarms = store.all() }) { Icon(Icons.Default.Delete, "Delete") }
