@@ -33,6 +33,7 @@ private fun AlarmMission.title() = when (type) {
     AlarmMissionType.MULTI -> "Continue"
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlarmCenter(context: Context, onClose: () -> Unit) {
     val store = remember { AlarmPersistentStore(context) }
