@@ -8,90 +8,145 @@ import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
-import kotlin.math.max
 
 class AlarmRingingActivity : ComponentActivity() {
     private lateinit var runtime: AlarmMissionRuntime
+    private lateinit var references: AlarmReferenceStore
     private var flow: AlarmAlarmFlow? = null
     private var activeConfig: AlarmPersistentConfig? = null
     private var cameraCallback: ((android.graphics.Bitmap?) -> Unit)? = null
     private val timeoutHandler = Handler(Looper.getMainLooper())
-    private val camera = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap -> cameraCallback?.invoke(bitmap); cameraCallback = null }
+    private val camera = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        cameraCallback?.invoke(bitmap)
+        cameraCallback = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON or WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED or WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON)
         runtime = AlarmMissionRuntime(this)
+        references = AlarmReferenceStore(this)
         val id = intent.getLongExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, -1L)
         activeConfig = AlarmPersistentStore(this).find(id)
         val config = activeConfig ?: run { finish(); return }
         flow = AlarmAlarmFlow(config.missionChain, AlarmMissionPolicy(config.maxSnoozes, config.snoozeMinutes, config.longPressMs, config.timeoutMinutes, config.backupDelayMinutes).validated())
-        runtime.startDefaultAlarmSound()
+        runtime.startAlarmSound(config)
         timeoutHandler.postDelayed({ if (!(flow?.isDismissed() ?: true)) dismissAlarm() }, config.timeoutMinutes * 60_000L)
         setContent { RingingScreen() }
     }
 
     @Composable private fun RingingScreen() {
         val f = flow ?: return
+        val config = activeConfig ?: return
         var progress by remember { mutableIntStateOf(f.progress()) }
         var answer by remember { mutableStateOf("") }
         var memoryInput by remember { mutableStateOf("") }
-        var math by remember { mutableStateOf(AlarmChallengeEngine.math(2)) }
+        var memoryVisible by remember(config.id, f.missionIndex()) { mutableStateOf(true) }
+        var math by remember(config.id, f.missionIndex()) { mutableStateOf(AlarmChallengeEngine.math(f.currentMission()?.difficulty ?: 2)) }
         var scanned by remember { mutableStateOf("") }
+        var feedback by remember { mutableStateOf("") }
         val mission = f.currentMission()
         val type = mission?.type ?: AlarmMissionType.TYPING
-        DisposableEffect(type) {
+
+        LaunchedEffect(type, f.missionIndex()) {
+            answer = ""; memoryInput = ""; feedback = ""; progress = f.progress()
+            if (type == AlarmMissionType.MEMORY) {
+                memoryVisible = true
+                kotlinx.coroutines.delay(1800L)
+                memoryVisible = false
+            }
+        }
+
+        DisposableEffect(type, f.missionIndex()) {
             when (type) {
-                AlarmMissionType.SHAKE -> runtime.startShake(max(5, mission?.target ?: 30), { progress = it }) { nextOrDismiss() }
-                AlarmMissionType.WALK -> runtime.startSteps(max(1, mission?.target ?: 40), { progress = it }) { nextOrDismiss() }
+                AlarmMissionType.SHAKE -> runtime.startShake(maxOf(5, mission?.target ?: 30), { progress = it }) { nextOrDismiss() }
+                AlarmMissionType.WALK -> runtime.startSteps(maxOf(1, mission?.target ?: 40), { progress = it }) { nextOrDismiss() }
+                AlarmMissionType.SQUAT -> runtime.startSquats(maxOf(1, mission?.target ?: 10), { progress = it }) { nextOrDismiss() }
                 else -> Unit
             }
-            onDispose { runtime.stopShake(); runtime.stopSteps() }
+            onDispose { runtime.stopShake(); runtime.stopSteps(); runtime.stopSquats() }
         }
+
         Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text("WAKE UP", style = MaterialTheme.typography.displaySmall)
-            Text(activeConfig?.label ?: "Alarm", style = MaterialTheme.typography.titleLarge)
-            Text("Mission ${f.missionIndex() + 1}", style = MaterialTheme.typography.labelLarge)
+            Text(config.label, style = MaterialTheme.typography.titleLarge)
+            Text("Mission ${f.missionIndex() + 1} / ${config.missionChain.size}", style = MaterialTheme.typography.labelLarge)
             when (type) {
-                AlarmMissionType.MATH -> { Text("${math.first} = ?", style = MaterialTheme.typography.headlineMedium); OutlinedTextField(answer,{answer=it.filter(Char::isDigit)},label={Text("Answer")}); Button(onClick={if(AlarmChallengeEngine.validateMath(answer.toIntOrNull()?:Int.MIN_VALUE,math.second)) nextOrDismiss() else {answer="";math=AlarmChallengeEngine.math(2)}}){Text("Check")} }
-                AlarmMissionType.TYPING -> { Text("Type exactly: ${mission?.payload}"); OutlinedTextField(answer,{answer=it},label={Text("Phrase")}); Button(onClick={if(AlarmChallengeEngine.validateTyping(answer,mission?.payload.orEmpty()))nextOrDismiss()}){Text("Verify")} }
-                AlarmMissionType.MEMORY -> { Text("Repeat: ${mission?.payload}"); OutlinedTextField(memoryInput,{memoryInput=it.filter { c -> c.isDigit() || c == ',' }},label={Text("Sequence")}); Button(onClick={if(memoryInput.replace(",","").replace(" ","")==mission?.payload.orEmpty().replace(",", "").replace(" ",""))nextOrDismiss()}){Text("Verify")} }
-                AlarmMissionType.SHAKE, AlarmMissionType.WALK -> Text("Progress: $progress / ${mission?.target}",style=MaterialTheme.typography.headlineMedium)
-                AlarmMissionType.SQUAT -> { Text("Complete ${mission?.target ?: 10} squats"); Text("Count them yourself, then hold the button below."); LongPressDismissButton(activeConfig?.longPressMs ?: 1200L){nextOrDismiss()} }
-                AlarmMissionType.PHOTO -> { Text("Take a wake-up photo"); Button(onClick={cameraCallback={if(it!=null)nextOrDismiss()};camera.launch(null)}){Text("Open camera")} }
-                AlarmMissionType.BARCODE -> { Text("Scan your registered barcode or QR code"); Button(onClick={cameraCallback={b->if(b!=null)AlarmCameraVerifier.scan(b){value->if(value!=null){scanned=value;nextOrDismiss()}}};camera.launch(null)}){Text("Scan")} ; if(scanned.isNotEmpty())Text("Detected: $scanned") }
-                AlarmMissionType.MULTI -> nextOrDismiss()
+                AlarmMissionType.MATH -> {
+                    Text("${math.first} = ?", style = MaterialTheme.typography.headlineMedium)
+                    OutlinedTextField(answer, { answer = it.filter(Char::isDigit) }, label = { Text("Answer") })
+                    Button(onClick = { if (AlarmChallengeEngine.validateMath(answer.toIntOrNull() ?: Int.MIN_VALUE, math.second)) nextOrDismiss() else { answer = ""; math = AlarmChallengeEngine.math(mission?.difficulty ?: 2); feedback = "Incorrect. Solve the new problem." } }) { Text("Check") }
+                }
+                AlarmMissionType.TYPING -> {
+                    Text("Type exactly: ${mission?.payload}")
+                    OutlinedTextField(answer, { answer = it }, label = { Text("Phrase") })
+                    Button(onClick = { if (AlarmChallengeEngine.validateTyping(answer, mission?.payload.orEmpty())) nextOrDismiss() else feedback = "Text does not match." }) { Text("Verify") }
+                }
+                AlarmMissionType.MEMORY -> {
+                    if (memoryVisible) { Text(mission?.payload.orEmpty(), style = MaterialTheme.typography.headlineMedium); Text("Memorize it. It will disappear shortly.") }
+                    else {
+                        Text("Recall the sequence")
+                        OutlinedTextField(memoryInput, { memoryInput = it.filter { c -> c.isDigit() || c == ',' } }, label = { Text("Sequence") })
+                        Button(onClick = { val expected = mission?.payload.orEmpty().replace(",", "").replace(" ", ""); val actual = memoryInput.replace(",", "").replace(" ", ""); if (actual == expected) nextOrDismiss() else feedback = "Sequence is incorrect." }) { Text("Verify") }
+                    }
+                }
+                AlarmMissionType.SHAKE, AlarmMissionType.WALK, AlarmMissionType.SQUAT -> {
+                    Text("Progress: $progress / ${mission?.target}", style = MaterialTheme.typography.headlineMedium)
+                    Text(if (type == AlarmMissionType.SQUAT) "Complete the detected squat cycles." else if (type == AlarmMissionType.WALK) "Walk until the step target is reached." else "Shake the phone firmly.")
+                }
+                AlarmMissionType.PHOTO -> {
+                    val registered = references.hasPhoto(config.id)
+                    Text(if (registered) "Take the registered wake-up photo." else "Register a reference photo for this mission first.")
+                    Button(enabled = registered, onClick = {
+                        cameraCallback = { bitmap -> if (bitmap != null && references.verifyPhoto(config.id, bitmap)) nextOrDismiss() else feedback = "Photo does not match the registered reference." }
+                        camera.launch(null)
+                    }) { Text("Verify photo") }
+                }
+                AlarmMissionType.BARCODE -> {
+                    val expected = references.barcode(config.id)
+                    Text(if (expected == null) "Register a barcode for this mission first." else "Scan the registered barcode or QR code.")
+                    Button(enabled = expected != null, onClick = {
+                        cameraCallback = { bitmap -> if (bitmap != null) AlarmCameraVerifier.scan(bitmap) { value -> if (value != null && value == expected) { scanned = value; nextOrDismiss() } else { scanned = value.orEmpty(); feedback = "Wrong barcode." } } }
+                        camera.launch(null)
+                    }) { Text("Scan") }
+                    if (scanned.isNotEmpty()) Text("Detected: $scanned")
+                }
+                AlarmMissionType.MULTI -> { Text("Mission chain"); Button(onClick = { nextOrDismiss() }) { Text("Continue") } }
             }
-            val maxSnoozes=activeConfig?.maxSnoozes?:3
-            OutlinedButton(onClick={if(f.snooze()){scheduleSnooze();dismissAlarm(cancelSnooze=false,rescheduleRepeat=false)}},enabled=f.canSnooze()){Text("Snooze ${activeConfig?.snoozeMinutes?:5} min (${f.snoozesUsed()}/$maxSnoozes)")}
+            if (feedback.isNotBlank()) Text(feedback, color = MaterialTheme.colorScheme.error)
+            val policy = config.snoozePolicy()
+            val nextSnooze = policy.nextDuration(f.snoozesUsed(), f.totalSnoozeMinutes(), java.time.LocalDateTime.now(), java.time.LocalDateTime.now())
+            OutlinedButton(onClick = { if (f.snooze(nextSnooze)) { AlarmManagerBridge(this@AlarmRingingActivity).scheduleSnooze(config, nextSnooze); dismissAlarm(cancelSnooze = false, rescheduleRepeat = false) } }, enabled = nextSnooze > 0 && f.canSnooze()) {
+                Text("Snooze ${nextSnooze.coerceAtLeast(0)} min (${f.snoozesUsed()}/${config.maxSnoozes})")
+            }
         }
     }
 
-    @Composable private fun LongPressDismissButton(requiredMs: Long, onComplete: () -> Unit) {
-        var held by remember { mutableStateOf(false) }
-        Box(Modifier.fillMaxWidth().height(64.dp).pointerInput(requiredMs) { detectTapGestures(onPress = { held = true; val start=System.currentTimeMillis(); try { awaitRelease(); if(System.currentTimeMillis()-start >= requiredMs) onComplete() } finally { held=false } }) }) {
-            Surface(Modifier.fillMaxSize(), color=MaterialTheme.colorScheme.primaryContainer) { Box(contentAlignment=androidx.compose.ui.Alignment.Center) { Text(if(held) "Keep holding…" else "Press and hold to complete") } }
-        }
+    private fun nextOrDismiss() {
+        val f = flow ?: return
+        if (f.recordProgress(maxOf(1, f.currentMission()?.target ?: 1))) dismissAlarm()
     }
 
-    private fun nextOrDismiss() { val f=flow?:return; if(f.recordProgress(maxOf(1,f.currentMission()?.target?:1))) dismissAlarm() }
-    private fun scheduleSnooze(){activeConfig?.let{AlarmManagerBridge(this).scheduleSnooze(it)}}
-    private fun dismissAlarm(cancelSnooze: Boolean = true, rescheduleRepeat: Boolean = true){
-        val config=activeConfig ?: return
-        runtime.release(); timeoutHandler.removeCallbacksAndMessages(null)
+    private fun dismissAlarm(cancelSnooze: Boolean = true, rescheduleRepeat: Boolean = true) {
+        val config = activeConfig ?: return
+        runtime.release()
+        timeoutHandler.removeCallbacksAndMessages(null)
         getSystemService(NotificationManager::class.java)?.cancel((config.id xor (config.id ushr 32)).toInt())
-        val bridge=AlarmManagerBridge(this)
-        if(cancelSnooze) bridge.cancel(config.id) else bridge.cancelScheduledCycle(config.id)
-        if(rescheduleRepeat && config.enabled && config.repeatDays.isNotEmpty()) bridge.schedule(config)
+        val bridge = AlarmManagerBridge(this)
+        bridge.cancelScheduledCycle(config.id)
+        val runtimeStore = AlarmRuntimeStore(this)
+        runtimeStore.markDismissed(config.id)
+        if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
+        if (rescheduleRepeat && config.enabled && config.isRepeating() && !config.deleteAfterRinging) bridge.schedule(config)
+        if (config.deleteAfterRinging && !config.isRepeating()) { bridge.cancel(config.id); AlarmPersistentStore(this).delete(config.id); references.clear(config.id); runtimeStore.clear(config.id) }
         flow?.dismiss()
         finishAndRemoveTask()
     }
-    override fun onDestroy(){timeoutHandler.removeCallbacksAndMessages(null);runtime.release();super.onDestroy()}
+
+    override fun onDestroy() { timeoutHandler.removeCallbacksAndMessages(null); runtime.release(); super.onDestroy() }
 }
