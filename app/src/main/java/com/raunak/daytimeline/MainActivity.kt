@@ -136,6 +136,7 @@ class MainActivity : FragmentActivity() {
 
         Box(Modifier.fillMaxSize()) {
             PowerHome(
+                onOpenCommandCenter = { completion = true },
                 openQuickAdd = quickAddRequest.value,
                 onQuickAddHandled = { quickAddRequest.value = false },
                 onOpenAlarms = {
@@ -153,16 +154,6 @@ class MainActivity : FragmentActivity() {
                     alarms = true
                 }
             )
-
-            FloatingActionButton(
-                onClick = { completion = true },
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(top = 86.dp, end = 12.dp),
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Text("+")
-            }
         }
 
         if (alarms) {

@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.Activity
 import android.app.KeyguardManager
 import android.content.Intent
@@ -89,18 +91,18 @@ private fun DisciplineTab() {
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF17221E))) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("${ins.currentDays}", color = Color.White, style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Bold)
-                    Text(if (ins.currentDays == 1) "day strong" else "days strong", color = Color(0xFFB9CCC2))
-                    Text("${ins.currentHours % 24}h into day ${ins.currentDays + 1} · best ${ins.bestDays} days", color = Color(0xFFD5E0DA), style = MaterialTheme.typography.bodySmall)
-                    LinearProgressIndicator(progress = { (ins.currentDays.toFloat() / ins.nextMilestone).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth(), color = Color(0xFFA8C7B7), trackColor = Color.White.copy(alpha = .15f))
-                    Text("Next milestone: ${ins.nextMilestone} days", color = Color(0xFFD5E0DA), style = MaterialTheme.typography.labelMedium)
+            HeroCard {
+                Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${ins.currentDays}", color = Chronora.colors.onHero, style = MaterialTheme.typography.displayLarge, fontWeight = FontWeight.Bold)
+                    Text(if (ins.currentDays == 1) "day strong" else "days strong", color = Chronora.colors.heroMuted)
+                    Text("${ins.currentHours % 24}h into day ${ins.currentDays + 1} · best ${ins.bestDays} days", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.bodySmall)
+                    LinearProgressIndicator(progress = { (ins.currentDays.toFloat() / ins.nextMilestone).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth(), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .15f))
+                    Text("Next milestone: ${ins.nextMilestone} days", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
         item {
-            Button(onClick = { sos = true }, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFC0392B))) {
+            Button(onClick = { sos = true }, modifier = Modifier.fillMaxWidth().height(64.dp), colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) {
                 Text("I'm having an urge — help me now", style = MaterialTheme.typography.titleMedium)
             }
         }
@@ -292,32 +294,32 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
     val scale by transition.animateFloat(0.55f, 1f, infiniteRepeatable(tween(4000), RepeatMode.Reverse), label = "scale")
 
     Dialog(onDismissRequest = {}, properties = DialogProperties(usePlatformDefaultWidth = false, dismissOnClickOutside = false)) {
-        Surface(Modifier.fillMaxSize(), color = Color(0xFF101815)) {
+        Surface(Modifier.fillMaxSize(), color = Chronora.colors.hero) {
             LazyColumn(Modifier.padding(20.dp).testTag("sos"), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                item { Text("Day ${ins.currentDays}. Don't trade it for 10 minutes.", color = Color.White, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
+                item { Text("Day ${ins.currentDays}. Don't trade it for 10 minutes.", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center) }
                 item {
                     Box(Modifier.size(170.dp), contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(170.dp).scale(scale).background(Color(0xFF55786A), CircleShape))
+                        Box(Modifier.size(170.dp).scale(scale).background(Palette.sage, CircleShape))
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text(if (scale > 0.78f) "breathe out" else "breathe in", color = Color.White)
-                            Text("%d:%02d".format(seconds / 60, seconds % 60), color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(if (scale > 0.78f) "breathe out" else "breathe in", color = Chronora.colors.onHero)
+                            Text("%d:%02d".format(seconds / 60, seconds % 60), color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
-                item { Text("Urges rise, peak and fade — usually within ${s.settings.urgeTimerMinutes}–15 minutes. Ride it out; you don't have to act on it.", color = Color(0xFFB9CCC2), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
+                item { Text("Urges rise, peak and fade — usually within ${s.settings.urgeTimerMinutes}–15 minutes. Ride it out; you don't have to act on it.", color = Chronora.colors.heroMuted, textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
                 if (s.reasons.isNotEmpty()) item {
-                    Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2B26))) {
+                    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                         Column(Modifier.padding(14.dp).fillMaxWidth()) {
-                            Text("Why you started", color = Color(0xFFA8C7B7), style = MaterialTheme.typography.labelLarge)
-                            s.reasons.forEach { Text("• $it", color = Color.White) }
+                            Text("Why you started", color = Chronora.colors.heroAccent, style = MaterialTheme.typography.labelLarge)
+                            s.reasons.forEach { Text("• $it", color = Chronora.colors.onHero) }
                         }
                     }
                 }
-                item { Text("Do one now:", color = Color(0xFFA8C7B7), style = MaterialTheme.typography.labelLarge) }
+                item { Text("Do one now:", color = Chronora.colors.heroAccent, style = MaterialTheme.typography.labelLarge) }
                 items(s.settings.actions.indices.toList()) { i ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(i in done, { done = if (i in done) done - i else done + i })
-                        Text(s.settings.actions[i], color = Color.White)
+                        Text(s.settings.actions[i], color = Chronora.colors.onHero)
                     }
                 }
                 item {
@@ -325,7 +327,7 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
                         Button(onClick = { finishing = true }) { Text("It passed") }
                         OutlinedButton(onClick = close) { Text("Close") }
                     } else Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("How strong was it? ${intensity.toInt()}/5", color = Color.White)
+                        Text("How strong was it? ${intensity.toInt()}/5", color = Chronora.colors.onHero)
                         Slider(intensity, { intensity = it }, valueRange = 1f..5f, steps = 3)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(s.settings.triggers) { t -> FilterChip(trigger == t, { trigger = t }, label = { Text(t) }) } }
                         Button(onClick = {

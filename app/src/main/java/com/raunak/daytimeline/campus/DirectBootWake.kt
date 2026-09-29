@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.AlarmManager
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -113,24 +115,24 @@ class FallbackAlarmActivity : ComponentActivity() {
         }
         runCatching { getSystemService(Vibrator::class.java)?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 800, 600), 0)) }
         val label = DirectBootWake.target(this).second
-        setContent {
+        setContent { ChronoraThemeBase(dark = true) {
             var held by remember { mutableIntStateOf(0) }
             var pressing by remember { mutableStateOf(false) }
             LaunchedEffect(pressing) { while (pressing && held < 3) { delay(1000); held++ } ; if (!pressing) held = 0 }
             LaunchedEffect(held) { if (held >= 3) dismiss() }
-            Column(Modifier.fillMaxSize().background(Color(0xFF101815)).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                Text("WAKE UP", color = Color.White, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
+            Column(Modifier.fillMaxSize().background(Chronora.colors.hero).padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                Text("WAKE UP", color = Chronora.colors.onHero, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
-                Text(label, color = Color(0xFFB9CCC2), textAlign = TextAlign.Center)
+                Text(label, color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
                 Spacer(Modifier.height(48.dp))
                 Surface(
-                    color = Color(0xFF55786A), shape = MaterialTheme.shapes.large,
+                    color = Palette.sage, shape = MaterialTheme.shapes.large,
                     modifier = Modifier.fillMaxWidth().height(96.dp).pointerInput(Unit) {
                         detectTapGestures(onPress = { pressing = true; tryAwaitRelease(); pressing = false })
                     }
-                ) { Box(contentAlignment = Alignment.Center) { Text(if (pressing) "Keep holding… ${3 - held}" else "Hold 3 s — I'm up", color = Color.White, style = MaterialTheme.typography.titleLarge) } }
+                ) { Box(contentAlignment = Alignment.Center) { Text(if (pressing) "Keep holding… ${3 - held}" else "Hold 3 s — I'm up", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge) } }
             }
-        }
+        } }
     }
 
     private fun dismiss() {

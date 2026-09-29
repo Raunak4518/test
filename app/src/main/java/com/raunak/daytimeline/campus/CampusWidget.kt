@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.PendingIntent
 import android.appwidget.AppWidgetManager
 import android.appwidget.AppWidgetProvider

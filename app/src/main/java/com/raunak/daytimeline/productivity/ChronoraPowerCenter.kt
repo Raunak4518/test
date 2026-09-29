@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.productivity
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
@@ -88,7 +90,7 @@ object ChronoraExport {
 fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore, onClose: () -> Unit, onSelectDate: (LocalDate) -> Unit = {}) {
     var tab by remember { mutableIntStateOf(0) }
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Chronora Power Center") }, navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "Back") } }) },
+        topBar = { ChronoraTopBar("Power Center", onClose) },
         bottomBar = {
             NavigationBar {
                 val labels = listOf("Calendar", "Plan", "Insights", "Study", "Focus", "Review", "Offline")

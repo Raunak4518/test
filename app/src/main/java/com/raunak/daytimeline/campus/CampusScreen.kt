@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
@@ -61,47 +63,9 @@ fun CampusScreen(modifier: Modifier = Modifier) {
 
 // ------------------------------------------------------------------ shared UI
 
-@Composable
-internal fun SectionCard(title: String, subtitle: String? = null, action: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall)
-                }
-                action?.invoke()
-            }
-            content()
-        }
-    }
-}
 
-@Composable
-internal fun Stat(label: String, value: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface) {
-    Column(modifier) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
 
-@Composable
-internal fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked, onChange)
-    }
-}
 
-@Composable
-internal fun Stepper(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = onMinus) { Text("−") }
-        Text(value, Modifier.widthIn(min = 52.dp), style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = onPlus) { Text("+") }
-    }
-}
 
 internal fun parseClock(text: String): Int? {
     val t = text.trim().lowercase().replace(".", ":")
@@ -134,10 +98,11 @@ internal fun openUrl(context: android.content.Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
+@Composable
 internal fun percentColor(p: Double, required: Int, margin: Int = 5): Color = when {
-    p >= required + margin -> Color(0xFF2E7D32)
-    p >= required -> Color(0xFFB7791F)
-    else -> Color(0xFFC62828)
+    p >= required + margin -> Chronora.colors.good
+    p >= required -> Chronora.colors.warn
+    else -> Chronora.colors.bad
 }
 
 // ------------------------------------------------------------------ Today
@@ -195,17 +160,17 @@ private fun TodayTab(goTo: (Int) -> Unit) {
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF17221E)), shape = RoundedCornerShape(24.dp)) {
-                Column(Modifier.padding(18.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            HeroCard {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("Today's score", color = Color(0xFFB9CCC2), style = MaterialTheme.typography.labelMedium)
-                            Text("$score / 100", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text("Today's score", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelMedium)
+                            Text("$score / 100", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
-                        Text(data.settings.grade(score), color = Color(0xFFA8C7B7), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                        Text(data.settings.grade(score), color = Chronora.colors.heroAccent, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                     }
                     parts.forEach { p ->
-                        Row { Text(p.label, color = Color(0xFFD5E0DA), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall); Text("${p.detail}  ${p.earned.toInt()}/${p.max}", color = Color.White, style = MaterialTheme.typography.bodySmall) }
+                        Row { Text(p.label, color = Chronora.colors.heroMuted, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall); Text("${p.detail}  ${p.earned.toInt()}/${p.max}", color = Chronora.colors.onHero, style = MaterialTheme.typography.bodySmall) }
                     }
                 }
             }

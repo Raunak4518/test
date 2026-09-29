@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -18,30 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-/** Editable list of short values: remove with ×, add with the field below. */
-@Composable
-internal fun ListEditor(title: String, values: List<String>, numeric: Boolean = false, onChange: (List<String>) -> Unit) {
-    var input by remember { mutableStateOf("") }
-    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(title, style = MaterialTheme.typography.labelLarge)
-        values.forEachIndexed { i, v ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(v, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                IconButton(onClick = { onChange(values.toMutableList().also { it.removeAt(i) }) }) { Icon(Icons.Default.Close, "Remove $v") }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(
-                input, { input = it }, label = { Text("Add") }, singleLine = true, modifier = Modifier.weight(1f),
-                keyboardOptions = if (numeric) KeyboardOptions(keyboardType = KeyboardType.Number) else KeyboardOptions.Default
-            )
-            IconButton(onClick = {
-                val v = input.trim()
-                if (v.isNotEmpty() && (!numeric || v.toIntOrNull() != null)) { onChange(values + v); input = "" }
-            }) { Icon(Icons.Default.Add, "Add") }
-        }
-    }
-}
 
 @Composable
 private fun NumberStepper(label: String, value: Int, step: Int, min: Int, max: Int = 10_000, suffix: String = "m", onChange: (Int) -> Unit) =

@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.wellbeing
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.os.Build
@@ -143,8 +145,8 @@ fun WellbeingScreen() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Protection", fontWeight = FontWeight.Bold)
-                SwitchLine("Strict mode — during blocks, bedtime and cooldowns, Chronora's settings, uninstall and accessibility pages are covered", config.strictMode) { save(config.copy(strictMode = it)) }
-                SwitchLine("Do Not Disturb during focus sessions", config.doNotDisturbDuringFocus) { save(config.copy(doNotDisturbDuringFocus = it)) }
+                SwitchRow("Strict mode — during blocks, bedtime and cooldowns, Chronora's settings, uninstall and accessibility pages are covered", config.strictMode) { save(config.copy(strictMode = it)) }
+                SwitchRow("Do Not Disturb during focus sessions", config.doNotDisturbDuringFocus) { save(config.copy(doNotDisturbDuringFocus = it)) }
                 Text("Emergency unlocks and Locked mode are shared with Focus Guard.", style = MaterialTheme.typography.bodySmall)
             } }
         }
@@ -183,13 +185,6 @@ private fun PermRow(label: String, granted: Boolean, onGrant: () -> Unit) {
     }
 }
 
-@Composable
-private fun Stat(label: String, value: String, modifier: Modifier) {
-    Column(modifier) {
-        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.labelSmall)
-    }
-}
 
 /** Single-series bar chart: rounded data ends on the baseline, 2 dp gaps, tap a bar to read its value. */
 @Composable
@@ -232,23 +227,10 @@ private fun DrawScope.roundedTopBar(color: androidx.compose.ui.graphics.Color, t
     drawPath(path, color)
 }
 
-@Composable
-private fun SwitchLine(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked, onChange)
-    }
-}
 
 @Composable
-private fun MinutesStepper(label: String, value: Int, step: Int = 15, min: Int = 0, max: Int = 24 * 60, zeroLabel: String = "Off", onChange: (Int) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        TextButton(onClick = { onChange((value - step).coerceAtLeast(min)) }) { Text("−") }
-        Text(if (value == 0) zeroLabel else hm(value), Modifier.widthIn(min = 56.dp))
-        TextButton(onClick = { onChange((value + step).coerceAtMost(max)) }) { Text("+") }
-    }
-}
+private fun MinutesStepper(label: String, value: Int, step: Int = 15, min: Int = 0, max: Int = 24 * 60, zeroLabel: String = "Off", onChange: (Int) -> Unit) =
+    Stepper(label, if (value == 0) zeroLabel else hm(value), { onChange((value - step).coerceAtLeast(min)) }, { onChange((value + step).coerceAtMost(max)) })
 
 @Composable
 private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
@@ -261,7 +243,7 @@ private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
             Text("${c.pickupGoal}")
             TextButton(onClick = { save(c.copy(pickupGoal = c.pickupGoal + 10)) }) { Text("+") }
         }
-        SwitchLine("Daily report at ${clock(c.reportMinute)} (weekly comparison on Sundays)", c.dailyReport) { save(c.copy(dailyReport = it)) }
+        SwitchRow("Daily report at ${clock(c.reportMinute)} (weekly comparison on Sundays)", c.dailyReport) { save(c.copy(dailyReport = it)) }
         MinutesStepper("Report time", c.reportMinute, step = 15, min = 15, max = 24 * 60 - 15) { save(c.copy(reportMinute = it)) }
     } }
 }
@@ -334,16 +316,16 @@ private fun BedtimeCard(c: WellbeingConfig, perms: Perms, save: (WellbeingConfig
     val context = LocalContext.current
     var picking by remember { mutableStateOf(false) }
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        SwitchLine("Bedtime mode", b.enabled) { save(c.copy(bedtime = b.copy(enabled = it))) }
+        SwitchRow("Bedtime mode", b.enabled) { save(c.copy(bedtime = b.copy(enabled = it))) }
         MinutesStepper("Starts", b.startMinute, step = 15, max = 24 * 60 - 15, zeroLabel = "00:00") { save(c.copy(bedtime = b.copy(startMinute = it))) }
         MinutesStepper("Ends", b.endMinute, step = 15, max = 24 * 60 - 15, zeroLabel = "00:00") { save(c.copy(bedtime = b.copy(endMinute = it))) }
         Text("${clock(b.startMinute)} → ${clock(b.endMinute)}", style = MaterialTheme.typography.bodySmall)
         Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
             (1..7).forEach { d -> FilterChip(d in b.days, { save(c.copy(bedtime = b.copy(days = if (d in b.days) b.days - d else b.days + d))) }, label = { Text(java.time.DayOfWeek.of(d).name.take(1)) }) }
         }
-        SwitchLine("Block apps (except allowed)", b.blockApps) { save(c.copy(bedtime = b.copy(blockApps = it))) }
-        SwitchLine("Do Not Disturb" + if (!perms.dnd) " (grant access above)" else "", b.doNotDisturb) { save(c.copy(bedtime = b.copy(doNotDisturb = it))) }
-        SwitchLine("Grayscale screen", b.grayscale) { save(c.copy(bedtime = b.copy(grayscale = it))) }
+        SwitchRow("Block apps (except allowed)", b.blockApps) { save(c.copy(bedtime = b.copy(blockApps = it))) }
+        SwitchRow("Do Not Disturb" + if (!perms.dnd) " (grant access above)" else "", b.doNotDisturb) { save(c.copy(bedtime = b.copy(doNotDisturb = it))) }
+        SwitchRow("Grayscale screen", b.grayscale) { save(c.copy(bedtime = b.copy(grayscale = it))) }
         if (b.grayscale && !perms.grayscale) Text("Grayscale needs a one-time grant from a computer:\nadb shell pm grant ${context.packageName} android.permission.WRITE_SECURE_SETTINGS", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { picking = !picking }) { Text("Allowed at bedtime (${b.allowedPackages.size})") }
         if (picking) {
@@ -366,8 +348,8 @@ private fun ShortFormCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
         Text("Backs out of the short-video feed while messages, search and the rest of the app keep working. Apps change their screens often, so this is best-effort.", style = MaterialTheme.typography.bodySmall)
         var advanced by remember { mutableStateOf(false) }
         ShortForm.values().forEach { sf ->
-            SwitchLine(sf.label, sf in c.blockedShortForm) { on -> save(c.copy(blockedShortForm = if (on) c.blockedShortForm + sf else c.blockedShortForm - sf)) }
-            if (advanced) com.raunak.daytimeline.campus.ListEditor("Screen ids for ${sf.label} (${sf.packageName})", c.idsFor(sf)) { ids -> save(c.copy(shortFormIds = c.shortFormIds + (sf.name to ids))) }
+            SwitchRow(sf.label, sf in c.blockedShortForm) { on -> save(c.copy(blockedShortForm = if (on) c.blockedShortForm + sf else c.blockedShortForm - sf)) }
+            if (advanced) ListEditor("Screen ids for ${sf.label} (${sf.packageName})", c.idsFor(sf)) { ids -> save(c.copy(shortFormIds = c.shortFormIds + (sf.name to ids))) }
         }
         TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide screen ids" else "Edit screen ids (if an app update breaks detection)") }
         if (advanced) TextButton(onClick = { save(c.copy(shortFormIds = emptyMap())) }) { Text("Restore built-in ids") }
@@ -401,8 +383,8 @@ private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (
                 } }
             }
         }
-        SwitchLine("Only during focus and bedtime", c.quietOnlyDuringFocus) { save(c.copy(quietOnlyDuringFocus = it)) }
-        com.raunak.daytimeline.campus.ListEditor("Digest times (HH:MM)", c.digestTimes.sorted().map { clock(it) }) { v ->
+        SwitchRow("Only during focus and bedtime", c.quietOnlyDuringFocus) { save(c.copy(quietOnlyDuringFocus = it)) }
+        ListEditor("Digest times (HH:MM)", c.digestTimes.sorted().map { clock(it) }) { v ->
             save(c.copy(digestTimes = v.mapNotNull { com.raunak.daytimeline.campus.parseClock(it) }.distinct().sorted()))
         }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -453,9 +435,9 @@ private fun AppDetailDialog(
                     val s = c.sessionLimits[pkg]
                     MinutesStepper("Session length", s?.maxMinutes ?: 0, step = 5) { v -> onSave(c.copy(sessionLimits = if (v == 0) c.sessionLimits - pkg else c.sessionLimits + (pkg to SessionLimit(v, s?.cooldownMinutes ?: 30)))) }
                     if (s != null) MinutesStepper("Break after a session", s.cooldownMinutes, step = 5, min = 5) { v -> onSave(c.copy(sessionLimits = c.sessionLimits + (pkg to s.copy(cooldownMinutes = v)))) }
-                    SwitchLine("Mindful pause before opening", pkg in g.mindfulPackages) { on -> onSaveGuard(g.copy(mindfulPackages = if (on) g.mindfulPackages + pkg else g.mindfulPackages - pkg)) }
-                    SwitchLine("Block during focus sessions and schedules", pkg in g.blockedPackages) { on -> onSaveGuard(g.copy(blockedPackages = if (on) g.blockedPackages + pkg else g.blockedPackages - pkg)) }
-                    SwitchLine("Quiet notifications (digest)", pkg in c.quietApps) { on -> onSave(c.copy(quietApps = if (on) c.quietApps + pkg else c.quietApps - pkg)) }
+                    SwitchRow("Mindful pause before opening", pkg in g.mindfulPackages) { on -> onSaveGuard(g.copy(mindfulPackages = if (on) g.mindfulPackages + pkg else g.mindfulPackages - pkg)) }
+                    SwitchRow("Block during focus sessions and schedules", pkg in g.blockedPackages) { on -> onSaveGuard(g.copy(blockedPackages = if (on) g.blockedPackages + pkg else g.blockedPackages - pkg)) }
+                    SwitchRow("Quiet notifications (digest)", pkg in c.quietApps) { on -> onSave(c.copy(quietApps = if (on) c.quietApps + pkg else c.quietApps - pkg)) }
                 }
             }
         },

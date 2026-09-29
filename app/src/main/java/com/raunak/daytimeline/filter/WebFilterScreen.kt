@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.filter
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.Activity
 import android.content.Intent
 import android.net.VpnService
@@ -108,13 +110,13 @@ fun WebFilterScreen() {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Block categories", fontWeight = FontWeight.Bold)
                 FilterCategory.values().forEach { c ->
-                    SwitchLine(c.label, c in config.categories) { on -> commit(config.copy(categories = if (on) config.categories + c else config.categories - c)) }
+                    SwitchRow(c.label, c in config.categories) { on -> commit(config.copy(categories = if (on) config.categories + c else config.categories - c)) }
                 }
                 HorizontalDivider()
-                SwitchLine("Adult keyword detection (catches unlisted sites)", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
-                SwitchLine("Force SafeSearch (Google, Bing, DuckDuckGo, Yandex)", config.safeSearch) { commit(config.copy(safeSearch = it)) }
-                SwitchLine("YouTube Restricted Mode", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
-                SwitchLine("Block DNS-over-HTTPS, proxies and VPN sites", config.blockBypass) { commit(config.copy(blockBypass = it)) }
+                SwitchRow("Adult keyword detection (catches unlisted sites)", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
+                SwitchRow("Force SafeSearch (Google, Bing, DuckDuckGo, Yandex)", config.safeSearch) { commit(config.copy(safeSearch = it)) }
+                SwitchRow("YouTube Restricted Mode", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
+                SwitchRow("Block DNS-over-HTTPS, proxies and VPN sites", config.blockBypass) { commit(config.copy(blockBypass = it)) }
             } }
         }
         item {
@@ -238,13 +240,6 @@ private fun download(url: String): Set<String> {
     return conn.inputStream.bufferedReader().use { DomainFilter.parseList(it.readText()) }.also { conn.disconnect() }
 }
 
-@Composable
-private fun SwitchLine(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked, onChange)
-    }
-}
 
 @Composable
 private fun DomainListCard(title: String, subtitle: String, domains: Set<String>, onAdd: (String) -> Unit, onRemove: (String) -> Unit) {

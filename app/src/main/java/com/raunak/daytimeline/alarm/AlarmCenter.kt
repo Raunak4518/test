@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.alarm
 
+import com.raunak.daytimeline.ui.*
+
 import com.raunak.daytimeline.MadeByRaunak
 import com.raunak.daytimeline.ChronoraBrandLine
 
@@ -50,7 +52,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
         return
     }
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Chronora · Alarm center") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) },
+        topBar = { ChronoraTopBar("Alarms", onClose) },
         floatingActionButton = { FloatingActionButton(onClick = { editing = AlarmEditorModel() }) { Icon(Icons.Default.Add, "New alarm") } }
     ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -142,7 +144,7 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (
     }
 
     Scaffold(topBar = {
-        TopAppBar(title = { Text("Edit alarm") }, navigationIcon = { TextButton(onClick = onCancel) { Text("Cancel") } }, actions = {
+        ChronoraTopBar("Edit alarm", onCancel, actions = {
             TextButton(onClick = { val e = current.validate(); if (e.isEmpty()) onSave(current) else error = e.joinToString("\n") }) { Text("Save") }
         })
     }) { p ->

@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.pro
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -43,7 +45,7 @@ class BlockActivity : ComponentActivity() {
         })
 
         setContent {
-            MaterialTheme(colorScheme = darkColorScheme()) {
+            ChronoraThemeBase(dark = true) {
                 var remaining by remember { mutableIntStateOf(seconds) }
                 LaunchedEffect(Unit) { while (remaining > 0) { delay(1000); remaining-- } }
                 val transition = rememberInfiniteTransition(label = "breath")
@@ -52,17 +54,17 @@ class BlockActivity : ComponentActivity() {
                 val emergencyLeft = remember { FocusGuardEngine.emergencyRemaining(config, store.runtime, LocalDate.now()) }
 
                 Column(
-                    Modifier.fillMaxSize().background(Color(0xFF101815)).padding(28.dp),
+                    Modifier.fillMaxSize().background(Chronora.colors.hero).padding(28.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    Text(if (mode == MODE_INTERVENE) "Pause before $label" else "$label is blocked", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                    Text(if (mode == MODE_INTERVENE) "Pause before $label" else "$label is blocked", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(8.dp))
-                    Text(reason, color = Color(0xFFB9CCC2), textAlign = TextAlign.Center)
+                    Text(reason, color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(36.dp))
                     Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
-                        Box(Modifier.size(200.dp).scale(scale).background(Color(0xFF55786A), CircleShape))
-                        Text(if (scale > 0.8f) "Breathe out" else "Breathe in", color = Color.White)
+                        Box(Modifier.size(200.dp).scale(scale).background(Palette.sage, CircleShape))
+                        Text(if (scale > 0.8f) "Breathe out" else "Breathe in", color = Chronora.colors.onHero)
                     }
                     Spacer(Modifier.height(36.dp))
                     Button(onClick = { goHome() }, modifier = Modifier.fillMaxWidth()) { Text("Back to what matters") }
@@ -86,7 +88,7 @@ class BlockActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(if (remaining > 0) "Emergency unlock in ${remaining}s" else "Emergency unlock ${config.emergencyUnlockMinutes} min ($emergencyLeft left today)") }
                     } else {
-                        Text("Locked mode is on. This block ends with the session.", color = Color(0xFF8FA39A), textAlign = TextAlign.Center)
+                        Text("Locked mode is on. This block ends with the session.", color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
                     }
                 }
             }

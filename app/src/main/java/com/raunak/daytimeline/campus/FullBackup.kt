@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Context
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser

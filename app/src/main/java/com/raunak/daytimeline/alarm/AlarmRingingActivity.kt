@@ -41,7 +41,7 @@ class AlarmRingingActivity : ComponentActivity() {
         flow = AlarmAlarmFlow(config.missionChain, AlarmMissionPolicy(config.maxSnoozes, config.snoozeMinutes, config.longPressMs, config.timeoutMinutes, config.backupDelayMinutes).validated())
         runtime.startAlarmSound(config)
         // Timeout is a safety telemetry threshold, not an automatic dismissal: a wake-up alarm must not silently clear before its mission chain is completed.
-        setContent { RingingScreen() }
+        setContent { com.raunak.daytimeline.ui.ChronoraThemeBase(dark = true) { Surface(Modifier.fillMaxSize()) { RingingScreen() } } }
     }
 
     @Composable private fun RingingScreen() {

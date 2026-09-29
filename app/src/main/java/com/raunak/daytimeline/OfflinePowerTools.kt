@@ -1,5 +1,7 @@
 package com.raunak.daytimeline
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Intent
@@ -50,7 +52,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
         }.onSuccess { json -> store.importJson(json).onSuccess { status = "Backup imported successfully" }.onFailure { status = "Import failed" } }
             .onFailure { status = "Import failed: cannot read file" }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Chronora · Power tools") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) }) { padding ->
+    Scaffold(topBar = { ChronoraTopBar("Power tools", onClose) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Offline command center", style = MaterialTheme.typography.headlineSmall); Text("Projects, time tracking, challenges, achievements and portable backups. Everything remains local.") }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -132,5 +134,5 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text(if (challenge == null) "New challenge" else "Edit challenge") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(title, { title = it }, label = { Text("Title") }); OutlinedTextField(description, { description = it }, label = { Text("Description") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }) } }, confirmButton = { Button(onClick = { if (challenge == null) store.addChallenge(title, description, target.toIntOrNull() ?: 1) else store.updateChallenge(challenge.id, title, description, target.toIntOrNull() ?: challenge.target); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
-@Composable private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(label); Switch(checked = checked, onCheckedChange = onChange) } }
+@Composable private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) = SwitchRow(label, checked, onChange = onChange)
 private fun formatEpoch(epoch: Long): String = Instant.ofEpochMilli(epoch).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM · HH:mm"))

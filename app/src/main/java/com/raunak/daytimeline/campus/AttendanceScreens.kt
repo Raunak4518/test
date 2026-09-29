@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -39,8 +41,8 @@ internal fun AttendanceTab() {
             val overall = AttendanceEngine.overall(stats)
             SectionCard("Overall ${"%.1f".format(overall)}%", "${stats.sumOf { it.attended }}/${stats.sumOf { it.conducted }} classes · ${data.semester.name} ends ${data.semester.end}") {
                 val danger = stats.filter { it.mustAttend > 0 }
-                if (danger.isNotEmpty()) Text("Below requirement: " + danger.joinToString { "${it.subject.name} (attend next ${it.mustAttend})" }, color = Color(0xFFC62828), style = MaterialTheme.typography.bodySmall)
-                else if (stats.isNotEmpty()) Text("Every subject is at or above its requirement.", color = Color(0xFF2E7D32), style = MaterialTheme.typography.bodySmall)
+                if (danger.isNotEmpty()) Text("Below requirement: " + danger.joinToString { "${it.subject.name} (attend next ${it.mustAttend})" }, color = Chronora.colors.bad, style = MaterialTheme.typography.bodySmall)
+                else if (stats.isNotEmpty()) Text("Every subject is at or above its requirement.", color = Chronora.colors.good, style = MaterialTheme.typography.bodySmall)
                 if (stats.isNotEmpty()) TextButton(onClick = { shareAttendance(context, data, stats) }) { Text("Export / share (CSV)") }
             }
         }

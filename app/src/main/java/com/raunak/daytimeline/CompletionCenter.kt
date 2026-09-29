@@ -1,5 +1,7 @@
 package com.raunak.daytimeline
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.AppOpsManager
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -45,7 +47,7 @@ fun CompletionCenter(vm: PlannerViewModel, productivity: OfflineProductivityStor
     var tab by remember { mutableIntStateOf(0) }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Chronora · Command center") }, navigationIcon = { TextButton(onClick = close) { Text("Close") } }) },
+        topBar = { ChronoraTopBar("Command center", close) },
         bottomBar = {
             NavigationBar {
                 val labels = listOf("Calendar", "Search", "Study", "Insights", "Review", "Tools")

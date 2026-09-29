@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.app.AlarmManager
 import android.app.NotificationManager
 import android.content.Intent
@@ -72,7 +74,7 @@ private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: 
         Checkbox(d.done, { on -> store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = on) else it }) } })
         Column(Modifier.weight(1f)) {
             Text(d.title, fontWeight = FontWeight.SemiBold)
-            Text("${d.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${d.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Chronora.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         IconButton(onClick = { store.update { c -> c.copy(deadlines = c.deadlines.filterNot { it.id == d.id }) } }) { Icon(Icons.Default.Delete, "Delete") }
     }
@@ -174,7 +176,7 @@ internal fun WakeTab() {
             SectionCard("Wake-up history", if (logs.isEmpty()) "No mornings logged yet" else "On time ${logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + tol * 60_000L }} of ${logs.size} (within ${tol}m)") {
                 logs.take(10).forEach { l ->
                     val late = l.dismissedAt?.let { ((it - l.target) / 60_000L).toInt() }
-                    Text("${l.date} · " + when { late == null -> "missed"; late <= tol -> "on time"; else -> "${hm(late)} late" }, style = MaterialTheme.typography.bodySmall, color = if (late != null && late <= tol) Color(0xFF2E7D32) else Color(0xFFC62828))
+                    Text("${l.date} · " + when { late == null -> "missed"; late <= tol -> "on time"; else -> "${hm(late)} late" }, style = MaterialTheme.typography.bodySmall, color = if (late != null && late <= tol) Chronora.colors.good else Chronora.colors.bad)
                 }
             }
         }
@@ -209,7 +211,7 @@ private fun ReadinessCard(tick: Int) {
 @Composable
 private fun Check(label: String, ok: Boolean, fixLabel: String? = "Fix", onFix: () -> Unit) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Text((if (ok) "✓ " else "✗ ") + label, Modifier.weight(1f), color = if (ok) Color(0xFF2E7D32) else Color(0xFFC62828))
+        Text((if (ok) "✓ " else "✗ ") + label, Modifier.weight(1f), color = if (ok) Chronora.colors.good else Chronora.colors.bad)
         if (!ok && fixLabel != null) TextButton(onClick = onFix) { Text(fixLabel) }
     }
 }

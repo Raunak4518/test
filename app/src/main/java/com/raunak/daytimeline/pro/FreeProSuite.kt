@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.pro
 
+import com.raunak.daytimeline.ui.*
+
 import android.Manifest
 import android.content.Intent
 import android.os.Build
@@ -38,15 +40,9 @@ fun FreeProSuite(vm: PlannerViewModel, initialTab: Int = 0, onClose: () -> Unit)
     var tab by remember { mutableIntStateOf(initialTab) }
     val openDate: (LocalDate) -> Unit = { vm.selectDate(it); onClose() }
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
             Column {
-                Row(Modifier.fillMaxWidth().padding(start = 16.dp, end = 4.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Free Pro Suite", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("Offline · no account · no subscription", style = MaterialTheme.typography.labelSmall)
-                    }
-                    IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
-                }
+                ChronoraTopBar("Free Pro Suite", onClose, subtitle = "Offline · no account · no subscription")
                 ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
                     listOf("Quick add", "Search", "Week", "Wellbeing", "Web filter", "Focus Guard", "Sounds", "Garden", "Energy plan", "Places", "Private journal").forEachIndexed { i, t ->
                         Tab(tab == i, { tab = i }, text = { Text(t) })
@@ -177,10 +173,10 @@ private fun FocusGuardTab() {
                 Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay} · wait ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
                 Slider(config.emergencyUnlocksPerDay.toFloat(), { v -> store.update { it.copy(emergencyUnlocksPerDay = v.toInt()) } }, valueRange = 0f..5f, steps = 4)
                 Slider(config.unlockDelaySeconds.toFloat(), { v -> store.update { it.copy(unlockDelaySeconds = v.toInt()) } }, valueRange = 5f..120f)
-                com.raunak.daytimeline.campus.Stepper("Emergency unlock lasts", "${config.emergencyUnlockMinutes}m", { store.update { it.copy(emergencyUnlockMinutes = (it.emergencyUnlockMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(emergencyUnlockMinutes = it.emergencyUnlockMinutes + 1) } })
-                com.raunak.daytimeline.campus.Stepper("Mindful pause length", "${config.interventionSeconds}s", { store.update { it.copy(interventionSeconds = (it.interventionSeconds - 1).coerceAtLeast(3)) } }, { store.update { it.copy(interventionSeconds = (it.interventionSeconds + 1).coerceAtMost(60)) } })
-                com.raunak.daytimeline.campus.Stepper("App stays open after a pause", "${config.interventionGrantMinutes}m", { store.update { it.copy(interventionGrantMinutes = (it.interventionGrantMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(interventionGrantMinutes = it.interventionGrantMinutes + 1) } })
-                com.raunak.daytimeline.campus.ListEditor("Session buttons (minutes)", config.sessionPresets.map { it.toString() }, numeric = true) { v -> store.update { it.copy(sessionPresets = v.mapNotNull(String::toIntOrNull).filter { n -> n > 0 }) } }
+                Stepper("Emergency unlock lasts", "${config.emergencyUnlockMinutes}m", { store.update { it.copy(emergencyUnlockMinutes = (it.emergencyUnlockMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(emergencyUnlockMinutes = it.emergencyUnlockMinutes + 1) } })
+                Stepper("Mindful pause length", "${config.interventionSeconds}s", { store.update { it.copy(interventionSeconds = (it.interventionSeconds - 1).coerceAtLeast(3)) } }, { store.update { it.copy(interventionSeconds = (it.interventionSeconds + 1).coerceAtMost(60)) } })
+                Stepper("App stays open after a pause", "${config.interventionGrantMinutes}m", { store.update { it.copy(interventionGrantMinutes = (it.interventionGrantMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(interventionGrantMinutes = it.interventionGrantMinutes + 1) } })
+                ListEditor("Session buttons (minutes)", config.sessionPresets.map { it.toString() }, numeric = true) { v -> store.update { it.copy(sessionPresets = v.mapNotNull(String::toIntOrNull).filter { n -> n > 0 }) } }
             } }
         }
         item {
@@ -496,13 +492,6 @@ private fun PlacesTab() {
     }
 }
 
-@Composable
-private fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-        Switch(checked, onChange)
-    }
-}
 
 private fun installedApps(context: android.content.Context): List<InstalledApp> {
     val pm = context.packageManager

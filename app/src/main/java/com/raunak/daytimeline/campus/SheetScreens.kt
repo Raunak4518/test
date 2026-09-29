@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -221,7 +223,7 @@ private fun ItemRow(sheet: StudySheet, item: SheetItem, store: CampusStore, onEd
                 item.revisions.takeIf { it > 0 }?.let { "×$it revised" },
                 item.notes.takeIf { it.isNotBlank() }?.let { "📝" }
             )
-            if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = when (item.difficulty) { Difficulty.EASY -> Color(0xFF2E7D32); Difficulty.HARD -> Color(0xFFC62828); else -> MaterialTheme.colorScheme.onSurfaceVariant })
+            if (meta.isNotEmpty()) Text(meta.joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = when (item.difficulty) { Difficulty.EASY -> Chronora.colors.good; Difficulty.HARD -> Chronora.colors.bad; else -> MaterialTheme.colorScheme.onSurfaceVariant })
         }
         IconButton(onClick = { store.updateItem(sheet.id, item.id) { it.copy(starred = !it.starred) } }) { Icon(if (item.starred) Icons.Default.Star else Icons.Default.StarBorder, "Star") }
         if (item.url.isNotBlank()) TextButton(onClick = onOpen) { Text("Open") }

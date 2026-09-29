@@ -1,5 +1,7 @@
 package com.raunak.daytimeline
 
+import com.raunak.daytimeline.ui.*
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -27,15 +29,14 @@ import com.raunak.daytimeline.productivity.ChronoraPowerCenter
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-private val HomeInk = Color(0xFF17221E)
-private val HomeBg = Color(0xFFF4F1E9)
-private val HomeCard = Color(0xFFFFFDF8)
-private val HomeSage = Color(0xFF55786A)
-private val HomeMuted = Color(0xFF74807A)
+private val HomeInk: Color @Composable get() = Chronora.colors.hero
+private val HomeBg: Color @Composable get() = MaterialTheme.colorScheme.background
+private val HomeSage: Color @Composable get() = MaterialTheme.colorScheme.primary
+private val HomeMuted: Color @Composable get() = Chronora.muted
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQuickAddHandled: () -> Unit = {}) {
+fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {}, openQuickAdd: Boolean = false, onQuickAddHandled: () -> Unit = {}) {
     val context = LocalContext.current
     val app = remember(context) { AppContainer(context.applicationContext) }
     val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
@@ -61,19 +62,24 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
     var proSuiteOpen by remember { mutableStateOf(false) }
     LaunchedEffect(openQuickAdd) { if (openQuickAdd) { proSuiteOpen = true; onQuickAddHandled() } }
 
-    MaterialTheme(colorScheme = lightColorScheme(background = HomeBg, surface = HomeCard, primary = HomeSage, onSurface = HomeInk)) {
+    run {
         Scaffold(
             containerColor = HomeBg,
             topBar = {
-                TopAppBar(
-                    title = {
-                        Column {
-                            Text("Chronora", fontWeight = FontWeight.Bold)
-                            Text((when (tab) { 0 -> "Today"; 1 -> "Focus"; 3 -> "Campus"; else -> "Productivity" }) + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
+                var menu by remember { mutableStateOf(false) }
+                ChronoraTopBar("Chronora", null, subtitle = (when (tab) { 0 -> "Today"; 1 -> "Focus"; 3 -> "Campus"; else -> "Productivity" }) + " · " + date) {
+                    IconButton(onClick = { proSuiteOpen = true }) { Icon(Icons.Default.AutoAwesome, "Free Pro Suite") }
+                    IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }
+                    IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") }
+                    Box {
+                        IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
+                        DropdownMenu(menu, { menu = false }) {
+                            DropdownMenuItem(text = { Text("Calendar") }, leadingIcon = { Icon(Icons.Default.CalendarMonth, null) }, onClick = { menu = false; calendarOpen = true })
+                            DropdownMenuItem(text = { Text("Power Center") }, leadingIcon = { Icon(Icons.Default.Dashboard, null) }, onClick = { menu = false; powerCenterOpen = true })
+                            DropdownMenuItem(text = { Text("Command center") }, leadingIcon = { Icon(Icons.Default.Tune, null) }, onClick = { menu = false; onOpenCommandCenter() })
                         }
-                    },
-                    actions = { IconButton(onClick = { proSuiteOpen = true }) { Icon(Icons.Default.AutoAwesome, "Free Pro Suite") }; IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { powerCenterOpen = true }) { Icon(Icons.Default.Dashboard, "Power Center") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
-                )
+                    }
+                }
             },
             bottomBar = {
                 Column {
@@ -135,7 +141,7 @@ private fun DayClasses(date: LocalDate) {
     if (classes.isEmpty()) return
     val now = LocalDateTime.now()
     val minute = now.hour * 60 + now.minute
-    Card(shape = RoundedCornerShape(20.dp)) {
+    Card {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Classes · ${classes.size}", fontWeight = FontWeight.Bold)
             classes.forEach { o ->
@@ -161,11 +167,11 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
             }
         }
         item {
-            Card(colors = CardDefaults.cardColors(containerColor = HomeInk), shape = RoundedCornerShape(24.dp)) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("${tasks.count { !it.completed }} remaining", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("${done / 60}h ${done % 60}m done · ${total / 60}h ${total % 60}m planned", color = Color(0xFFD5E0DA))
-                    LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth(), color = Color(0xFFA8C7B7), trackColor = Color.White.copy(alpha = .15f))
+            HeroCard {
+                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                    Text("${tasks.count { !it.completed }} remaining", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                    Text("${done / 60}h ${done % 60}m done · ${total / 60}h ${total % 60}m planned", color = Chronora.colors.heroMuted)
+                    LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth(), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .15f))
                 }
             }
         }
@@ -183,7 +189,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
 @Composable
 private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit, onEdit: () -> Unit) {
     var showChecklist by remember { mutableStateOf(false) }
-    Card(shape = RoundedCornerShape(20.dp)) {
+    Card {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = task.completed, onCheckedChange = { onComplete() })
             Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
@@ -215,8 +221,8 @@ private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Uni
         Surface(shape = CircleShape, color = HomeInk, modifier = Modifier.size(250.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("%02d:%02d".format(pomo.remainingSeconds / 60, pomo.remainingSeconds % 60), color = Color.White, style = MaterialTheme.typography.displayMedium)
-                    Text(pomo.phase, color = Color(0xFFB9CCC2))
+                    Text("%02d:%02d".format(pomo.remainingSeconds / 60, pomo.remainingSeconds % 60), color = Chronora.colors.onHero, style = MaterialTheme.typography.displayMedium)
+                    Text(pomo.phase, color = Chronora.colors.heroMuted)
                 }
             }
         }
@@ -293,9 +299,9 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
     }
 }
 
-@Composable private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) { Card(modifier) { Column(Modifier.padding(12.dp)) { Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge); Text(label, color = HomeMuted, style = MaterialTheme.typography.labelSmall) } } }
-@Composable private fun SectionTitle(text: String) { Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-@Composable private fun EmptyCard(title: String, body: String) { Card { Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = HomeMuted) } } }
+@Composable private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) = StatTile(label, value, modifier)
+@Composable private fun SectionTitle(text: String) = SectionHeader(text)
+@Composable private fun EmptyCard(title: String, body: String) = EmptyState(title, body)
 
 @Composable
 private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {

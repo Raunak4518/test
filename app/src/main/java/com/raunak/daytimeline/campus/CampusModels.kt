@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import java.time.LocalDate
 
 enum class ClassType(val label: String, val short: String) { LECTURE("Lecture", "L"), LAB("Lab", "P"), TUTORIAL("Tutorial", "T") }

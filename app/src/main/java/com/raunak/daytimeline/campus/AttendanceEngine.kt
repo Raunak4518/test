@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import java.time.DayOfWeek
 import java.time.LocalDate
 import kotlin.math.ceil

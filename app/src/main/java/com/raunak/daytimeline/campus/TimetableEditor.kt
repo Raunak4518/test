@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.text.format.DateFormat
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -263,8 +265,8 @@ private fun WeekGrid(data: CampusData, weekStart: LocalDate, onDay: (LocalDate) 
                                 modifier = Modifier.fillMaxWidth().offset(y = top).height(height).clickable { onDay(d) }
                             ) {
                                 Column(Modifier.padding(2.dp)) {
-                                    Text(s.code.ifBlank { s.name }, color = Color.White, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
-                                    if (height > 30.dp) Text(clock(o.start), color = Color.White.copy(alpha = 0.85f), fontSize = 9.sp)
+                                    Text(s.code.ifBlank { s.name }, color = Chronora.colors.onHero, fontSize = 10.sp, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 11.sp)
+                                    if (height > 30.dp) Text(clock(o.start), color = Chronora.colors.onHero.copy(alpha = 0.85f), fontSize = 9.sp)
                                 }
                             }
                         }
@@ -294,13 +296,10 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
     val invalid = drafts.any { it.end <= it.start }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
-            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
-                        Text(if (subject == null) "New subject" else "Weekly schedule", Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Button(enabled = name.isNotBlank() && !invalid, onClick = {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+            ChronoraTopBar(if (subject == null) "New subject" else "Weekly schedule", onClose) {
+                Button(enabled = name.isNotBlank() && !invalid, onClick = {
                             store.update { d ->
                                 val sid = subject?.id ?: store.nextId()
                                 val updated = (subject ?: Subject(sid, name.trim())).copy(name = name.trim(), code = code.trim(), faculty = faculty.trim(), colorHex = color)
@@ -312,8 +311,8 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
                             }
                             onClose()
                         }) { Text("Save") }
-                    }
-                }
+            }
+            LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
                     OutlinedTextField(name, { name = it }, label = { Text("Subject name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -359,6 +358,7 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
                 if (subject != null) item {
                     TextButton(onClick = { confirmDelete = true }) { Text("Delete subject", color = MaterialTheme.colorScheme.error) }
                 }
+            }
             }
         }
     }
@@ -441,13 +441,11 @@ private fun DayEditor(date: LocalDate, data: CampusData, store: CampusStore, onE
     }
 
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize()) {
+        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+            Column(Modifier.fillMaxSize().systemBarsPadding().imePadding()) {
+            ChronoraTopBar(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), onClose)
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = onClose) { Icon(Icons.Default.Close, "Close") }
-                        Text(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), Modifier.weight(1f), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    }
                     Text("Changes here affect only this date. To change every week, use Edit week.", style = MaterialTheme.typography.bodySmall)
                 }
                 item {
@@ -484,6 +482,7 @@ private fun DayEditor(date: LocalDate, data: CampusData, store: CampusStore, onE
                 item {
                     Button(onClick = { adding = true }, enabled = data.subjects.isNotEmpty()) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Extra class this day") }
                 }
+            }
             }
         }
     }

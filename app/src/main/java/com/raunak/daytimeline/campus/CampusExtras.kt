@@ -1,5 +1,7 @@
 package com.raunak.daytimeline.campus
 
+import com.raunak.daytimeline.ui.*
+
 import android.content.Context
 import android.content.Intent
 import androidx.compose.foundation.layout.*
@@ -82,7 +84,7 @@ internal fun SleepCard(data: CampusData, store: CampusStore) {
     SectionCard("Sleep", if (nights.isEmpty()) "Grant usage access (Free Pro Suite → Wellbeing) to estimate sleep" else "Average ${hm(nights.map { it.minutes }.average().toInt())} · goal ${hm(goal)}") {
         next?.let { Text("For ${hm(goal)} before your ${it.at.toLocalTime().withSecond(0)} alarm, be asleep by ${it.at.minusMinutes(goal.toLong()).toLocalTime().withSecond(0)}.", fontWeight = FontWeight.SemiBold) }
         nights.forEach { n ->
-            Text("${n.date} · ${StudyEngines.clockOf(n.sleptAt)} → ${StudyEngines.clockOf(n.wokeAt)} · ${hm(n.minutes)}", style = MaterialTheme.typography.bodySmall, color = if (n.minutes >= goal) Color(0xFF2E7D32) else Color(0xFFC62828))
+            Text("${n.date} · ${StudyEngines.clockOf(n.sleptAt)} → ${StudyEngines.clockOf(n.wokeAt)} · ${hm(n.minutes)}", style = MaterialTheme.typography.bodySmall, color = if (n.minutes >= goal) Chronora.colors.good else Chronora.colors.bad)
         }
         Stepper("Sleep goal", hm(goal), { store.update { it.copy(settings = it.settings.copy(sleepGoalMinutes = (goal - 15).coerceAtLeast(240))) } }, { store.update { it.copy(settings = it.settings.copy(sleepGoalMinutes = (goal + 15).coerceAtMost(720))) } })
     }
