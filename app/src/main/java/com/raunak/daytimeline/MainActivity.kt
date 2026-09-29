@@ -59,6 +59,7 @@ class MainActivity : FragmentActivity() {
         }
 
         setContent {
+            ChronoraTheme(applicationContext) {
             val lockEnabled = security.appLockEnabled
             if (lockEnabled && !authenticated) {
                 Surface(Modifier.fillMaxSize()) {
@@ -74,6 +75,7 @@ class MainActivity : FragmentActivity() {
                 }
             } else {
                 ChronoraContent()
+            }
             }
         }
     }
