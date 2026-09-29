@@ -25,6 +25,8 @@ class PlannerViewModel(
 
     val settings = settingsStore.settings.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), PlannerSettings())
 
+    val allTasks: StateFlow<List<TaskModel>> = repository.observeAllTasks().stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     val tasks: StateFlow<List<TaskModel>> = selectedDate
         .flatMapLatest { repository.observeTasks(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
