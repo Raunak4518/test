@@ -32,6 +32,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     var timerLabel by remember { mutableStateOf("") }
     var selectedProject by remember { mutableLongStateOf(-1L) }
     var status by remember { mutableStateOf("") }
+    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(store.exportJson()) } ?: error("Unable to write backup") }.onSuccess { status = "Backup saved" }.onFailure { status = "Export failed" } }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) runCatching {
             context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Unable to read backup")
@@ -63,7 +64,12 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Backup & restore", style = MaterialTheme.typography.titleMedium); Text("Export the complete secondary productivity store as versioned JSON, or restore a validated backup.")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Export productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Export") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { exporter.launch("daytimeline-backup.json") }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save JSON") }
+                OutlinedButton(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Share productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
+            } } }
+            item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Data safety", style = MaterialTheme.typography.titleMedium)
+                OutlinedButton(onClick = { store.resetAll(); status = "Secondary productivity data reset" }) { Text("Reset secondary data") }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Local behavior", style = MaterialTheme.typography.titleMedium); SettingSwitch("Haptics", settings.haptics) { store.updateSettings { current -> current.copy(haptics = it) } }; SettingSwitch("Sounds", settings.sounds) { store.updateSettings { current -> current.copy(sounds = it) } }; SettingSwitch("Auto-scroll to now", settings.autoScrollNow) { store.updateSettings { current -> current.copy(autoScrollNow = it) } }; SettingSwitch("Show completed", settings.showCompleted) { store.updateSettings { current -> current.copy(showCompleted = it) } }; Text("Default task: " + settings.defaultTaskMinutes + "m · Focus: " + settings.defaultFocusMinutes + "m", style = MaterialTheme.typography.bodySmall)
