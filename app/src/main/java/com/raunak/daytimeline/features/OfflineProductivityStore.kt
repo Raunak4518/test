@@ -44,9 +44,9 @@ class OfflineProductivityStore(context: Context) {
     private val _notes = MutableStateFlow(read("notes", emptyList<OfflineNote>()))
     val notes: StateFlow<List<OfflineNote>> = _notes.asStateFlow()
 
-    fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "") {
+    fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "", activeDays: Set<Int> = (1..7).toSet()) {
         if (name.isBlank()) return
-        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, (1..7).toSet(), emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
+        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, activeDays.ifEmpty { (1..7).toSet() }, emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
     }
 
     fun updateHabit(id: Long, name: String, targetPerWeek: Int, preferredTime: String, activeDays: Set<Int> = (1..7).toSet()) {
