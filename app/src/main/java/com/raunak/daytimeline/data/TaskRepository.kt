@@ -130,6 +130,27 @@ class TaskRepository(
         }
     }
 
+    suspend fun autoSchedule(date: LocalDate, dayStartMinute: Int, dayEndMinute: Int): Int {
+        val existing = taskDao.forExactDate(date.toEpochDay()).filterNot { it.completed }
+            .sortedWith(compareByDescending<TaskEntity> { it.priority }.thenBy { it.startMinute })
+        var cursor = dayStartMinute.coerceIn(0, 1439)
+        val boundary = dayEndMinute.coerceIn(cursor + 5, 1440)
+        var changed = 0
+        existing.forEach { task ->
+            val duration = (task.endMinute - task.startMinute).coerceIn(5, 240)
+            val start = cursor.coerceAtMost((boundary - 5).coerceAtLeast(cursor))
+            val end = (start + duration).coerceAtMost(boundary)
+            if (end > start && (task.startMinute != start || task.endMinute != end)) {
+                taskDao.update(task.copy(startMinute = start, endMinute = end))
+                reminderScheduler.schedule(task.copy(startMinute = start, endMinute = end))
+                changed++
+            }
+            cursor = (end + 15).coerceAtMost(boundary)
+            if (cursor >= boundary) return@forEach
+        }
+        return changed
+    }
+
     suspend fun rescheduleAllReminders() {
         taskDao.all().forEach { task ->
             if (task.reminderMode != "NONE") reminderScheduler.schedule(task)
