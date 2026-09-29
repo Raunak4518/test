@@ -110,7 +110,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "goal" -> GoalDialog({ title, target, deadline -> productivity.addGoal(title, target, deadline); dialog = null }, { dialog = null })
         "journal" -> JournalDialog({ mood, energy, wins, blockers, gratitude, note -> productivity.addJournal(LocalDate.now(), mood, energy, wins, blockers, gratitude, note); dialog = null }, { dialog = null })
         "tools" -> OfflinePowerTools(productivity) { dialog = null }
-        "note" -> NoteDialog({ title, body, tags -> productivity.addNote(title, body, tags); dialog = null }, { dialog = null })
+        "note" -> NoteDialog({ title, body, tags, folder -> productivity.addNote(title, body, tags, folder); dialog = null }, { dialog = null })
         "routine" -> RoutineDialog({ name, steps -> productivity.addRoutine(name, steps); dialog = null }, { dialog = null })
         "analytics" -> AnalyticsDialog(tasks, habits, entries, productivity) { dialog = null }
         "smartplan" -> SmartPlanDialog(tasks, vm) { dialog = null }
@@ -217,12 +217,26 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Routines"); TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
         items(routines, key = { it.id }) { r -> Card { Column(Modifier.padding(14.dp)) { Text(r.name, fontWeight = FontWeight.SemiBold); Text("${r.steps.sumOf { it.minutes }} min · ${r.steps.size} steps", color = HomeMuted); Row { TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") }; TextButton(onClick = { store.deleteRoutine(r.id) }) { Text("Delete") } } } } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
-        items(notes.sortedByDescending { it.updatedAt }.take(8), key = { it.id }) { n ->
+        items(notes.sortedWith(compareByDescending<com.raunak.daytimeline.features.OfflineNote> { it.pinned }.thenByDescending { it.updatedAt }).take(8), key = { it.id }) { n ->
+            var backlinksOpen by remember(n.id) { mutableStateOf(false) }
             Card { Column(Modifier.padding(14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(n.title, fontWeight = FontWeight.SemiBold); IconButton(onClick = { store.deleteNote(n.id) }) { Icon(Icons.Default.Delete, "Delete note") } }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(n.title, fontWeight = FontWeight.SemiBold)
+                        if (n.pinned) Text("  PINNED", color = HomeSage, style = MaterialTheme.typography.labelSmall)
+                    }
+                    Row {
+                        IconButton(onClick = { store.toggleNotePinned(n.id) }) { Icon(Icons.Default.PushPin, if (n.pinned) "Unpin note" else "Pin note") }
+                        TextButton(onClick = { backlinksOpen = true }) { Text("Backlinks") }
+                        IconButton(onClick = { store.deleteNote(n.id) }) { Icon(Icons.Default.Delete, "Delete note") }
+                    }
+                }
+                Text("Folder: " + n.folder, color = HomeSage, style = MaterialTheme.typography.labelSmall)
                 if (n.tags.isNotEmpty()) Text(n.tags.joinToString(" · "), color = HomeSage, style = MaterialTheme.typography.labelSmall)
                 Text(n.body, maxLines = 5, color = HomeMuted)
-            } }
+            }
+            if (backlinksOpen) NoteBacklinksDialog(n, store) { backlinksOpen = false }
+            }
         }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Reflection"); Row { TextButton(onClick = { openDialog("journalHistory") }) { Text("History") }; TextButton(onClick = { openDialog("journal") }) { Text("Write") } } } }
         item { if (journal.isEmpty()) EmptyCard("No journal yet", "Capture mood, energy, wins, blockers and gratitude.") else Card { Column(Modifier.padding(14.dp)) { val j = journal.first(); Text(j.date, fontWeight = FontWeight.Bold); Text("Mood ${j.mood}/5 · Energy ${j.energy}/5", color = HomeSage); if (j.wins.isNotBlank()) Text("Wins: ${j.wins}"); if (j.blockers.isNotBlank()) Text("Blockers: ${j.blockers}") } } }
@@ -251,13 +265,36 @@ private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {
 @Composable private fun GoalDialog(onSave: (String, Int, LocalDate?) -> Unit, close: () -> Unit) { var title by remember { mutableStateOf("") }; var target by remember { mutableStateOf("100") }; var deadline by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = close, title = { Text("New goal") }, text = { Column { OutlinedTextField(title, { title = it }, label = { Text("Goal") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }); OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD (optional)") }) } }, confirmButton = { Button(onClick = { onSave(title, target.toIntOrNull() ?: 100, runCatching { LocalDate.parse(deadline) }.getOrNull()) }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 @Composable private fun JournalDialog(onSave: (Int, Int, String, String, String, String) -> Unit, close: () -> Unit) { var mood by remember { mutableIntStateOf(3) }; var energy by remember { mutableIntStateOf(3) }; var wins by remember { mutableStateOf("") }; var blockers by remember { mutableStateOf("") }; var gratitude by remember { mutableStateOf("") }; var note by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = close, title = { Text("Daily reflection") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Mood $mood/5"); Row { (1..5).forEach { TextButton(onClick = { mood = it }) { Text(it.toString()) } } }; Text("Energy $energy/5"); Row { (1..5).forEach { TextButton(onClick = { energy = it }) { Text(it.toString()) } } }; OutlinedTextField(wins, { wins = it }, label = { Text("Wins") }); OutlinedTextField(blockers, { blockers = it }, label = { Text("Blockers") }); OutlinedTextField(gratitude, { gratitude = it }, label = { Text("Gratitude") }); OutlinedTextField(note, { note = it }, label = { Text("Notes") }) } }, confirmButton = { Button(onClick = { onSave(mood, energy, wins, blockers, gratitude, note) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 
-@Composable private fun NoteDialog(onSave: (String, String, Set<String>) -> Unit, close: () -> Unit) {
-    var title by remember { mutableStateOf("") }; var body by remember { mutableStateOf("") }; var tags by remember { mutableStateOf("") }
+@Composable private fun NoteDialog(onSave: (String, String, Set<String>, String) -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }; var body by remember { mutableStateOf("") }; var tags by remember { mutableStateOf("") }; var folder by remember { mutableStateOf("General") }
     AlertDialog(onDismissRequest = close, title = { Text("New note") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         OutlinedTextField(title, { title = it }, label = { Text("Title") })
         OutlinedTextField(body, { body = it }, label = { Text("Note") }, minLines = 4)
         OutlinedTextField(tags, { tags = it }, label = { Text("Tags, comma separated") })
-    } }, confirmButton = { Button(onClick = { onSave(title, body, tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+        OutlinedTextField(folder, { folder = it }, label = { Text("Folder") })
+    } }, confirmButton = { Button(onClick = { onSave(title, body, tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet(), folder) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+@Composable
+private fun NoteBacklinksDialog(note: com.raunak.daytimeline.features.OfflineNote, store: OfflineProductivityStore, close: () -> Unit) {
+    val backlinks = store.noteBacklinks(note)
+    AlertDialog(
+        onDismissRequest = close,
+        title = { Text("Backlinks · " + note.title) },
+        text = {
+            if (backlinks.isEmpty()) Text("No notes currently reference this title.")
+            else LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(backlinks, key = { it.id }) {
+                    Card { Column(Modifier.padding(10.dp)) {
+                        Text(it.title, fontWeight = FontWeight.SemiBold)
+                        Text(it.body.take(180), color = HomeMuted)
+                        Text("Folder: " + it.folder, style = MaterialTheme.typography.labelSmall)
+                    } }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = close) { Text("Close") } }
+    )
 }
 
 @Composable private fun RoutineDialog(onSave: (String, List<com.raunak.daytimeline.features.OfflineRoutineStep>) -> Unit, close: () -> Unit) {
