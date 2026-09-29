@@ -142,7 +142,7 @@ private fun TaskRow(task: TaskModel, onComplete: () -> Unit, onFocus: () -> Unit
 private fun FocusScreen(pomo: com.raunak.daytimeline.data.PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel) {
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Spacer(Modifier.height(10.dp))
-        Surface(CircleShape, color = HomeInk, modifier = Modifier.size(250.dp)) {
+        Surface(shape = CircleShape, color = HomeInk, modifier = Modifier.size(250.dp)) {
             Box(contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Text("%02d:%02d".format(pomo.remainingSeconds / 60, pomo.remainingSeconds % 60), color = Color.White, style = MaterialTheme.typography.displayMedium)
