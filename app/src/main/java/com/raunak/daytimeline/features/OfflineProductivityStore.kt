@@ -49,6 +49,12 @@ class OfflineProductivityStore(context: Context) {
         update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
     }
 
+    fun updateHabit(id: Long, name: String, targetPerWeek: Int, preferredTime: String) {
+        habitScheduler.cancel(id)
+        update(_habits, "habits") { list -> list.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, targetPerWeek = targetPerWeek.coerceIn(1, 7), preferredTime = preferredTime) else it } }
+        _habits.value.firstOrNull { it.id == id }?.let(habitScheduler::schedule)
+    }
+
     fun deleteHabit(id: Long) { habitScheduler.cancel(id); update(_habits, "habits") { it.filterNot { h -> h.id == id } } }
 
     fun toggleHabit(id: Long, date: LocalDate = LocalDate.now()) = update(_habits, "habits") { list ->
