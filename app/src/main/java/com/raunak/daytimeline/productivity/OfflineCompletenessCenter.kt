@@ -230,7 +230,7 @@ private fun OfflineJournalPanel(store: OfflineProductivityStore) {
         var mood by remember { mutableIntStateOf(3) }
         var energy by remember { mutableIntStateOf(3) }
         AlertDialog(onDismissRequest = { add = false }, title = { Text("Daily reflection") },
-            text = { Column { Text("Mood " + mood + "/5"); Slider({ mood = it.toInt().coerceIn(1,5) }, 1f, 5f, steps = 3); Text("Energy " + energy + "/5"); Slider({ energy = it.toInt().coerceIn(1,5) }, 1f, 5f, steps = 3); OutlinedTextField(note, { note = it }, label = { Text("Reflection") }) } },
+            text = { Column { Text("Mood " + mood + "/5"); Slider(value = mood.toFloat(), onValueChange = { mood = it.toInt().coerceIn(1, 5) }, valueRange = 1f..5f, steps = 3); Text("Energy " + energy + "/5"); Slider(value = energy.toFloat(), onValueChange = { energy = it.toInt().coerceIn(1, 5) }, valueRange = 1f..5f, steps = 3); OutlinedTextField(note, { note = it }, label = { Text("Reflection") }) } },
             confirmButton = { Button({ store.addJournal(LocalDate.now(), mood, energy, note, "", "", note); add = false }) { Text("Save") } },
             dismissButton = { TextButton({ add = false }) { Text("Cancel") } })
     }
