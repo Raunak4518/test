@@ -40,6 +40,8 @@ class OfflineProductivityStore(context: Context) {
     val challenges: StateFlow<List<OfflineChallenge>> = _challenges.asStateFlow()
     private val _settings = MutableStateFlow(read("settings", OfflineSettings()))
     val settings: StateFlow<OfflineSettings> = _settings.asStateFlow()
+    private val _notes = MutableStateFlow(read("notes", emptyList<OfflineNote>()))
+    val notes: StateFlow<List<OfflineNote>> = _notes.asStateFlow()
 
     fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "") {
         if (name.isBlank()) return
@@ -68,6 +70,13 @@ class OfflineProductivityStore(context: Context) {
         }
         return streak
     }
+
+    fun addNote(title: String, body: String, tags: Set<String> = emptySet()) {
+        if (title.isBlank() && body.isBlank()) return
+        update(_notes, "notes") { it + OfflineNote(id(), title.trim().ifBlank { "Untitled" }, body, tags, System.currentTimeMillis()) }
+    }
+
+    fun deleteNote(id: Long) = update(_notes, "notes") { it.filterNot { n -> n.id == id } }
 
     fun addGoal(title: String, target: Int, deadline: LocalDate? = null) {
         if (title.isBlank()) return
@@ -151,7 +160,8 @@ class OfflineProductivityStore(context: Context) {
         achievements = _achievements.value,
         journal = _journal.value,
         challenges = _challenges.value,
-        settings = _settings.value
+        settings = _settings.value,
+        notes = _notes.value
     ))
 
     /** Replaces the secondary local store only after the complete JSON has parsed successfully. */
@@ -167,6 +177,7 @@ class OfflineProductivityStore(context: Context) {
         val journal = backup.journal ?: emptyList()
         val challenges = backup.challenges ?: defaultChallenges()
         val settings = backup.settings ?: OfflineSettings()
+        val notes = backup.notes ?: emptyList()
         prefs.edit()
             .putString("habits", gson.toJson(habits))
             .putString("goals", gson.toJson(goals))
@@ -177,6 +188,7 @@ class OfflineProductivityStore(context: Context) {
             .putString("journal", gson.toJson(journal))
             .putString("challenges", gson.toJson(challenges))
             .putString("settings", gson.toJson(settings))
+            .putString("notes", gson.toJson(notes))
             .apply()
         _habits.value = habits
         _goals.value = goals
@@ -187,6 +199,7 @@ class OfflineProductivityStore(context: Context) {
         _journal.value = journal
         _challenges.value = challenges
         _settings.value = settings
+        _notes.value = notes
     }
 
     fun resetAll() {
@@ -200,6 +213,7 @@ class OfflineProductivityStore(context: Context) {
         _journal.value = emptyList()
         _challenges.value = defaultChallenges()
         _settings.value = OfflineSettings()
+        _notes.value = emptyList()
     }
 
     private fun id(): Long = System.currentTimeMillis() * 1000 + ((0..999).random())
@@ -247,6 +261,8 @@ data class OfflineSettings(
     val defaultTaskMinutes: Int = 30,
     val defaultFocusMinutes: Int = 25
 )
+data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long)
+
 data class OfflineBackup(
     val schema: Int,
     val exportedAt: Long,
@@ -258,7 +274,8 @@ data class OfflineBackup(
     val achievements: List<OfflineAchievement>?,
     val journal: List<OfflineJournalEntry>?,
     val challenges: List<OfflineChallenge>?,
-    val settings: OfflineSettings?
+    val settings: OfflineSettings?,
+    val notes: List<OfflineNote>? = null
 )
 
 fun OfflineHabit.streak(today: LocalDate = LocalDate.now()): Int {
