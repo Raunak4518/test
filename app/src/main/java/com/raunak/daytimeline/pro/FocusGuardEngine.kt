@@ -46,7 +46,9 @@ data class FocusGuardConfig(
     /** Block the websites all day instead of only during sessions and schedules. */
     val sitesAlwaysBlocked: Boolean = false,
     /** Quick-start session lengths (minutes). */
-    val sessionPresets: List<Int> = listOf(25, 50, 90, 180)
+    val sessionPresets: List<Int> = listOf(25, 50, 90, 180),
+    /** If set, an emergency unlock needs this exact sentence typed first (friction against impulse). */
+    val unlockPhrase: String = ""
 ) {
     /** Fills fields missing from settings saved by an older version. */
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
@@ -55,7 +57,7 @@ data class FocusGuardConfig(
         return copy(
             blockedPackages = blockedPackages ?: emptySet(), blockLists = blockLists ?: emptyMap(), allowedPackages = allowedPackages ?: emptySet(),
             schedules = schedules ?: emptyList(), dailyLimits = dailyLimits ?: emptyMap(), mindfulPackages = mindfulPackages ?: emptySet(),
-            blockedSites = blockedSites ?: emptySet(), sessionPresets = (sessionPresets ?: d.sessionPresets).filter { it > 0 }.ifEmpty { d.sessionPresets },
+            blockedSites = blockedSites ?: emptySet(), unlockPhrase = unlockPhrase ?: "", sessionPresets = (sessionPresets ?: d.sessionPresets).filter { it > 0 }.ifEmpty { d.sessionPresets },
             interventionSeconds = if (interventionSeconds > 0) interventionSeconds else d.interventionSeconds,
             interventionGrantMinutes = if (interventionGrantMinutes > 0) interventionGrantMinutes else d.interventionGrantMinutes,
             emergencyUnlockMinutes = if (emergencyUnlockMinutes > 0) emergencyUnlockMinutes else d.emergencyUnlockMinutes

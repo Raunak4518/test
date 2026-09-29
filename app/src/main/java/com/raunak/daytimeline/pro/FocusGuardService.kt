@@ -40,9 +40,16 @@ class FocusGuardService : AccessibilityService() {
         wellbeing = WellbeingStore(this)
         launchers = homePackages(this)
         handler.post(ticker)
+        runCatching { registerReceiver(unlockReceiver, android.content.IntentFilter(Intent.ACTION_USER_PRESENT)) }
+    }
+
+    /** Counts real unlocks (keyguard dismissed) for the daily unlock limit and pickup stats. */
+    private val unlockReceiver = object : android.content.BroadcastReceiver() {
+        override fun onReceive(context: android.content.Context, intent: Intent) { if (::wellbeing.isInitialized) wellbeing.recordUnlock() }
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(unlockReceiver) }
         handler.removeCallbacks(ticker)
         super.onDestroy()
     }
@@ -127,7 +134,8 @@ class FocusGuardService : AccessibilityService() {
             opensToday = wellbeing.opensToday(),
             totalTodayMinutes = total,
             currentSessionMinutes = if (sessionPkg == pkg) ((nowMillis - sessionStart) / 60_000L).toInt() else 0,
-            cooldownUntil = wellbeing.cooldowns()[pkg] ?: 0
+            cooldownUntil = wellbeing.cooldowns()[pkg] ?: 0,
+            unlocksToday = wellbeing.unlocksToday()
         )
         when (val w = WellbeingEngine.decide(wb, config.dailyLimits, pkg, now, nowMillis, snapshot)) {
             is WellbeingDecision.Block -> {

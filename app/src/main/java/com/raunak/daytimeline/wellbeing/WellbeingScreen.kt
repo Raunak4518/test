@@ -243,6 +243,15 @@ private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
             Text("${c.pickupGoal}")
             TextButton(onClick = { save(c.copy(pickupGoal = c.pickupGoal + 10)) }) { Text("+") }
         }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("Unlock limit")
+                Text(if (c.unlockLimit == 0) "Off" else "After ${c.unlockLimit} unlocks a day, apps are blocked (bedtime-allowed apps still work)", style = MaterialTheme.typography.bodySmall)
+            }
+            TextButton(onClick = { save(c.copy(unlockLimit = (c.unlockLimit - 10).coerceAtLeast(0))) }) { Text("−") }
+            Text(if (c.unlockLimit == 0) "Off" else "${c.unlockLimit}")
+            TextButton(onClick = { save(c.copy(unlockLimit = if (c.unlockLimit == 0) 50 else c.unlockLimit + 10)) }) { Text("+") }
+        }
         SwitchRow("Daily report at ${clock(c.reportMinute)} (weekly comparison on Sundays)", c.dailyReport) { save(c.copy(dailyReport = it)) }
         MinutesStepper("Report time", c.reportMinute, step = 15, min = 15, max = 24 * 60 - 15) { save(c.copy(reportMinute = it)) }
     } }

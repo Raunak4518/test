@@ -42,6 +42,9 @@ class WebFilterVpnService : VpnService() {
     @Volatile private var filter: DomainFilter? = null
     @Volatile private var config = WebFilterConfig()
     private val pendingLog = ConcurrentLinkedQueue<BlockLogEntry>()
+    /** Lookups since the last flush, in total and per app (for the Insights card). */
+    private val pendingQueries = java.util.concurrent.atomic.AtomicInteger()
+    private val pendingAppQueries = java.util.concurrent.ConcurrentHashMap<String, Int>()
     private val uidNames = HashMap<Int, String>()
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -94,13 +97,20 @@ class WebFilterVpnService : VpnService() {
                     store.appendLog(batch)
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(store.blockedToday()))
                 }
+                val n = pendingQueries.getAndSet(0)
+                if (n > 0) {
+                    val apps = HashMap(pendingAppQueries); apps.keys.forEach { pendingAppQueries.remove(it) }
+                    WebFilterStore(this@WebFilterVpnService).addQueryStats(n, apps)
+                }
             }
         }
     }
 
     private fun handle(query: DnsQuery, output: FileOutputStream) {
         val f = filter ?: return
-        val app = if (config.appRules.isNotEmpty()) ownerPackage(query) else null
+        val app = ownerPackage(query)
+        pendingQueries.incrementAndGet()
+        app?.let { a -> pendingAppQueries.merge(a, 1, Int::plus) }
         if (app != null && FilterLock.appBlocked(config.appRules[app], onWifi())) {
             reply(output, query, DnsPacket.answer(query, DnsPacket.RCODE_NXDOMAIN))
             pendingLog += BlockLogEntry(System.currentTimeMillis(), query.name, "App firewall", app)
@@ -110,7 +120,7 @@ class WebFilterVpnService : VpnService() {
             is FilterVerdict.Block -> {
                 // Also refuse HTTPS/SVCB records so browsers cannot learn alternative endpoints.
                 reply(output, query, DnsPacket.answer(query, DnsPacket.RCODE_NXDOMAIN))
-                pendingLog += BlockLogEntry(System.currentTimeMillis(), query.name, verdict.reason, app ?: ownerPackage(query) ?: "")
+                pendingLog += BlockLogEntry(System.currentTimeMillis(), query.name, verdict.reason, app ?: "")
             }
             is FilterVerdict.Rewrite -> {
                 if (query.type != DnsPacket.TYPE_A) { reply(output, query, DnsPacket.answer(query)); return }

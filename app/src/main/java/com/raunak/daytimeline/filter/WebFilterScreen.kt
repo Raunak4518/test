@@ -9,6 +9,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -213,17 +214,64 @@ fun WebFilterScreen() {
                 }
             } }
         }
-        item {
-            val log = remember(running, now / 10_000) { store.log().take(60) }
-            val fmt = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("Recently blocked", fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    TextButton(onClick = { store.clearLog() }) { Text("Clear") }
+        item { FilterInsights(store, running, now) }
+        item { BlockLogCard(store, config, running, now) { commit(it) } }
+    }
+}
+
+/** RethinkDNS-style overview: lookups, blocked share, top blocked sites and the busiest apps. */
+@Composable
+private fun FilterInsights(store: WebFilterStore, running: Boolean, now: Long) {
+    val context = LocalContext.current
+    val queries = remember(running, now / 10_000) { store.queriesToday() }
+    val blocked = remember(running, now / 10_000) { store.blockedToday() }
+    val apps = remember(running, now / 10_000) { store.appQueriesToday() }
+    val today = remember(running, now / 10_000) { store.log().filter { java.time.Instant.ofEpochMilli(it.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() } }
+    fun label(pkg: String) = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg.substringAfterLast('.'))
+    SectionCard("Today", "Lookups seen by the filter since midnight") {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Stat("Lookups", "$queries", Modifier.weight(1f))
+            Stat("Blocked", "$blocked", Modifier.weight(1f), color = Chronora.colors.bad)
+            Stat("Blocked share", if (queries > 0) "${100 * blocked / queries}%" else "—", Modifier.weight(1f))
+        }
+        val topDomains = today.groupingBy { it.domain }.eachCount().entries.sortedByDescending { it.value }.take(5)
+        if (topDomains.isNotEmpty()) {
+            Text("Most blocked", style = MaterialTheme.typography.labelLarge)
+            topDomains.forEach { Text("${it.key} ×${it.value}", style = MaterialTheme.typography.bodySmall) }
+        }
+        val blockedByApp = today.filter { it.app.isNotBlank() }.groupingBy { it.app }.eachCount()
+        val topApps = apps.entries.sortedByDescending { it.value }.take(5)
+        if (topApps.isNotEmpty()) {
+            Text("Busiest apps", style = MaterialTheme.typography.labelLarge)
+            topApps.forEach { (pkg, n) -> Text("${label(pkg)} · $n lookups" + (blockedByApp[pkg]?.let { " · $it blocked" } ?: ""), style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+/** Searchable log; tap an entry to always allow that site (the commitment lock still applies). */
+@Composable
+private fun BlockLogCard(store: WebFilterStore, config: WebFilterConfig, running: Boolean, now: Long, commit: (WebFilterConfig) -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var cleared by remember { mutableIntStateOf(0) }
+    val log = remember(running, now / 10_000, cleared) { store.log() }
+    val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale.getDefault()) }
+    val shown = log.filter { query.isBlank() || it.domain.contains(query, true) || it.app.contains(query, true) || it.reason.contains(query, true) }.take(80)
+    SectionCard("Blocked log", "${log.size} recent · tap a site to allow it", action = { TextButton(onClick = { store.clearLog(); cleared++ }) { Text("Clear") } }) {
+        OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search site, app or reason") }, modifier = Modifier.fillMaxWidth())
+        if (shown.isEmpty()) Text(if (log.isEmpty()) "Nothing blocked yet" else "No matches", style = MaterialTheme.typography.bodySmall)
+        shown.forEach { e ->
+            var menu by remember(e.time, e.domain) { mutableStateOf(false) }
+            Box {
+                Column(Modifier.fillMaxWidth().clickable { menu = true }.padding(vertical = 4.dp)) {
+                    Text(e.domain, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                    Text("${fmt.format(Date(e.time))} · ${e.reason}" + if (e.app.isNotBlank()) " · ${e.app.substringAfterLast('.')}" else "", style = MaterialTheme.typography.bodySmall)
                 }
-                if (log.isEmpty()) Text("Nothing blocked yet", style = MaterialTheme.typography.bodySmall)
-                log.forEach { e -> Text("${fmt.format(Date(e.time))}  ${e.domain} · ${e.reason}" + if (e.app.isNotBlank()) " · ${e.app.substringAfterLast('.')}" else "", style = MaterialTheme.typography.bodySmall) }
-            } }
+                DropdownMenu(menu, { menu = false }) {
+                    val base = e.domain.removePrefix("www.")
+                    if (base !in config.allowed) DropdownMenuItem(text = { Text("Always allow $base") }, onClick = { menu = false; commit(config.copy(allowed = config.allowed + base)) })
+                    DropdownMenuItem(text = { Text("Keep blocking") }, onClick = { menu = false })
+                }
+            }
         }
     }
 }

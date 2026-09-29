@@ -124,6 +124,21 @@ class WebFilterStore(context: Context) {
         prefs.edit().putString("count_date", today).putInt("count", count + entries.size).putLong("total", prefs.getLong("total", 0) + entries.size).apply()
     }
 
+    /** Adds lookups counted by the filter; per-day totals, reset each day. */
+    fun addQueryStats(count: Int, perApp: Map<String, Int>) {
+        val today = java.time.LocalDate.now().toString()
+        val same = prefs.getString("q_date", "") == today
+        val apps = (if (same) appQueriesToday() else emptyMap()).toMutableMap()
+        perApp.forEach { (k, v) -> apps[k] = (apps[k] ?: 0) + v }
+        prefs.edit().putString("q_date", today).putInt("q_count", (if (same) prefs.getInt("q_count", 0) else 0) + count).putString("q_apps", gson.toJson(apps)).apply()
+    }
+
+    fun queriesToday(): Int = if (prefs.getString("q_date", "") == java.time.LocalDate.now().toString()) prefs.getInt("q_count", 0) else 0
+
+    fun appQueriesToday(): Map<String, Int> = if (prefs.getString("q_date", "") != java.time.LocalDate.now().toString()) emptyMap() else try {
+        prefs.getString("q_apps", null)?.let { gson.fromJson<Map<String, Int>>(it, object : TypeToken<Map<String, Int>>() {}.type) } ?: emptyMap()
+    } catch (_: Exception) { emptyMap() }
+
     fun blockedToday(): Int = if (prefs.getString("count_date", "") == java.time.LocalDate.now().toString()) prefs.getInt("count", 0) else 0
     fun blockedTotal(): Long = prefs.getLong("total", 0)
     fun clearLog() = prefs.edit().remove("log").apply()

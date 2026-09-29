@@ -54,6 +54,15 @@ class WellbeingStore(context: Context) {
         return next.getValue(pkg)
     }
 
+    /** Screen unlocks today, counted live by the blocker service. */
+    fun unlocksToday(): Int = if (prefs.getString("unlocks_date", "") == today()) prefs.getInt("unlocks", 0) else 0
+
+    fun recordUnlock(): Int {
+        val n = unlocksToday() + 1
+        prefs.edit().putString("unlocks_date", today()).putInt("unlocks", n).apply()
+        return n
+    }
+
     fun cooldowns(): Map<String, Long> = read("cooldowns") ?: emptyMap()
     fun setCooldown(pkg: String, until: Long) = write("cooldowns", cooldowns().filterValues { it > System.currentTimeMillis() } + (pkg to until))
 

@@ -56,7 +56,9 @@ data class WellbeingConfig(
     val dailyReport: Boolean = true,
     val reportMinute: Int = 21 * 60 + 30,
     /** Your own screen ids per short-video surface (ShortForm name → ids); replaces the built-in ones. */
-    val shortFormIds: Map<String, List<String>> = emptyMap()
+    val shortFormIds: Map<String, List<String>> = emptyMap(),
+    /** Lock Me Out style: after this many unlocks today, apps are blocked (0 = off). Bedtime-allowed apps stay usable. */
+    val unlockLimit: Int = 0
 ) {
     fun idsFor(sf: ShortForm): List<String> = shortFormIds[sf.name]?.takeIf { it.isNotEmpty() } ?: sf.viewIds
 
@@ -79,7 +81,8 @@ data class UsageSnapshot(
     val opensToday: Map<String, Int> = emptyMap(),
     val totalTodayMinutes: Int = 0,
     val currentSessionMinutes: Int = 0,
-    val cooldownUntil: Long = 0
+    val cooldownUntil: Long = 0,
+    val unlocksToday: Int = 0
 )
 
 sealed class WellbeingDecision {
@@ -123,6 +126,9 @@ object WellbeingEngine {
         if (usage.cooldownUntil > nowMillis) {
             val mins = ((usage.cooldownUntil - nowMillis + 59_999) / 60_000).toInt()
             return WellbeingDecision.Block("Session break — back in $mins min", sessionCooldown = true)
+        }
+        if (config.unlockLimit > 0 && usage.unlocksToday > config.unlockLimit && pkg !in b.allowedPackages) {
+            return WellbeingDecision.Block("Unlocked ${usage.unlocksToday}× today — your limit is ${config.unlockLimit}")
         }
         val used = usage.todayMinutes[pkg] ?: 0
         val warnings = mutableListOf<WellbeingDecision.Warn>()

@@ -169,6 +169,10 @@ private fun FocusGuardTab() {
                     }
                 }
                 SwitchRow("Locked mode (no emergency unlock during blocks)", config.lockedMode) { v -> store.update { it.copy(lockedMode = v) } }
+                var phrase by remember(config.unlockPhrase) { mutableStateOf(config.unlockPhrase) }
+                OutlinedTextField(phrase, { phrase = it }, label = { Text("Unlock phrase (type it to unlock; blank = off)") }, modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = { if (phrase != config.unlockPhrase) TextButton(onClick = { store.update { it.copy(unlockPhrase = phrase.trim()) } }) { Text("Save") } })
+                if (config.unlockPhrase.isBlank()) TextButton(onClick = { phrase = "I am choosing distraction over my goals right now" }) { Text("Use a suggested phrase") }
                 SwitchRow("Allowlist mode (block everything except allowed apps)", config.allowlistMode) { v -> store.update { it.copy(allowlistMode = v) } }
                 Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay} · wait ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
                 Slider(config.emergencyUnlocksPerDay.toFloat(), { v -> store.update { it.copy(emergencyUnlocksPerDay = v.toInt()) } }, valueRange = 0f..5f, steps = 4)

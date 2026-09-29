@@ -79,8 +79,17 @@ class BlockActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(if (remaining > 0) "Open $label in ${remaining}s" else "Open $label for ${config.interventionGrantMinutes} min") }
                     } else if (canUnlock) {
+                        var typed by remember { mutableStateOf("") }
+                        val phrase = config.unlockPhrase.trim()
+                        val phraseOk = phrase.isEmpty() || typed.trim().equals(phrase, ignoreCase = false)
+                        if (phrase.isNotEmpty() && remaining == 0) {
+                            Text("To unlock, type exactly:", color = Chronora.colors.heroMuted)
+                            Text("“$phrase”", color = Chronora.colors.onHero, textAlign = TextAlign.Center, fontWeight = FontWeight.SemiBold)
+                            OutlinedTextField(typed, { typed = it }, modifier = Modifier.fillMaxWidth(), colors = OutlinedTextFieldDefaults.colors(focusedTextColor = Chronora.colors.onHero, unfocusedTextColor = Chronora.colors.onHero))
+                            Spacer(Modifier.height(8.dp))
+                        }
                         OutlinedButton(
-                            enabled = remaining == 0 && emergencyLeft > 0,
+                            enabled = remaining == 0 && emergencyLeft > 0 && phraseOk,
                             onClick = {
                                 FocusGuardEngine.useEmergencyUnlock(store.config, store.runtime, LocalDate.now(), System.currentTimeMillis())?.let { store.runtime = it }
                                 if (reopenApp) reopen(pkg) else finish()

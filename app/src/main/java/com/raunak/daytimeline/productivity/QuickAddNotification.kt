@@ -32,7 +32,7 @@ object QuickAddNotification {
             PendingIntent.FLAG_UPDATE_CURRENT or (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0))
         val open = PendingIntent.getActivity(context, ID + 1, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK), PendingIntent.FLAG_IMMUTABLE)
         val n = NotificationCompat.Builder(context, CHANNEL)
-            .setSmallIcon(android.R.drawable.ic_input_add)
+            .setSmallIcon(com.raunak.daytimeline.R.drawable.ic_notification)
             .setContentTitle("Add a task")
             .setContentText(last ?: "Type in plain words — date, time, #tags, !priority, repeat")
             .setOngoing(true).setOnlyAlertOnce(true).setSilent(true)
