@@ -18,6 +18,8 @@ class TaskRepository(
 ) {
     private val gson = Gson()
 
+    fun observeAllTasks(): Flow<List<TaskModel>> = taskDao.observeAll().map { entities -> entities.map { it.toModel(LocalDate.ofEpochDay(it.dateEpochDay)) } }
+
     fun observeTasks(date: LocalDate): Flow<List<TaskModel>> {
         val dateEpoch = date.toEpochDay()
         return taskDao.observeForDate(dateEpoch).map { entities ->
