@@ -64,18 +64,21 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
                 TopAppBar(
                     title = {
                         Column {
-                            Text(if (tab == 0) "Today" else if (tab == 1) "Focus" else "Productivity", fontWeight = FontWeight.Bold)
-                            Text(date.toString(), style = MaterialTheme.typography.labelSmall, color = HomeMuted)
+                            Text("Chronora", fontWeight = FontWeight.Bold)
+                            Text((if (tab == 0) "Today" else if (tab == 1) "Focus" else "Productivity") + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
                         }
                     },
                     actions = { IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
                 )
             },
             bottomBar = {
-                NavigationBar {
+                Column {
+                    MadeByRaunak(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp))
+                    NavigationBar {
                     NavigationBarItem(tab == 0, { tab = 0 }, icon = { Icon(Icons.Default.CalendarToday, null) }, label = { Text("Today") })
                     NavigationBarItem(tab == 1, { tab = 1 }, icon = { Icon(Icons.Default.Timer, null) }, label = { Text("Focus") })
                     NavigationBarItem(tab == 2, { tab = 2 }, icon = { Icon(Icons.Default.Insights, null) }, label = { Text("Productivity") })
+                    }
                 }
             },
             floatingActionButton = {
