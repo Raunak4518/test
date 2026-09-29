@@ -33,7 +33,9 @@ data class TimetableSlot(
     /** First date this weekly slot applies (null = from semester start). */
     val validFrom: String? = null,
     /** Last date this weekly slot applies (null = until semester end). */
-    val validUntil: String? = null
+    val validUntil: String? = null,
+    /** Rotating timetables: 0 = every week, 1 = only in week A, 2 = week B … */
+    val rotationWeek: Int = 0
 ) {
     fun activeOn(date: LocalDate): Boolean {
         val d = date.toString()
@@ -41,8 +43,11 @@ data class TimetableSlot(
     }
 }
 
+/** A hostel mess meal: open from [start] to [end] (minutes of day) on [days] (1 = Monday). */
+data class MealWindow(val name: String, val start: Int, val end: Int, val days: Set<Int> = (1..7).toSet())
+
 /** One weekly slot being edited in the subject week editor. */
-data class SlotDraft(val day: Int, val start: Int, val end: Int, val room: String = "", val type: ClassType = ClassType.LECTURE)
+data class SlotDraft(val day: Int, val start: Int, val end: Int, val room: String = "", val type: ClassType = ClassType.LECTURE, val rotationWeek: Int = 0)
 
 enum class ExceptionKind { HOLIDAY, CANCEL, RESCHEDULE, EXTRA }
 
@@ -141,7 +146,11 @@ data class WakeConfig(
     /** "Leave now" reminder this many minutes before a class. */
     val leaveMinutes: Int = 12,
     val classReminderMinutes: Int = 10,
-    val askAttendanceAfterClass: Boolean = true
+    val askAttendanceAfterClass: Boolean = true,
+    /** Don't move the alarm earlier to fit breakfast at the mess. */
+    val ignoreBreakfast: Boolean = false,
+    /** Minutes from waking up to being ready to walk to the mess. */
+    val readyMinutes: Int = 25
 )
 
 data class WakeLog(val date: String, val target: Long, val dismissedAt: Long?)
@@ -214,6 +223,27 @@ data class CampusSettings(
     ),
     /** Show today's first class and deadlines on the alarm screen. */
     val wakeBriefingOff: Boolean = false,
+    /** Hostel mess timings; you can only eat inside these windows. */
+    val meals: List<MealWindow> = listOf(MealWindow("Breakfast", 8 * 60, 9 * 60), MealWindow("Lunch", 12 * 60 + 30, 14 * 60), MealWindow("Dinner", 19 * 60 + 30, 21 * 60)),
+    /** Time a meal actually takes, including the walk (kept free when planning study). */
+    val mealMinutes: Int = 30,
+    /** Remind this many minutes before the mess closes. */
+    val mealReminderMinutes: Int = 20,
+    val mealReminderOff: Boolean = false,
+    /** Don't keep meal time free when planning library/study slots. */
+    val mealsIgnoredInPlanning: Boolean = false,
+    /** CGPA → percentage: (CGPA − offset) × multiplier. Default is the AICTE formula. */
+    val percentMultiplier: Double = 10.0,
+    val percentOffset: Double = 0.75,
+    /** Total credits in the programme (0 = type credits left by hand). */
+    val programCredits: Int = 0,
+    val targetCgpa: Double = 0.0,
+    /** Placement eligibility cut-offs as "Label=CGPA". */
+    val eligibility: List<String> = listOf("Most companies=7.0", "Top product companies=8.0", "Mass recruiters=6.0"),
+    /** Weeks in a rotating timetable (1 = same every week, 2 = A/B weeks …). */
+    val rotationWeeks: Int = 1,
+    /** A Monday that is week A; blank = the semester's first week. */
+    val rotationStart: String? = null,
     /** Only bunks need marking: past classes left unmarked count as attended. */
     val assumePresent: Boolean = false,
     val wakeSnoozes: Int = 1,
@@ -249,6 +279,11 @@ data class CampusSettings(
             wakeHoldToDismissSeconds = pos(wakeHoldToDismissSeconds, d.wakeHoldToDismissSeconds),
             gradeScale = (gradeScale ?: d.gradeScale).ifEmpty { d.gradeScale },
             wakeQuotes = wakeQuotes ?: d.wakeQuotes,
+            eligibility = eligibility ?: d.eligibility,
+            meals = (meals ?: d.meals).map { it.copy(days = (it.days ?: emptySet()).ifEmpty { (1..7).toSet() }) },
+            mealMinutes = pos(mealMinutes, d.mealMinutes),
+            mealReminderMinutes = pos(mealReminderMinutes, d.mealReminderMinutes),
+            percentMultiplier = if (percentMultiplier > 0) percentMultiplier else d.percentMultiplier,
             gradeCutoffs = (gradeCutoffs ?: d.gradeCutoffs).ifEmpty { d.gradeCutoffs },
             examBufferDays = if (examBufferDays >= 0) examBufferDays else d.examBufferDays,
             sleepGoalMinutes = if (sleepGoalMinutes > 0) sleepGoalMinutes else d.sleepGoalMinutes

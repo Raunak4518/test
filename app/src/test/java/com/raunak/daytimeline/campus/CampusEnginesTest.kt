@@ -17,7 +17,10 @@ class CampusEnginesTest {
             TimetableSlot(10, 1, 1, 9 * 60, 10 * 60, "203"),
             TimetableSlot(11, 2, 1, 14 * 60, 16 * 60, "LAB-2", ClassType.LAB),
             TimetableSlot(12, 1, 3, 11 * 60, 12 * 60, "203")
-        )
+        ),
+        // These tests cover class-only planning; meals are covered in MessTest.
+        settings = CampusSettings(meals = emptyList()),
+        wake = WakeConfig(ignoreBreakfast = true)
     )
 
     @Test
@@ -185,7 +188,7 @@ class CampusEnginesTest {
         assertThat(Cgpa.sgpa(listOf(Course("X", 3, "O"), Course("Y", 3, "a+")), scale)).isWithin(1e-9).of(9.5)
         assertThat(Cgpa.pointsFor("AA", scale)).isNull()
         // Library planner buffers and minimum window come from settings
-        val tight = base.copy(settings = CampusSettings(walkBufferMinutes = 0, librarySlotMinutes = 300))
+        val tight = base.copy(settings = CampusSettings(walkBufferMinutes = 0, librarySlotMinutes = 300, meals = emptyList()))
         assertThat(LibraryPlanner.freeWindows(tight, mon)).containsExactly(Window(16 * 60, 22 * 60))
         // Afternoon cut-off for pasted times
         val (_, slots) = AttendanceEngine.parseTimetable("Mon 9-10 DSA", emptyList(), 1, afternoonBeforeHour = 10)

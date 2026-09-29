@@ -98,7 +98,7 @@ internal fun TimetableTab() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = { weekStart = weekStart.minusWeeks(1) }) { Text("‹", style = MaterialTheme.typography.titleLarge) }
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("Week of ${weekStart.format(dayFmt)}", fontWeight = FontWeight.Bold)
+                            Text("Week of ${weekStart.format(dayFmt)}" + AttendanceEngine.rotationWeek(data, weekStart).let { if (it > 0) " · Week " + AttendanceEngine.weekLetter(it) else "" }, fontWeight = FontWeight.Bold)
                             if (weekStart != today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))) TextButton(onClick = { weekStart = today.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)) }) { Text("This week") }
                         }
                         IconButton(onClick = { weekStart = weekStart.plusWeeks(1) }) { Text("›", style = MaterialTheme.typography.titleLarge) }
@@ -287,7 +287,7 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
     var code by remember { mutableStateOf(subject?.code ?: "") }
     var faculty by remember { mutableStateOf(subject?.faculty ?: "") }
     var color by remember { mutableLongStateOf(subject?.colorHex ?: AttendanceEngine.palette[data.subjects.size % AttendanceEngine.palette.size]) }
-    val drafts = remember { mutableStateListOf<SlotDraft>().apply { addAll(existing.sortedWith(compareBy({ it.day }, { it.start })).map { SlotDraft(it.day, it.start, it.end, it.room, it.type) }) } }
+    val drafts = remember { mutableStateListOf<SlotDraft>().apply { addAll(existing.sortedWith(compareBy({ it.day }, { it.start })).map { SlotDraft(it.day, it.start, it.end, it.room, it.type, it.rotationWeek) }) } }
     var fromToday by remember { mutableStateOf(true) }
     var copyFrom by remember { mutableStateOf<Int?>(null) }
     var confirmDelete by remember { mutableStateOf(false) }
@@ -391,7 +391,7 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
 
 @Composable
 private fun SlotRow(slot: SlotDraft, sameDayOthers: List<TimetableSlot>, data: CampusData, onChange: (SlotDraft) -> Unit, onDelete: () -> Unit) {
-    val clash = sameDayOthers.firstOrNull { it.start < slot.end && slot.start < it.end }
+    val clash = sameDayOthers.firstOrNull { it.start < slot.end && slot.start < it.end && (it.rotationWeek == 0 || slot.rotationWeek == 0 || it.rotationWeek == slot.rotationWeek) }
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             TimeButton(slot.start, { s -> onChange(slot.copy(start = s, end = (s + (slot.end - slot.start).coerceAtLeast(10)).coerceAtMost(24 * 60 - 1))) })
@@ -403,6 +403,11 @@ private fun SlotRow(slot: SlotDraft, sameDayOthers: List<TimetableSlot>, data: C
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             ClassType.values().forEach { t -> FilterChip(slot.type == t, { onChange(slot.copy(type = t)) }, label = { Text(t.label) }) }
+        }
+        val weeks = data.settings.rotationWeeks
+        if (weeks > 1) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            FilterChip(slot.rotationWeek == 0, { onChange(slot.copy(rotationWeek = 0)) }, label = { Text("Every week") })
+            (1..weeks).forEach { w -> FilterChip(slot.rotationWeek == w, { onChange(slot.copy(rotationWeek = w)) }, label = { Text("Week " + AttendanceEngine.weekLetter(w)) }) }
         }
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             OutlinedTextField(slot.room, { onChange(slot.copy(room = it)) }, label = { Text("Room") }, singleLine = true, modifier = Modifier.weight(1f))

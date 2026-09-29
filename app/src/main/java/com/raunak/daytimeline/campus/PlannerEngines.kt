@@ -15,11 +15,13 @@ object LibraryPlanner {
         return if (AttendanceEngine.isWeekend(date, h)) Window(h.weekendOpen, h.weekendClose) else Window(h.weekdayOpen, h.weekdayClose)
     }
 
-    /** Free library windows of at least [minMinutes], leaving [buffer] minutes around classes for walking. */
+    /** Free library windows of at least [minMinutes], leaving [buffer] minutes around classes for walking and time for meals. */
     fun freeWindows(data: CampusData, date: LocalDate, fromMinute: Int = 0, buffer: Int = data.settings.walkBufferMinutes, minMinutes: Int = data.settings.librarySlotMinutes): List<Window> {
         val holiday = data.exceptions.any { it.kind == ExceptionKind.HOLIDAY && it.date == date.toString() }
         val open = openWindow(data.library, date, holiday) ?: return emptyList()
-        val busy = AttendanceEngine.occurrences(data, date).map { Window(it.start - buffer, it.end + buffer) }.sortedBy { it.start }
+        val classes = AttendanceEngine.occurrences(data, date).map { Window(it.start - buffer, it.end + buffer) }
+        val meals = if (data.settings.mealsIgnoredInPlanning) emptyList() else Mess.reserved(data, date, classes).map { it.second }
+        val busy = (classes + meals).sortedBy { it.start }
         val out = mutableListOf<Window>()
         var cursor = maxOf(open.start, fromMinute)
         for (b in busy) {
@@ -137,6 +139,25 @@ object Cgpa {
 
     fun earnedCredits(semesters: List<SemesterResult>, scale: List<GradePoint> = defaultScale) = semesters.flatMap { it.courses }.filter { pointsFor(it.grade, scale) != null }.sumOf { it.credits }
 
+    /** Percentage from CGPA using the editable formula (CGPA − offset) × multiplier, clamped to 0–100. */
+    fun percent(cgpa: Double, s: CampusSettings) = ((cgpa - s.percentOffset) * s.percentMultiplier).coerceIn(0.0, 100.0)
+
+    /** Lowest and highest final CGPA still possible with [remainingCredits] left (lowest passing grade to top grade). */
+    fun bounds(semesters: List<SemesterResult>, remainingCredits: Int, scale: List<GradePoint> = defaultScale): Pair<Double, Double>? {
+        val done = earnedCredits(semesters, scale)
+        val cur = cgpa(semesters, scale) ?: return null
+        if (remainingCredits <= 0) return cur to cur
+        val lowPass = scale.map { it.points }.filter { it > 0 }.minOrNull() ?: 0.0
+        fun at(p: Double) = (cur * done + p * remainingCredits) / (done + remainingCredits)
+        return at(lowPass) to at(max(scale))
+    }
+
+    /** "Label=7.5" lines → (label, cutoff). */
+    fun cutoffs(lines: List<String>): List<Pair<String, Double>> = lines.mapNotNull { l ->
+        val label = l.substringBefore('=').trim(); val v = l.substringAfter('=', "").trim().toDoubleOrNull()
+        if (label.isBlank() || v == null) null else label to v
+    }
+
     /** SGPA needed over [remainingCredits] to finish at [target]; null if above the scale's top grade. */
     fun requiredAverage(semesters: List<SemesterResult>, target: Double, remainingCredits: Int, scale: List<GradePoint> = defaultScale): Double? {
         if (remainingCredits <= 0) return null
@@ -144,6 +165,67 @@ object Cgpa {
         val current = cgpa(semesters, scale) ?: 0.0
         val need = (target * (done + remainingCredits) - current * done) / remainingCredits
         return if (need > max(scale) + 1e-9) null else need.coerceAtLeast(0.0)
+    }
+}
+
+// ---------------------------------------------------------------- hostel mess
+
+object Mess {
+    fun meals(data: CampusData, date: LocalDate) = data.settings.meals.filter { date.dayOfWeek.value in it.days && it.end > it.start }.sortedBy { it.start }
+
+    /**
+     * Where to eat inside each meal window so study time stays in the longest possible blocks:
+     * tries the window edges and the moments right after/before classes, skipping anything that
+     * overlaps a class. Meals with no room at all are left out (see [clashes]).
+     */
+    fun reserved(data: CampusData, date: LocalDate, classes: List<Window>): List<Pair<MealWindow, Window>> {
+        val len = data.settings.mealMinutes
+        return meals(data, date).mapNotNull { m ->
+            val inside = classes.filter { it.end > m.start && it.start < m.end }
+            val candidates = (listOf(m.start, m.end - len) + inside.map { it.end } + inside.map { it.start - len })
+                .filter { it >= m.start && it + len <= m.end }.distinct()
+            val ok = candidates.filter { s -> classes.none { it.start < s + len && s < it.end } }
+            ok.maxByOrNull { s -> gapScore(classes + Window(s, s + len)) }?.let { m to Window(it, it + len) }
+        }
+    }
+
+    /** Sum of squared free gaps: higher when free time is in fewer, longer blocks. */
+    private fun gapScore(busy: List<Window>): Long {
+        var cursor = 0; var score = 0L
+        for (w in busy.sortedBy { it.start }) { val g = (w.start - cursor).coerceAtLeast(0).toLong(); score += g * g; cursor = maxOf(cursor, w.end) }
+        val tail = (24 * 60 - cursor).coerceAtLeast(0).toLong()
+        return score + tail * tail
+    }
+
+    /**
+     * The latest wake-up (minute of day) that still leaves [WakeConfig.readyMinutes] to get ready and
+     * time to eat the first meal of the day before [mustLeaveAt] (first class minus the walk), or
+     * null when there's no such meal or it can't fit.
+     */
+    fun breakfastWake(data: CampusData, date: LocalDate, mustLeaveAt: Int?): Pair<MealWindow, Int>? {
+        val w = data.wake
+        if (w.ignoreBreakfast) return null
+        val ready = if (w.readyMinutes > 0) w.readyMinutes else 25
+        val len = data.settings.mealMinutes
+        val meal = meals(data, date).firstOrNull { it.start < 12 * 60 && (mustLeaveAt == null || it.start + len <= mustLeaveAt) } ?: return null
+        val eatBy = minOf(meal.end, mustLeaveAt ?: meal.end)
+        return meal to (eatBy - len - ready)
+    }
+
+    /** Meals you can't make on [date] because classes fill the whole window. */
+    fun clashes(data: CampusData, date: LocalDate): List<MealWindow> {
+        val classes = AttendanceEngine.occurrences(data, date).map { Window(it.start, it.end) }
+        val fit = reserved(data, date, classes).map { it.first }
+        return meals(data, date).filter { it !in fit }
+    }
+
+    /** "Lunch open · closes 14:00 (45m left)", "Dinner 19:30–21:00 · in 2h" or null when the mess is done for the day. */
+    fun status(data: CampusData, now: LocalDateTime): String? {
+        val minute = now.hour * 60 + now.minute
+        val today = meals(data, now.toLocalDate())
+        today.firstOrNull { minute in it.start until it.end }?.let { return "${it.name} open · closes ${clock(it.end)} (${hm(it.end - minute)} left)" }
+        today.firstOrNull { it.start > minute }?.let { return "Next: ${it.name} ${clock(it.start)}–${clock(it.end)} · in ${hm(it.start - minute)}" }
+        return meals(data, now.toLocalDate().plusDays(1)).firstOrNull()?.let { "Mess closed · ${it.name} tomorrow ${clock(it.start)}" }
     }
 }
 
@@ -163,12 +245,57 @@ data class Company(
     val link: String = "",
     val notes: String = "",
     /** Editable stage name (Settings → placement stages); older entries fall back to [stage]. */
-    val stageLabel: String? = null
+    val stageLabel: String? = null,
+    val contact: String = "",
+    /** Last day to apply. */
+    val applyBy: String? = null,
+    /** Minimum CGPA the company asks for (0 = none). */
+    val minCgpa: Double = 0.0,
+    /** 0–5 stars: how much you want it. */
+    val excitement: Int = 0,
+    /** Prep checklist, one item per line, "[x]" when done. */
+    val prep: String = "",
+    /** Every stage change with its date. */
+    val history: List<StageChange> = emptyList()
 ) {
     val stageName: String get() = stageLabel ?: stage.label
 }
 
+data class StageChange(val date: String, val stage: String)
+
+data class PlacementSummary(val total: Int, val applied: Int, val responded: Int, val offers: Int, val rejected: Int) {
+    val responseRate: Int get() = if (applied == 0) 0 else 100 * responded / applied
+}
+
 object PlacementStats {
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun history(c: Company): List<StageChange> = c.history ?: emptyList()
+
+    /** Moves a company to [stage], recording the change. */
+    fun move(c: Company, stage: String, today: LocalDate): Company =
+        if (c.stageName.equals(stage, true)) c else c.copy(stageLabel = stage, history = history(c) + StageChange(today.toString(), stage))
+
+    /**
+     * Response rate like Huntr: of the companies past the first ("wishlist") stage, how many got past
+     * "applied" to a test, interview or result. Stage order comes from the editable stage list.
+     */
+    fun summary(companies: List<Company>, stages: List<String>): PlacementSummary {
+        fun idx(c: Company) = stages.indexOfFirst { it.equals(c.stageName, true) }.let { if (it < 0) 0 else it }
+        val offerIdx = stages.indexOfFirst { it.contains("offer", true) }
+        val rejectIdx = stages.indexOfFirst { it.contains("reject", true) }
+        val applied = companies.filter { idx(it) >= 1 }
+        val responded = applied.filter { idx(it) >= 2 && idx(it) != rejectIdx || history(it).any { h -> stages.indexOfFirst { s -> s.equals(h.stage, true) } in 2 until (if (rejectIdx < 0) stages.size else rejectIdx) } }
+        return PlacementSummary(companies.size, applied.size, responded.size, companies.count { idx(it) == offerIdx }, companies.count { idx(it) == rejectIdx })
+    }
+
+    fun eligible(c: Company, cgpa: Double?): Boolean? = if (c.minCgpa <= 0.0 || cgpa == null) null else cgpa + 1e-9 >= c.minCgpa
+
+    /** Apply-by dates in the next [days] days for companies not yet applied to. */
+    fun applyDeadlines(companies: List<Company>, stages: List<String>, today: LocalDate, days: Long = 14) = companies.filter { c ->
+        val i = stages.indexOfFirst { it.equals(c.stageName, true) }
+        i <= 0 && c.applyBy?.let { runCatching { LocalDate.parse(it) }.getOrNull() }?.let { !it.isBefore(today) && !it.isAfter(today.plusDays(days)) } == true
+    }.sortedBy { it.applyBy }
+
     fun funnel(companies: List<Company>, stages: List<String>) = (stages + companies.map { it.stageName }).distinct().associateWith { st -> companies.count { it.stageName.equals(st, true) } }
     fun upcoming(companies: List<Company>, today: LocalDate) = companies.filter { c ->
         c.nextDate?.let { runCatching { !LocalDate.parse(it).isBefore(today) }.getOrDefault(false) } == true

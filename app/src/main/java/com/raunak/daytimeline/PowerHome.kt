@@ -149,12 +149,15 @@ private fun DayClasses(date: LocalDate) {
     val store = remember { com.raunak.daytimeline.campus.CampusStore.get(context) }
     val data by store.data.collectAsStateWithLifecycle()
     val classes = com.raunak.daytimeline.campus.AttendanceEngine.occurrences(data, date)
-    if (classes.isEmpty()) return
+    val meals = com.raunak.daytimeline.campus.Mess.meals(data, date)
+    if (classes.isEmpty() && meals.isEmpty()) return
     val now = LocalDateTime.now()
     val minute = now.hour * 60 + now.minute
     Card {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Classes · ${classes.size}", fontWeight = FontWeight.Bold)
+            if (meals.isNotEmpty()) Text("Mess: " + meals.joinToString(" · ") { "${it.name} ${com.raunak.daytimeline.campus.clock(it.start)}–${com.raunak.daytimeline.campus.clock(it.end)}" },
+                style = MaterialTheme.typography.bodySmall, color = HomeMuted)
+            if (classes.isNotEmpty()) Text("Classes · ${classes.size}", fontWeight = FontWeight.Bold)
             classes.forEach { o ->
                 val s = data.subjects.firstOrNull { it.id == o.subjectId } ?: return@forEach
                 val past = date.isBefore(now.toLocalDate()) || (date == now.toLocalDate() && o.end <= minute)

@@ -11,7 +11,14 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -20,6 +27,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -131,6 +139,8 @@ internal fun WakeTab() {
         item {
             SectionCard("Alarm") {
                 Stepper("Minutes before first class", hm(w.minutesBeforeFirstClass), { save(w.copy(minutesBeforeFirstClass = (w.minutesBeforeFirstClass - 5).coerceAtLeast(10))) }, { save(w.copy(minutesBeforeFirstClass = w.minutesBeforeFirstClass + 5)) })
+                SwitchRow("Wake early enough for mess breakfast", !w.ignoreBreakfast) { save(w.copy(ignoreBreakfast = !it)) }
+                if (!w.ignoreBreakfast) Stepper("Time to get ready before the mess", hm(w.readyMinutes.takeIf { it > 0 } ?: 25), { save(w.copy(readyMinutes = ((w.readyMinutes.takeIf { it > 0 } ?: 25) - 5).coerceAtLeast(5))) }, { save(w.copy(readyMinutes = (w.readyMinutes.takeIf { it > 0 } ?: 25) + 5)) })
                 Stepper("Free days (no classes)", w.freeDayWake?.let { clock(it) } ?: "No alarm",
                     { save(w.copy(freeDayWake = w.freeDayWake?.let { if (it <= 5 * 60) null else it - 15 })) },
                     { save(w.copy(freeDayWake = (w.freeDayWake ?: (7 * 60 + 45)) + 15)) })
@@ -294,12 +304,36 @@ internal fun CgpaTab() {
     var scaleOpen by remember { mutableStateOf(false) }
     val scale = data.settings.gradeScale
 
+    val st = data.settings
+    val cg = Cgpa.cgpa(semesters, scale)
+    val earned = Cgpa.earnedCredits(semesters, scale)
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            val cg = Cgpa.cgpa(semesters, scale)
-            SectionCard("CGPA ${cg?.let { "%.2f".format(it) } ?: "—"}", "${Cgpa.earnedCredits(semesters, scale)} credits graded · " + scale.joinToString(" ") { "${it.letter}=${fmt(it.points)}" }, action = { TextButton(onClick = { scaleOpen = true }) { Text("Grade scale") } }) {
+            HeroCard {
+                Text("CGPA", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.Bottom) {
+                    Text(cg?.let { "%.2f".format(it) } ?: "—", color = Chronora.colors.onHero, style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                    cg?.let { Text("  ≈ ${"%.1f".format(Cgpa.percent(it, st))}%", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 6.dp)) }
+                }
+                Text("$earned credits graded" + (if (st.programCredits > 0) " of ${st.programCredits}" else "") + " · ${semesters.size} semester(s)", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.bodySmall)
+                val sg = semesters.sortedBy { it.number }.map { it.number to Cgpa.sgpa(it.courses, scale) }
+                val lo = ((sg.mapNotNull { it.second }.minOrNull() ?: 0.0) - 1.0).coerceAtLeast(0.0)
+                val span = (Cgpa.max(scale) - lo).coerceAtLeast(0.1)
+                if (sg.count { it.second != null } >= 2) Row(Modifier.fillMaxWidth().height(96.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.Bottom) {
+                    sg.forEach { (n, v) ->
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(v?.let { "%.1f".format(it) } ?: "—", color = Chronora.colors.heroMuted, fontSize = 10.sp)
+                            Box(Modifier.fillMaxWidth().height((56 * (((v ?: lo) - lo) / span)).coerceAtLeast(3.0).dp).clip(RoundedCornerShape(4.dp)).background(Chronora.colors.heroAccent))
+                            Text("S$n", color = Chronora.colors.heroMuted, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            SectionCard("Semesters", scale.joinToString(" ") { "${it.letter}=${fmt(it.points)}" }, action = { TextButton(onClick = { scaleOpen = true }) { Text("Grade scale") } }) {
                 semesters.sortedBy { it.number }.forEach { s ->
-                    Row(Modifier.fillMaxWidth().clickable { editing = s.number }, verticalAlignment = Alignment.CenterVertically) {
+                    Row(Modifier.fillMaxWidth().clickable { editing = s.number }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Semester ${s.number}", Modifier.weight(1f))
                         Text("SGPA ${Cgpa.sgpa(s.courses, scale)?.let { "%.2f".format(it) } ?: "—"} · ${s.courses.sumOf { it.credits }} cr", fontWeight = FontWeight.SemiBold)
                     }
@@ -311,21 +345,42 @@ internal fun CgpaTab() {
                         store.updateSemesters { it + SemesterResult(n, data.subjects.map { s -> Course(s.name, s.credits, null) }) }; editing = n
                     }) { Text("From current subjects") }
                 }
+                Text("Tip: fill the current semester with expected grades to see where you'll land.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item { MarksCard(data, store) }
         item {
             SectionCard("Target planner") {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(target, { target = it }, label = { Text("Target CGPA") }, singleLine = true, modifier = Modifier.weight(1f))
-                    OutlinedTextField(remaining, { remaining = it.filter(Char::isDigit) }, label = { Text("Credits left") }, singleLine = true, modifier = Modifier.weight(1f))
-                }
-                val t = target.toDoubleOrNull(); val r = remaining.toIntOrNull()
+                val t = st.targetCgpa.takeIf { it > 0 } ?: target.toDoubleOrNull()
+                Stepper("Target CGPA", t?.let { "%.2f".format(it) } ?: "—", { store.update { it.copy(settings = it.settings.copy(targetCgpa = ((t ?: 8.0) - 0.1).coerceAtLeast(0.1))) } }, { store.update { it.copy(settings = it.settings.copy(targetCgpa = ((t ?: 8.0) + 0.1).coerceAtMost(Cgpa.max(scale)))) } })
+                Stepper("Total programme credits", if (st.programCredits == 0) "not set" else "${st.programCredits}", { store.update { it.copy(settings = it.settings.copy(programCredits = (st.programCredits - 5).coerceAtLeast(0))) } }, { store.update { it.copy(settings = it.settings.copy(programCredits = if (st.programCredits == 0) 160 else st.programCredits + 5)) } })
+                if (st.programCredits == 0) OutlinedTextField(remaining, { remaining = it.filter(Char::isDigit) }, label = { Text("Credits left") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                val r = if (st.programCredits > 0) (st.programCredits - earned).coerceAtLeast(0) else remaining.toIntOrNull()
                 if (t != null && r != null) {
                     val need = Cgpa.requiredAverage(semesters, t, r, scale)
-                    Text(if (need == null) "Not reachable with $r credits left — even the top grade everywhere wouldn't get there." else "You need an average SGPA of ${"%.2f".format(need)} over the remaining $r credits.", fontWeight = FontWeight.SemiBold)
+                    Text(when {
+                        r == 0 -> "No credits left."
+                        need == null -> "Not reachable with $r credits left — even the top grade everywhere wouldn't get there."
+                        else -> "Average SGPA of ${"%.2f".format(need)} needed over the remaining $r credits."
+                    }, fontWeight = FontWeight.SemiBold, color = if (need == null) Chronora.colors.bad else MaterialTheme.colorScheme.onSurface)
+                    Cgpa.bounds(semesters, r, scale)?.let { (lo, hi) -> Text("Still possible: ${"%.2f".format(lo)} (lowest passing grades) to ${"%.2f".format(hi)} (top grades).", style = MaterialTheme.typography.bodySmall) }
                 }
-                Text("Tip: fill the current semester with expected grades to see where you'll land.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item {
+            SectionCard("Placement eligibility", "Edit the cut-offs below") {
+                Cgpa.cutoffs(st.eligibility).forEach { (label, cut) ->
+                    val ok = cg != null && cg + 1e-9 >= cut
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(label, Modifier.weight(1f))
+                        Text("≥ ${fmt(cut)}  ", style = MaterialTheme.typography.bodySmall)
+                        StatusText(if (cg == null) "—" else if (ok) "Eligible" else "Need +${"%.2f".format(cut - cg)}", if (cg == null) null else ok)
+                    }
+                }
+                ListEditor("Cut-offs (Label=CGPA)", st.eligibility) { v -> store.update { it.copy(settings = it.settings.copy(eligibility = v)) } }
+                Text("Percentage formula: (CGPA − ${fmt(st.percentOffset)}) × ${fmt(st.percentMultiplier)}", style = MaterialTheme.typography.bodySmall)
+                Stepper("Formula offset", fmt(st.percentOffset), { store.update { it.copy(settings = it.settings.copy(percentOffset = ((st.percentOffset - 0.05) * 100).roundToInt() / 100.0)) } }, { store.update { it.copy(settings = it.settings.copy(percentOffset = ((st.percentOffset + 0.05) * 100).roundToInt() / 100.0)) } })
+                Stepper("Formula multiplier", fmt(st.percentMultiplier), { store.update { it.copy(settings = it.settings.copy(percentMultiplier = (st.percentMultiplier - 0.5).coerceAtLeast(0.5))) } }, { store.update { it.copy(settings = it.settings.copy(percentMultiplier = st.percentMultiplier + 0.5)) } })
             }
         }
     }
@@ -393,64 +448,142 @@ internal fun PlacementTab() {
     val context = LocalContext.current
     val store = remember { CampusStore.get(context) }
     val companies by store.companies.collectAsStateWithLifecycle()
+    val semesters by store.semesters.collectAsStateWithLifecycle()
     val data by store.data.collectAsStateWithLifecycle()
     val stages = data.settings.placementStages
+    val cgpa = Cgpa.cgpa(semesters, data.settings.gradeScale)
     var editing by remember { mutableStateOf<Company?>(null) }
+    var board by rememberSaveable { mutableStateOf(true) }
+    var query by remember { mutableStateOf("") }
     val today = LocalDate.now()
+    val shown = companies.filter { query.isBlank() || it.name.contains(query, true) || it.role.contains(query, true) }
+    fun stageIndex(c: Company) = stages.indexOfFirst { it.equals(c.stageName, true) }.coerceAtLeast(0)
+    fun move(c: Company, dir: Int) {
+        val i = stages.indexOfFirst { it.equals(c.stageName, true) }.coerceAtLeast(0)
+        val to = stages.getOrNull(i + dir) ?: return
+        store.updateCompanies { l -> l.map { if (it.id == c.id) PlacementStats.move(it, to, today) else it } }
+    }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            val funnel = PlacementStats.funnel(companies, stages)
-            SectionCard("Placement tracker", "${companies.size} companies", action = { TextButton(onClick = { editing = Company(store.nextId(), "", stageLabel = stages.first()) }) { Text("Add") } }) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(funnel.keys.toList()) { st -> Stat(st, "${funnel[st] ?: 0}") } }
-                PlacementStats.upcoming(companies, today).take(5).forEach { c ->
-                    Text("${c.nextDate} ${clock(c.nextMinute)} · ${c.name}: ${c.nextEvent.ifBlank { c.stageName }}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            val sum = PlacementStats.summary(companies, stages)
+            HeroCard {
+                Text("Placements", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    listOf("Tracked" to "${sum.total}", "Applied" to "${sum.applied}", "Response" to "${sum.responseRate}%", "Offers" to "${sum.offers}").forEach { (l, v) ->
+                        Column { Text(v, color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold); Text(l, color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelSmall) }
+                    }
                 }
-                Text("Prep sheets (CS core, AI/ML, aptitude, resume) are in the Sheets tab.", style = MaterialTheme.typography.bodySmall)
+                val next = PlacementStats.upcoming(companies, today).firstOrNull()
+                next?.let { Text("Next: ${it.name} · ${it.nextEvent.ifBlank { it.stageName }} · ${it.nextDate} ${clock(it.nextMinute)}", color = Chronora.colors.onHero, style = MaterialTheme.typography.bodySmall) }
+                PlacementStats.applyDeadlines(companies, stages, today).take(3).forEach { Text("Apply by ${it.applyBy}: ${it.name}", color = Chronora.colors.heroAccent, style = MaterialTheme.typography.bodySmall) }
             }
         }
-        (stages + companies.map { it.stageName }).distinct().forEach { stage ->
-            val list = companies.filter { it.stageName.equals(stage, true) }
-            if (list.isNotEmpty()) {
-                item(key = "stage-$stage") { Text(stage, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
-                items(list, key = { it.id }) { c ->
-                    Card(Modifier.fillMaxWidth().clickable { editing = c }) {
-                        Column(Modifier.padding(12.dp)) {
-                            Text(c.name, fontWeight = FontWeight.Bold)
-                            Text(listOf(c.role, c.ctc, c.nextDate?.let { "${c.nextEvent.ifBlank { "Next" }} $it ${clock(c.nextMinute)}" } ?: "").filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search companies") }, modifier = Modifier.weight(1f))
+                FilterChip(board, { board = !board }, label = { Text(if (board) "Board" else "List") })
+                Button(onClick = { editing = Company(store.nextId(), "", stageLabel = stages.first()) }) { Text("Add") }
+            }
+        }
+        if (board) item {
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                (stages + shown.map { it.stageName }).distinct().forEach { stage ->
+                    val list = shown.filter { it.stageName.equals(stage, true) }.sortedByDescending { it.excitement }
+                    Column(Modifier.width(250.dp).clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .5f)).padding(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(stage, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                            Text("${list.size}", color = Chronora.muted)
                         }
+                        if (list.isEmpty()) Text("Empty", style = MaterialTheme.typography.bodySmall, color = Chronora.muted, modifier = Modifier.padding(8.dp))
+                        list.forEach { c -> CompanyCard(c, cgpa, today, { editing = c }, if (stageIndex(c) > 0) ({ move(c, -1) }) else null, if (stageIndex(c) < stages.size - 1) ({ move(c, 1) }) else null) }
                     }
                 }
             }
+        } else items(shown.sortedWith(compareBy<Company> { stages.indexOfFirst { s -> s.equals(it.stageName, true) } }.thenByDescending { it.excitement }), key = { it.id }) { c ->
+            CompanyCard(c, cgpa, today, { editing = c }, if (stageIndex(c) > 0) ({ move(c, -1) }) else null, if (stageIndex(c) < stages.size - 1) ({ move(c, 1) }) else null)
         }
+        item { Text("Prep sheets (CS core, AI/ML, aptitude, resume) are in the Sheets tab. Stages are editable in Settings.", style = MaterialTheme.typography.bodySmall, color = Chronora.muted) }
     }
     editing?.let { CompanyDialog(it, store, stages) { editing = null } }
 }
 
 @Composable
+private fun CompanyCard(c: Company, cgpa: Double?, today: LocalDate, onOpen: () -> Unit, onBack: (() -> Unit)?, onNext: (() -> Unit)?) {
+    Card(Modifier.fillMaxWidth().clickable(onClick = onOpen)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(c.name, Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                if (c.excitement > 0) Text("★".repeat(c.excitement.coerceIn(0, 5)), color = Chronora.colors.warn, fontSize = 12.sp)
+            }
+            val sub = listOf(c.role, c.ctc).filter { it.isNotBlank() }.joinToString(" · ")
+            if (sub.isNotBlank()) Text(sub, style = MaterialTheme.typography.bodySmall)
+            c.nextDate?.let { d -> daysUntil(d, today)?.takeIf { it >= 0 }?.let { n -> Text("${c.nextEvent.ifBlank { "Next" }} ${if (n == 0L) "today" else "in ${n}d"} · ${clock(c.nextMinute)}", style = MaterialTheme.typography.bodySmall, color = if (n <= 1) Chronora.colors.warn else MaterialTheme.colorScheme.primary) } }
+            c.applyBy?.let { d -> daysUntil(d, today)?.let { n -> if (n >= 0) Text("Apply by $d" + if (n <= 2) " · soon" else "", style = MaterialTheme.typography.bodySmall, color = if (n <= 2) Chronora.colors.bad else Chronora.muted) } }
+            PlacementStats.eligible(c, cgpa)?.let { ok -> StatusText(if (ok) "Eligible (≥ ${c.minCgpa})" else "Needs CGPA ${c.minCgpa}", ok) }
+            val prep = com.raunak.daytimeline.features.NoteEngine.progress(c.prep)
+            if (prep.second > 0) Text("Prep ${prep.first}/${prep.second}", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
+            Row {
+                if (onBack != null) TextButton(onClick = onBack, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("‹ Back") }
+                Spacer(Modifier.weight(1f))
+                if (onNext != null) TextButton(onClick = onNext, contentPadding = PaddingValues(horizontal = 8.dp)) { Text("Next stage ›") }
+            }
+        }
+    }
+}
+
+@Composable
 private fun CompanyDialog(c: Company, store: CampusStore, stages: List<String>, close: () -> Unit) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf(c.name) }
     var role by remember { mutableStateOf(c.role) }
     var ctc by remember { mutableStateOf(c.ctc) }
     var stage by remember { mutableStateOf(c.stageName) }
     var nextDate by remember { mutableStateOf(c.nextDate?.let { LocalDate.parse(it) }) }
+    var applyBy by remember { mutableStateOf(c.applyBy?.let { LocalDate.parse(it) }) }
     var time by remember { mutableStateOf(clock(c.nextMinute)) }
     var event by remember { mutableStateOf(c.nextEvent) }
     var link by remember { mutableStateOf(c.link) }
     var notes by remember { mutableStateOf(c.notes) }
+    var contact by remember { mutableStateOf(c.contact) }
+    var minCgpa by remember { mutableStateOf(if (c.minCgpa > 0) c.minCgpa.toString() else "") }
+    var excitement by remember { mutableIntStateOf(c.excitement) }
+    var prep by remember { mutableStateOf(c.prep) }
+    var newPrep by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = close, title = { Text(if (c.name.isBlank()) "Add company" else c.name) }, text = {
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 500.dp)) {
-            item { OutlinedTextField(name, { name = it }, label = { Text("Company") }, singleLine = true) }
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 520.dp)) {
+            item { OutlinedTextField(name, { name = it }, label = { Text("Company") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(role, { role = it }, label = { Text("Role") }, singleLine = true, modifier = Modifier.weight(1f)); OutlinedTextField(ctc, { ctc = it }, label = { Text("CTC / stipend") }, singleLine = true, modifier = Modifier.weight(1f)) } }
+            item { Row(verticalAlignment = Alignment.CenterVertically) { Text("Interest ", style = MaterialTheme.typography.bodySmall); (1..5).forEach { n -> Text(if (n <= excitement) "★" else "☆", color = Chronora.colors.warn, fontSize = 22.sp, modifier = Modifier.clickable { excitement = if (excitement == n) 0 else n }.padding(2.dp)) } } }
             item { LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(stages) { s -> FilterChip(stage == s, { stage = s }, label = { Text(s) }) } } }
-            item { OutlinedTextField(event, { event = it }, label = { Text("Next step (OA, Interview round 1…)") }, singleLine = true) }
-            item { Row(verticalAlignment = Alignment.CenterVertically) { DateButton("On", nextDate ?: LocalDate.now().plusDays(3)) { nextDate = it }; Spacer(Modifier.width(6.dp)); OutlinedTextField(time, { time = it }, label = { Text("Time") }, singleLine = true, modifier = Modifier.width(96.dp)) } }
-            item { OutlinedTextField(link, { link = it }, label = { Text("Link") }, singleLine = true) }
-            item { OutlinedTextField(notes, { notes = it }, label = { Text("Notes: questions asked, contacts…") }, minLines = 3) }
+            item { Row(verticalAlignment = Alignment.CenterVertically) { Text("Apply by  ", style = MaterialTheme.typography.bodySmall); DateButton("Apply by", applyBy ?: LocalDate.now().plusDays(7)) { applyBy = it }; if (applyBy != null) TextButton(onClick = { applyBy = null }) { Text("Clear") } } }
+            item { OutlinedTextField(event, { event = it }, label = { Text("Next step (OA, Interview round 1…)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            item { Row(verticalAlignment = Alignment.CenterVertically) { DateButton("On", nextDate ?: LocalDate.now().plusDays(3)) { nextDate = it }; Spacer(Modifier.width(6.dp)); OutlinedTextField(time, { time = it }, label = { Text("Time") }, singleLine = true, modifier = Modifier.width(96.dp)); if (nextDate != null) TextButton(onClick = { nextDate = null }) { Text("Clear") } } }
+            item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(minCgpa, { minCgpa = it.filter { ch -> ch.isDigit() || ch == '.' } }, label = { Text("Min CGPA") }, singleLine = true, modifier = Modifier.weight(1f)); OutlinedTextField(contact, { contact = it }, label = { Text("Contact / recruiter") }, singleLine = true, modifier = Modifier.weight(2f)) } }
+            item { Row(verticalAlignment = Alignment.CenterVertically) { OutlinedTextField(link, { link = it }, label = { Text("Link") }, singleLine = true, modifier = Modifier.weight(1f)); if (link.startsWith("http")) TextButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(link)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }) { Text("Open") } } }
+            item { Text("Prep checklist", style = MaterialTheme.typography.labelLarge) }
+            items(com.raunak.daytimeline.features.NoteEngine.lines(prep).filter { it.checked != null }) { l ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(l.checked == true, { prep = com.raunak.daytimeline.features.NoteEngine.toggleLine(prep, l.index) })
+                    Text(l.text, Modifier.weight(1f))
+                    IconButton(onClick = { prep = prep.lines().filterIndexed { i, _ -> i != l.index }.joinToString("\n") }) { Icon(Icons.Default.Delete, "Remove") }
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(newPrep, { newPrep = it }, placeholder = { Text("Company research, DSA, projects…") }, singleLine = true, modifier = Modifier.weight(1f))
+                    TextButton(onClick = { if (newPrep.isNotBlank()) { prep = (prep.trimEnd() + "\n[ ] " + newPrep.trim()).trimStart(); newPrep = "" } }) { Text("Add") }
+                }
+            }
+            item { OutlinedTextField(notes, { notes = it }, label = { Text("Notes: questions asked, contacts…") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
+            val history = PlacementStats.history(c)
+            if (history.isNotEmpty()) item { Text("History: " + history.joinToString(" → ") { "${it.stage} (${it.date})" }, style = MaterialTheme.typography.bodySmall, color = Chronora.muted) }
             if (c.name.isNotBlank()) item { TextButton(onClick = { store.updateCompanies { l -> l.filterNot { it.id == c.id } }; close() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }
         }
     }, confirmButton = {
         Button(enabled = name.isNotBlank(), onClick = {
-            val updated = c.copy(name = name.trim(), role = role.trim(), ctc = ctc.trim(), stageLabel = stage, nextDate = nextDate?.toString(), nextMinute = parseClock(time) ?: c.nextMinute, nextEvent = event.trim(), link = link.trim(), notes = notes)
+            val base = PlacementStats.move(c, stage, LocalDate.now())
+            val updated = base.copy(name = name.trim(), role = role.trim(), ctc = ctc.trim(), nextDate = nextDate?.toString(), nextMinute = parseClock(time) ?: c.nextMinute, nextEvent = event.trim(), link = link.trim(), notes = notes,
+                contact = contact.trim(), applyBy = applyBy?.toString(), minCgpa = minCgpa.toDoubleOrNull() ?: 0.0, excitement = excitement, prep = prep)
             store.updateCompanies { l -> l.filterNot { it.id == c.id } + updated }
             close()
         }) { Text("Save") }

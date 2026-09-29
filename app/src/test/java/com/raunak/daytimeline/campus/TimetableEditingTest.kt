@@ -75,7 +75,7 @@ class TimetableEditingTest {
 
     @Test
     fun library_uses_big_free_slots_as_whole_sessions() {
-        val data = base.copy(settings = CampusSettings(librarySlotMinutes = 90))
+        val data = base.copy(settings = CampusSettings(librarySlotMinutes = 90, meals = emptyList()))
         // Monday: classes 9–10 and 11–12 → the 10:10–10:50 gap is too short; 12:10–22:00 is one slot
         val windows = LibraryPlanner.freeWindows(data, mon)
         assertThat(windows).containsExactly(Window(12 * 60 + 10, 22 * 60))

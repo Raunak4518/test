@@ -136,6 +136,15 @@ internal fun CampusSettingsTab() {
             SectionCard("Attendance & timetable") {
                 NumberStepper("Warn when within this many % of the requirement", st.attendanceMargin, 1, 0, 50, "%") { save(st.copy(attendanceMargin = it)) }
                 SwitchRow("Only mark bunks (unmarked classes count as attended)", st.assumePresent) { save(st.copy(assumePresent = it)) }
+                NumberStepper("Rotating timetable (weeks in the cycle)", st.rotationWeeks.coerceAtLeast(1), 1, 1, 4, if (st.rotationWeeks <= 1) " (off)" else " weeks") { save(st.copy(rotationWeeks = it)) }
+                if (st.rotationWeeks > 1) {
+                    val today = java.time.LocalDate.now()
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("This week is Week ${AttendanceEngine.weekLetter(AttendanceEngine.rotationWeek(data, today))}", Modifier.weight(1f))
+                        TextButton(onClick = { save(st.copy(rotationStart = today.with(java.time.DayOfWeek.MONDAY).toString())) }) { Text("Make this Week A") }
+                    }
+                    Text("Pick the week for each class in its weekly schedule (Every week, Week A, Week B…).", style = MaterialTheme.typography.bodySmall)
+                }
                 NumberStepper("Pasted times before this hour are afternoon", st.afternoonBeforeHour, 1, 1, 12, ":00") { save(st.copy(afternoonBeforeHour = it)) }
                 Text("Required % and credits are set per subject in the Attendance tab.", style = MaterialTheme.typography.bodySmall)
             }
@@ -148,6 +157,32 @@ internal fun CampusSettingsTab() {
                     save(st.copy(gradeCutoffs = cuts.ifEmpty { CampusSettings().gradeCutoffs }))
                 }
                 NumberStepper("Sleep goal", st.sleepGoalMinutes, 15, 240, 720) { save(st.copy(sleepGoalMinutes = it)) }
+            }
+        }
+        item {
+            SectionCard("Mess timings", "When the hostel mess serves; study plans keep time to eat") {
+                st.meals.forEachIndexed { i, m ->
+                    fun put(n: MealWindow) = save(st.copy(meals = st.meals.toMutableList().also { it[i] = n }))
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        var name by remember(m.name) { mutableStateOf(m.name) }
+                        OutlinedTextField(name, { name = it; if (it.isNotBlank()) put(m.copy(name = it.trim())) }, singleLine = true, modifier = Modifier.weight(1f))
+                        TimeButton(m.start, { put(m.copy(start = it, end = maxOf(m.end, it + 15))) })
+                        Text("–")
+                        TimeButton(m.end, { put(m.copy(end = maxOf(it, m.start + 15))) })
+                        IconButton(onClick = { save(st.copy(meals = st.meals.filterIndexed { j, _ -> j != i })) }) { Icon(Icons.Default.Close, "Remove meal") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                        (1..7).forEach { d -> FilterChip(d in m.days, { put(m.copy(days = if (d in m.days) (m.days - d).ifEmpty { m.days } else m.days + d)) }, label = { Text(java.time.DayOfWeek.of(d).name.take(2).lowercase().replaceFirstChar(Char::uppercase)) }) }
+                    }
+                }
+                TextButton(onClick = { save(st.copy(meals = st.meals + MealWindow("Snacks", 17 * 60, 18 * 60))) }) { Icon(Icons.Default.Add, null); Text("Add meal") }
+                NumberStepper("Time a meal takes (with the walk)", st.mealMinutes, 5, 10, 120) { save(st.copy(mealMinutes = it)) }
+                SwitchRow("Remind me before the mess closes", !st.mealReminderOff) { save(st.copy(mealReminderOff = !it)) }
+                if (!st.mealReminderOff) NumberStepper("Minutes before closing", st.mealReminderMinutes, 5, 5, 90) { save(st.copy(mealReminderMinutes = it)) }
+                SwitchRow("Keep meal time free when planning study", !st.mealsIgnoredInPlanning) { save(st.copy(mealsIgnoredInPlanning = !it)) }
+                val today = java.time.LocalDate.now()
+                val clashes = (0L..6L).map { today.plusDays(it) }.flatMap { d -> Mess.clashes(data, d).map { d to it } }
+                if (clashes.isNotEmpty()) Text("No time to eat: " + clashes.joinToString { (d, m) -> "${d.dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase)} ${m.name.lowercase()}" }, color = Chronora.colors.warn, style = MaterialTheme.typography.bodySmall)
             }
         }
         item { BackupCard() }

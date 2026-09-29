@@ -11,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.raunak.daytimeline.campus.*
 import org.junit.Rule
@@ -37,6 +38,9 @@ class ScreenshotTest {
             days.joinToString("\n") { "$it 9-10 DSA L 203\n$it 10-11 ML L 204\n$it 2-4pm CN Lab LAB-2" }, emptyList(), store.nextId()
         )
         store.update { it.copy(semester = Semester("Sem 5", today.minusDays(30).toString(), today.plusDays(60).toString()), subjects = subjects, slots = slots) }
+        store.updateSemesters { listOf(SemesterResult(1, listOf(Course("Maths", 4, "AB"), Course("Physics", 4, "BB"))), SemesterResult(2, listOf(Course("DSA", 4, "AA"), Course("OS", 3, "AB")))) }
+        store.updateCompanies { listOf(Company(1, "Google", "SWE intern", "₹1.2L/mo", stageLabel = "Applied", excitement = 5, minCgpa = 7.0, nextDate = today.plusDays(2).toString(), nextEvent = "OA"),
+            Company(2, "Amazon", "SDE", stageLabel = "Interview", excitement = 4, prep = "[x] LP stories\n[ ] System design"), Company(3, "Flipkart", "SDE 1", stageLabel = "Wishlist", applyBy = today.plusDays(4).toString())) }
         store.updateSheets { listOf(store.template("dsa.txt", "DSA — 196 must-do problems", SheetKind.DSA)) }
     }
 
@@ -56,6 +60,8 @@ class ScreenshotTest {
         save("campus-today-$mode")
         compose.onAllNodesWithText("Attendance")[0].performClick(); save("campus-attendance-$mode")
         compose.onAllNodesWithText("Timetable")[0].performClick(); save("campus-timetable-$mode")
+        compose.onAllNodesWithText("CGPA")[0].performScrollTo().performClick(); save("campus-cgpa-$mode")
+        compose.onAllNodesWithText("Placements")[0].performScrollTo().performClick(); save("campus-placements-$mode")
     }
 
     @Test fun light() = shoot(false)

@@ -193,6 +193,52 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
   - The alarm screen shows a daily quote from an editable list.
   - It also shows a morning briefing: first class, room, and deadlines due today.
 
+
+### Round 2 — every feature compared with its best Play Store app
+- **Tasks and calendar (TickTick, Todoist)**
+  - Quick-add bar with a live preview, plus a pinned quick-add notification with a text box.
+  - Upcoming view, overdue rescue, and a priority matrix.
+  - Repeating tasks are ticked per day.
+  - Full editor with date and time pickers, colours and weekday repeats.
+  - Month calendar with task, class and deadline markers.
+- **Goals (Strides)**
+  - Number or milestone goals.
+  - Pace line, amount needed per day, projected finish date and history chart.
+- **Routines (Routinery)**
+  - Step-by-step player with a countdown ring, pause, skip and +1 minute.
+  - Reorderable steps and streaks.
+- **Notes (Keep)**
+  - Colour cards in two columns, tickable checklists, labels, search, pin, archive and [[links]].
+- **Journal (Daylio)**
+  - One-tap mood, activities and a daily prompt.
+  - Mood calendar and insights by weekday and activity.
+  - Activities, prompts and mood names are editable.
+- **Time tracking (Toggl)**
+  - One running timer, projects and tags, and one-tap continue.
+  - Day, week and month reports; manual and edited entries.
+- **Blocker (AppBlock, Lock Me Out)**
+  - Daily unlock limit and an optional unlock phrase.
+  - Quick Settings focus tile.
+- **Web filter (RethinkDNS)**
+  - Lookups and blocked-share stats, most blocked sites and busiest apps.
+  - Searchable log with one-tap Always allow.
+- **Timetable (MyStudyLife)**
+  - Rotating A/B (up to 4-week) timetables with an editable anchor week.
+- **CGPA**
+  - Percentage conversion with an editable formula and an SGPA trend chart.
+  - Remaining credits from total programme credits; lowest and highest CGPA still possible.
+  - Placement eligibility against editable cut-offs.
+- **Placements (Huntr, Teal)**
+  - Kanban board with stage history, apply-by reminders, contact, interest stars, prep checklist and minimum-CGPA eligibility.
+  - Response-rate funnel.
+- **Hostel mess**
+  - Editable meal windows (default breakfast 8–9, lunch 12:30–2, dinner 7:30–9) with per-day selection.
+  - "Closes soon" reminders and a status card on Campus Today; meals also show on the Today timeline.
+  - Study slots are planned around meals, with a warning when classes cover a meal.
+  - The wake-up alarm leaves time for breakfast before class.
+- **Widgets**
+  - Home-screen habit widget (tap to tick); rounded style across all widgets.
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |

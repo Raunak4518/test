@@ -43,15 +43,19 @@ object CampusScheduler {
         for (offset in 0L..7L) {
             val date = now.toLocalDate().plusDays(offset)
             val first = AttendanceEngine.firstClass(data, date)
-            val minute = when {
+            val base = when {
                 first != null -> first.start - w.minutesBeforeFirstClass
                 w.freeDayWake != null -> w.freeDayWake
                 else -> continue
-            }.coerceIn(0, 24 * 60 - 1)
+            }
+            // Leave time for breakfast at the mess when it's served before class.
+            val breakfast = Mess.breakfastWake(data, date, first?.let { it.start - w.leaveMinutes })
+            val minute = (if (breakfast != null && breakfast.second < base) breakfast.second else base).coerceIn(0, 24 * 60 - 1)
             val at = date.atStartOfDay().plusMinutes(minute.toLong())
             if (at.isAfter(now)) {
-                val label = first?.let { o -> "First class: ${data.subjects.firstOrNull { it.id == o.subjectId }?.name ?: "Class"} at ${clock(o.start)}" + if (o.room.isNotBlank()) " · ${o.room}" else "" }
-                    ?: "Free day — get to the library"
+                val meal = breakfast?.takeIf { it.second <= base }?.first?.let { " · ${it.name} ${clock(it.start)}–${clock(it.end)}" } ?: ""
+                val label = (first?.let { o -> "First class: ${data.subjects.firstOrNull { it.id == o.subjectId }?.name ?: "Class"} at ${clock(o.start)}" + if (o.room.isNotBlank()) " · ${o.room}" else "" }
+                    ?: "Free day — get to the library") + meal
                 return WakePlan(at, label, first)
             }
         }
@@ -197,6 +201,10 @@ object CampusScheduler {
                 if (lead > 0) set(start.minusMinutes(lead.toLong()), ACTION_CLASS, o.key)
                 if (w.askAttendanceAfterClass && data.marks[o.key] == null) set(date.atStartOfDay().plusMinutes(o.end.toLong() + 2), ACTION_ASK, o.key)
             }
+            if (!data.settings.mealReminderOff) Mess.meals(data, date).forEach { m ->
+                val lead = data.settings.mealReminderMinutes.coerceAtMost(m.end - m.start)
+                set(date.atStartOfDay().plusMinutes((m.end - lead).toLong()), ACTION_MEAL, "$date|${m.name}")
+            }
         }
         data.deadlines.filter { !it.done }.forEach { d ->
             val due = runCatching { LocalDate.parse(d.date).atStartOfDay().plusMinutes(d.minute.toLong()) }.getOrNull() ?: return@forEach
@@ -205,6 +213,10 @@ object CampusScheduler {
         store.companies.value.forEach { c ->
             val at = c.nextDate?.let { runCatching { LocalDate.parse(it).atStartOfDay().plusMinutes(c.nextMinute.toLong()) }.getOrNull() } ?: return@forEach
             data.settings.companyReminderHours.forEach { h -> set(at.minusHours(h.toLong()), ACTION_COMPANY, "${c.id}|$h") }
+        }
+        store.companies.value.filter { data.settings.placementStages.indexOfFirst { s -> s.equals(it.stageName, true) } <= 0 }.forEach { c ->
+            val by = c.applyBy?.let { runCatching { LocalDate.parse(it).atTime(9, 0) }.getOrNull() } ?: return@forEach
+            listOf(48, 0).forEach { h -> set(by.minusHours(h.toLong()), ACTION_COMPANY, "${c.id}|apply$h") }
         }
         if (data.librarySessions.lastOrNull()?.end == null && data.librarySessions.isNotEmpty()) {
             LibraryPlanner.openWindow(data.library, now.toLocalDate())?.let { set(now.toLocalDate().atStartOfDay().plusMinutes(it.end - data.settings.libraryCloseReminderMinutes.toLong()), ACTION_LIBRARY, now.toLocalDate().toString()) }
@@ -232,6 +244,7 @@ object CampusScheduler {
     const val ACTION_DEADLINE = "chronora.campus.DEADLINE"
     const val ACTION_COMPANY = "chronora.campus.COMPANY"
     const val ACTION_LIBRARY = "chronora.campus.LIBRARY"
+    const val ACTION_MEAL = "chronora.campus.MEAL"
     const val ACTION_BATTERY = "chronora.campus.BATTERY"
     const val ACTION_CHECKIN = "chronora.campus.CHECKIN"
     const val ACTION_CHECKIN_ANSWER = "chronora.campus.CHECKIN_ANSWER"
@@ -282,8 +295,18 @@ class CampusReceiver : BroadcastReceiver() {
             CampusScheduler.ACTION_COMPANY -> {
                 val id = key.substringBefore('|').toLongOrNull()
                 store.companies.value.firstOrNull { it.id == id }?.let { c ->
-                    val hours = key.substringAfter('|').toIntOrNull() ?: 0
-                    notify(context, CH_DEADLINE, key.hashCode(), "${c.name}: ${c.nextEvent.ifBlank { c.stageName }} in $hours hour(s)", "${c.nextDate} ${clock(c.nextMinute)} · ${c.role}")
+                    val tail = key.substringAfter('|')
+                    if (tail.startsWith("apply")) notify(context, CH_DEADLINE, key.hashCode(), "Apply to ${c.name}" + (if (tail == "apply0") " today" else " — closes ${c.applyBy}"), c.role.ifBlank { "Placement application" })
+                    else {
+                        val hours = tail.toIntOrNull() ?: 0
+                        notify(context, CH_DEADLINE, key.hashCode(), "${c.name}: ${c.nextEvent.ifBlank { c.stageName }} in $hours hour(s)", "${c.nextDate} ${clock(c.nextMinute)} · ${c.role}")
+                    }
+                }
+            }
+            CampusScheduler.ACTION_MEAL -> {
+                val name = key.substringAfter('|')
+                data.settings.meals.firstOrNull { it.name == name }?.let { m ->
+                    notify(context, CH_CLASS, key.hashCode(), "Mess: $name closes at ${clock(m.end)}", "${data.settings.mealReminderMinutes} minutes left — go eat now.")
                 }
             }
             CampusScheduler.ACTION_LIBRARY -> notify(context, CH_CLASS, 7710, "Library closes in ${data.settings.libraryCloseReminderMinutes} minutes", "Wrap up and note where to resume tomorrow.")

@@ -187,6 +187,23 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                 }
             }
         }
+        val meals = Mess.meals(data, today)
+        if (meals.isNotEmpty()) item {
+            val missed = Mess.clashes(data, today)
+            SectionCard("Mess", Mess.status(data, now)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    meals.forEach { m ->
+                        val open = minute in m.start until m.end
+                        val over = minute >= m.end
+                        Column(Modifier.weight(1f)) {
+                            Text(m.name, fontWeight = FontWeight.SemiBold, color = if (open) Chronora.colors.good else if (over) Chronora.muted else MaterialTheme.colorScheme.onSurface)
+                            Text("${clock(m.start)}–${clock(m.end)}", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                        }
+                    }
+                }
+                if (missed.isNotEmpty()) Text("Classes cover the whole ${missed.joinToString(" and ") { it.name.lowercase() }} window today — carry something to eat.", color = Chronora.colors.warn, style = MaterialTheme.typography.bodySmall)
+            }
+        }
         val pending = AttendanceEngine.unmarked(data, today, minute).filter { it.date != today }
         if (pending.isNotEmpty()) item {
             SectionCard("Unmarked classes · ${pending.size}", "Mark them so your percentages stay right") {

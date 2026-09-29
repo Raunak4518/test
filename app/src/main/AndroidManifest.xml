@@ -95,6 +95,10 @@
         <receiver android:name=".receiver.NotificationActionReceiver" android:exported="false" />
         <receiver android:name=".features.HabitReminderReceiver" android:exported="false" />
         <receiver android:name=".productivity.QuickAddReceiver" android:exported="false" />
+        <receiver android:name=".productivity.HabitWidget" android:exported="true" android:label="Chronora Habits">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/habit_widget_info" />
+        </receiver>
         <service android:name=".pro.FocusTileService" android:exported="true" android:label="Focus block" android:icon="@drawable/ic_notification" android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
             <intent-filter><action android:name="android.service.quicksettings.action.QS_TILE" /></intent-filter>
         </service>

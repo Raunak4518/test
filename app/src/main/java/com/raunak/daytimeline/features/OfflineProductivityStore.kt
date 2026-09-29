@@ -22,6 +22,7 @@ class OfflineProductivityStore(context: Context) {
     private val prefs = context.getSharedPreferences("offline_productivity_v2", Context.MODE_PRIVATE)
     private val gson = GsonBuilder().setPrettyPrinting().create()
     private val habitScheduler = HabitReminderScheduler(context.applicationContext)
+    private val appContext = context.applicationContext
 
     private val _habits = MutableStateFlow(read("habits", emptyList<OfflineHabit>()))
     val habits: StateFlow<List<OfflineHabit>> = _habits.asStateFlow()
@@ -397,6 +398,7 @@ class OfflineProductivityStore(context: Context) {
         val next = transform(flow.value)
         flow.value = next
         prefs.edit().putString(key, gson.toJson(next)).apply()
+        if (key == "habits") runCatching { com.raunak.daytimeline.productivity.HabitWidget.refresh(appContext) }
     }
     private inline fun <reified T> read(key: String, fallback: T): T = try {
         prefs.getString(key, null)?.let { gson.fromJson<T>(it, object : TypeToken<T>() {}.type) } ?: fallback

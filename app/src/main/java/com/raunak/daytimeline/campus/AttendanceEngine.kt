@@ -46,7 +46,8 @@ object AttendanceEngine {
         val out = mutableListOf<ClassOccurrence>()
         if (inSemester && !holiday) {
             val removed = exceptions.filter { (it.kind == ExceptionKind.CANCEL || it.kind == ExceptionKind.RESCHEDULE) && it.date == ds }.mapNotNull { it.slotId }.toSet()
-            data.slots.filter { it.day == date.dayOfWeek.value && it.activeOn(date) && it.id !in removed && data.subjects.any { s -> s.id == it.subjectId } }.forEach {
+            val week = rotationWeek(data, date)
+            data.slots.filter { it.day == date.dayOfWeek.value && it.activeOn(date) && (week == 0 || it.rotationWeek == 0 || it.rotationWeek == week) && it.id !in removed && data.subjects.any { s -> s.id == it.subjectId } }.forEach {
                 out += ClassOccurrence(key(date, it.id), date, it.subjectId, it.start, it.end, it.room, it.type, it.id, "Regular")
             }
         }
@@ -69,6 +70,18 @@ object AttendanceEngine {
     fun firstClass(data: CampusData, date: LocalDate): ClassOccurrence? = occurrences(data, date).firstOrNull()
 
     /** Weekly slots in force on [date] (the "current timetable" for that week). */
+    /** Which week of the rotation [date] falls in (1 = A, 2 = B …), or 0 when the timetable doesn't rotate. */
+    fun rotationWeek(data: CampusData, date: LocalDate): Int {
+        val n = data.settings.rotationWeeks
+        if (n <= 1) return 0
+        val anchor = (data.settings.rotationStart?.let { runCatching { LocalDate.parse(it) }.getOrNull() }
+            ?: runCatching { LocalDate.parse(data.semester.start) }.getOrNull() ?: date).with(java.time.DayOfWeek.MONDAY)
+        val weeks = java.time.temporal.ChronoUnit.WEEKS.between(anchor, date.with(java.time.DayOfWeek.MONDAY))
+        return (((weeks % n) + n) % n).toInt() + 1
+    }
+
+    fun weekLetter(w: Int) = if (w <= 0) "" else ('A' + (w - 1)).toString()
+
     fun currentSlots(data: CampusData, date: LocalDate) = data.slots.filter { it.activeOn(date) }
 
     /**
@@ -84,7 +97,7 @@ object AttendanceEngine {
         for (slot in slots) {
             val stillRunning = fromS == null || slot.validUntil == null || slot.validUntil >= fromS
             if (slot.subjectId != subjectId || !stillRunning) { out += slot; continue }
-            val match = pool.firstOrNull { it.day == slot.day && it.start == slot.start && it.end == slot.end && it.room == slot.room && it.type == slot.type }
+            val match = pool.firstOrNull { it.day == slot.day && it.start == slot.start && it.end == slot.end && it.room == slot.room && it.type == slot.type && it.rotationWeek == slot.rotationWeek }
             when {
                 match != null -> { pool.remove(match); out += slot }
                 fromS == null -> Unit // dropped for the whole semester
@@ -92,7 +105,7 @@ object AttendanceEngine {
                 else -> out += slot.copy(validUntil = from.minusDays(1).toString())
             }
         }
-        pool.forEach { d -> out += TimetableSlot(nextId(), subjectId, d.day, d.start, d.end, d.room, d.type, validFrom = fromS) }
+        pool.forEach { d -> out += TimetableSlot(nextId(), subjectId, d.day, d.start, d.end, d.room, d.type, validFrom = fromS, rotationWeek = d.rotationWeek) }
         return out
     }
 
@@ -101,7 +114,10 @@ object AttendanceEngine {
         val out = mutableListOf<Pair<TimetableSlot, TimetableSlot>>()
         slots.groupBy { it.day }.values.forEach { day ->
             val sorted = day.sortedBy { it.start }
-            for (i in sorted.indices) for (j in i + 1 until sorted.size) if (sorted[j].start < sorted[i].end) out += sorted[i] to sorted[j]
+            for (i in sorted.indices) for (j in i + 1 until sorted.size) {
+                val sameWeek = sorted[i].rotationWeek == 0 || sorted[j].rotationWeek == 0 || sorted[i].rotationWeek == sorted[j].rotationWeek
+                if (sameWeek && sorted[j].start < sorted[i].end) out += sorted[i] to sorted[j]
+            }
         }
         return out
     }
