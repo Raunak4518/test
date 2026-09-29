@@ -57,11 +57,7 @@ class AlarmMissionRuntime(private val context: Context) {
                 handler.post(tick)
             }
         }
-        if (config.vibration) {
-            val delay = config.gentleVolumeSeconds.coerceAtMost(30) * 1000L
-            if (delay == 0L) vibratePulse()
-            else android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({ if (ringtone != null) vibratePulse() }, delay)
-        }
+        if (config.vibration) vibratePulse()
     }
 
     fun startDefaultAlarmSound() {
