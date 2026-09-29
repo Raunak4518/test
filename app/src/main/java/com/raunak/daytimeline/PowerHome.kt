@@ -52,6 +52,9 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     var tab by remember { mutableIntStateOf(0) }
     var addTask by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<String?>(null) }
+    var editTask by remember { mutableStateOf<TaskModel?>(null) }
+    var calendarOpen by remember { mutableStateOf(false) }
+    var searchOpen by remember { mutableStateOf(false) }
 
     MaterialTheme(colorScheme = lightColorScheme(background = HomeBg, surface = HomeCard, primary = HomeSage, onSurface = HomeInk)) {
         Scaffold(
@@ -64,7 +67,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
                             Text(date.toString(), style = MaterialTheme.typography.labelSmall, color = HomeMuted)
                         }
                     },
-                    actions = { IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
+                    actions = { IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
                 )
             },
             bottomBar = {
@@ -79,14 +82,17 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
             }
         ) { padding ->
             when (tab) {
-                0 -> TodayScreen(tasks, date, vm, settings.showCompleted)
+                0 -> TodayScreen(tasks, date, vm, settings.showCompleted) { editTask = it }
                 1 -> FocusScreen(pomo, tasks, vm)
                 2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
             }
         }
     }
 
-    if (addTask) AddTaskDialog(vm) { addTask = false }
+    if (addTask) TaskEditorDialog(vm, null) { addTask = false }
+    if (editTask != null) TaskEditorDialog(vm, editTask) { editTask = null }
+    if (calendarOpen) CalendarDialog(date, vm) { calendarOpen = false }
+    if (searchOpen) TaskSearchDialog(tasks, vm) { searchOpen = false }
     when (dialog) {
         "habit" -> HabitDialog({ name, target, time -> productivity.addHabit(name, target, time); dialog = null }, { dialog = null })
         "goal" -> GoalDialog({ title, target, deadline -> productivity.addGoal(title, target, deadline); dialog = null }, { dialog = null })
@@ -96,11 +102,14 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "routine" -> RoutineDialog({ name, steps -> productivity.addRoutine(name, steps); dialog = null }, { dialog = null })
         "analytics" -> AnalyticsDialog(tasks, habits, entries, productivity) { dialog = null }
         "smartplan" -> SmartPlanDialog(tasks) { dialog = null }
+        "notes" -> NotesManagerDialog(notes, productivity) { dialog = null }
+        "goals" -> GoalManagerDialog(goals, productivity) { dialog = null }
+        "journalHistory" -> JournalHistoryDialog(journal) { dialog = null }
     }
 }
 
 @Composable
-private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean) {
+private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, onEdit: (TaskModel) -> Unit) {
     val visible = if (showCompleted) tasks else tasks.filterNot { it.completed }
     val total = tasks.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
     val done = tasks.filter { it.completed }.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
@@ -123,7 +132,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
         }
         item { Text(date.dayOfWeek.toString().lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         items(visible.sortedBy { it.startMinute }, key = { it.id }) { task ->
-            TaskRow(task, vm, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) })
+            TaskRow(task, vm, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) }, { onEdit(task) })
         }
         if (visible.isEmpty()) item { EmptyCard("Nothing scheduled", "Use + to add a block. Your day stays local and offline.") }
     }
@@ -132,7 +141,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
 @Composable private fun DayButton(text: String, modifier: Modifier, onClick: () -> Unit) { OutlinedButton(onClick = onClick, modifier = modifier) { Text(text) } }
 
 @Composable
-private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit) {
+private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit, onEdit: () -> Unit) {
     var showChecklist by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(20.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -142,6 +151,8 @@ private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Uni
                 Text("${clock(task.startMinute)}–${clock(task.endMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted, style = MaterialTheme.typography.bodySmall)
                 if (task.notes.isNotBlank()) Text(task.notes, color = HomeMuted, maxLines = 2)
             }
+            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit") }
+            IconButton(onClick = { vm.deleteTask(task) }) { Icon(Icons.Default.Delete, "Delete") }
             IconButton(onClick = { showChecklist = true }) { Icon(Icons.Default.Checklist, "Checklist") }
             if (task.pomodoroEnabled) IconButton(onClick = onFocus) { Icon(Icons.Default.PlayArrow, "Focus") }
         }
@@ -189,11 +200,11 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
         items(habits, key = { it.id }) { h ->
             Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(h.name, fontWeight = FontWeight.SemiBold); Text("${h.streak()} day streak", color = HomeMuted) }; IconButton(onClick = { store.toggleHabit(h.id) }) { Icon(Icons.Default.CheckCircle, null) }; IconButton(onClick = { store.deleteHabit(h.id) }) { Icon(Icons.Default.Delete, null) } } }
         }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Goals"); TextButton(onClick = { openDialog("goal") }) { Text("Add") } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Goals"); Row { TextButton(onClick = { openDialog("goals") }) { Text("Manage") }; TextButton(onClick = { openDialog("goal") }) { Text("Add") } } } }
         items(goals, key = { it.id }) { g -> Card { Column(Modifier.padding(14.dp)) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(g.title, fontWeight = FontWeight.SemiBold); Text("${g.progress}/${g.target}") }; LinearProgressIndicator(progress = { g.progress.toFloat() / g.target }, modifier = Modifier.fillMaxWidth()); Row { TextButton(onClick = { store.setGoalProgress(g.id, g.progress + 1) }) { Text("+1") }; TextButton(onClick = { store.setGoalProgress(g.id, g.progress - 1) }) { Text("-1") } } } } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Routines"); TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
         items(routines, key = { it.id }) { r -> Card { Column(Modifier.padding(14.dp)) { Text(r.name, fontWeight = FontWeight.SemiBold); Text("${r.steps.sumOf { it.minutes }} min · ${r.steps.size} steps", color = HomeMuted); Row { TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") }; TextButton(onClick = { store.deleteRoutine(r.id) }) { Text("Delete") } } } } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); TextButton(onClick = { openDialog("note") }) { Text("New") } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
         items(notes.sortedByDescending { it.updatedAt }.take(8), key = { it.id }) { n ->
             Card { Column(Modifier.padding(14.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(n.title, fontWeight = FontWeight.SemiBold); IconButton(onClick = { store.deleteNote(n.id) }) { Icon(Icons.Default.Delete, "Delete note") } }
@@ -201,7 +212,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
                 Text(n.body, maxLines = 5, color = HomeMuted)
             } }
         }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Reflection"); TextButton(onClick = { openDialog("journal") }) { Text("Write") } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Reflection"); Row { TextButton(onClick = { openDialog("journalHistory") }) { Text("History") }; TextButton(onClick = { openDialog("journal") }) { Text("Write") } } } }
         item { if (journal.isEmpty()) EmptyCard("No journal yet", "Capture mood, energy, wins, blockers and gratitude.") else Card { Column(Modifier.padding(14.dp)) { val j = journal.first(); Text(j.date, fontWeight = FontWeight.Bold); Text("Mood ${j.mood}/5 · Energy ${j.energy}/5", color = HomeSage); if (j.wins.isNotBlank()) Text("Wins: ${j.wins}"); if (j.blockers.isNotBlank()) Text("Blockers: ${j.blockers}") } } }
         item { SectionTitle("Tracked time"); Text("${entries.size} local time entries · ${tracked} minutes today", color = HomeMuted) }
     }
