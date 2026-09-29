@@ -91,8 +91,8 @@ fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore,
         topBar = { TopAppBar(title = { Text("Chronora Power Center") }, navigationIcon = { IconButton(onClick = onClose) { Icon(Icons.Default.ArrowBack, "Back") } }) },
         bottomBar = {
             NavigationBar {
-                val labels = listOf("Calendar", "Plan", "Insights", "Study", "Focus", "Review")
-                val icons = listOf(Icons.Default.CalendarViewWeek, Icons.Default.AutoAwesome, Icons.Default.Insights, Icons.Default.School, Icons.Default.DoNotDisturb, Icons.Default.RateReview)
+                val labels = listOf("Calendar", "Plan", "Insights", "Study", "Focus", "Review", "Offline")
+                val icons = listOf(Icons.Default.CalendarViewWeek, Icons.Default.AutoAwesome, Icons.Default.Insights, Icons.Default.School, Icons.Default.DoNotDisturb, Icons.Default.RateReview, Icons.Default.Storage)
                 labels.forEachIndexed { index, label -> NavigationBarItem(selected = tab == index, onClick = { tab = index }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
             }
         }
@@ -104,7 +104,7 @@ fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore,
                 2 -> InsightsCenter(tasks, store)
                 3 -> StudyCenter()
                 4 -> FocusShield()
-                else -> ReviewCenter(tasks, store)
+                5 -> ReviewCenter(tasks, store)\n                else -> OfflineCompletenessCenter(store)
             }
         }
     }
