@@ -76,6 +76,9 @@ class PlannerViewModel(
         repository.upsertChecklistItem(ChecklistItemEntity(taskId = taskId, text = text, position = 0))
     }
 
+    fun toggleChecklistItem(item: ChecklistItemEntity) = viewModelScope.launch { repository.toggleChecklistItem(item) }
+    fun deleteChecklistItem(itemId: Long) = viewModelScope.launch { repository.deleteChecklistItem(itemId) }
+
     fun updateSettings(update: PlannerSettings.() -> PlannerSettings) = viewModelScope.launch {
         settingsStore.update(update)
     }
