@@ -38,7 +38,7 @@ class AlarmRingingActivity : ComponentActivity() {
         val config = activeConfig ?: run { finish(); return }
         flow = AlarmAlarmFlow(config.missionChain, AlarmMissionPolicy(config.maxSnoozes, config.snoozeMinutes, config.longPressMs, config.timeoutMinutes, config.backupDelayMinutes).validated())
         runtime.startAlarmSound(config)
-        timeoutHandler.postDelayed({ if (!(flow?.isDismissed() ?: true)) dismissAlarm() }, config.timeoutMinutes * 60_000L)
+        // Timeout is a safety telemetry threshold, not an automatic dismissal: a wake-up alarm must not silently clear before its mission chain is completed.
         setContent { RingingScreen() }
     }
 
@@ -79,6 +79,7 @@ class AlarmRingingActivity : ComponentActivity() {
             Text(if (intent.getBooleanExtra(EXTRA_TEST_MODE, false)) "ALARM TEST" else "WAKE UP", style = MaterialTheme.typography.displaySmall)
             Text(config.label, style = MaterialTheme.typography.titleLarge)
             Text("Mission ${f.missionIndex() + 1} / ${config.missionChain.size}", style = MaterialTheme.typography.labelLarge)
+            if (config.timeoutMinutes > 0) Text("Mission timeout ${config.timeoutMinutes}m · alarm remains active until verified", style = MaterialTheme.typography.labelSmall)
             when (type) {
                 AlarmMissionType.MATH -> {
                     Text("${math.first} = ?", style = MaterialTheme.typography.headlineMedium)
