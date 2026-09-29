@@ -88,6 +88,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "habit" -> HabitDialog({ name, target -> productivity.addHabit(name, target); dialog = null }, { dialog = null })
         "goal" -> GoalDialog({ title, target -> productivity.addGoal(title, target); dialog = null }, { dialog = null })
         "journal" -> JournalDialog({ mood, energy, wins, blockers, gratitude, note -> productivity.addJournal(LocalDate.now(), mood, energy, wins, blockers, gratitude, note); dialog = null }, { dialog = null })
+        "tools" -> OfflinePowerTools(productivity) { dialog = null }
     }
 }
 
@@ -166,7 +167,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
     val tracked = store.todayTrackedMinutes()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Habits", habits.count { it.completedDates.contains(today.toString()) }.toString(), Modifier.weight(1f)); StatCard("Tracked", "${tracked}m", Modifier.weight(1f)); StatCard("Journal", journal.size.toString(), Modifier.weight(1f)) } }
-        item { SectionTitle("Habits") }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Habits"); TextButton(onClick = { openDialog("tools") }) { Text("Power tools") } } }
         items(habits, key = { it.id }) { h ->
             Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(h.name, fontWeight = FontWeight.SemiBold); Text("${h.streak()} day streak", color = HomeMuted) }; IconButton(onClick = { store.toggleHabit(h.id) }) { Icon(Icons.Default.CheckCircle, null) }; IconButton(onClick = { store.deleteHabit(h.id) }) { Icon(Icons.Default.Delete, null) } } }
         }
