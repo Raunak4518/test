@@ -77,6 +77,17 @@ class PlannerViewModel(
     fun deleteTask(task: TaskModel) = viewModelScope.launch { repository.deleteTask(task.id) }
     fun duplicateTask(task: TaskModel) = viewModelScope.launch { repository.duplicateTask(task.id) }
 
+    fun moveTask(task: TaskModel, start: Int, end: Int) = viewModelScope.launch {
+        val safeStart = start.coerceIn(0, 23 * 60 + 59)
+        val duration = (end - task.startMinute).coerceAtLeast(5)
+        repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = safeStart, endMinute = (safeStart + duration).coerceAtMost(24 * 60), category = task.category, colorHex = task.colorHex, priority = task.priority, notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
+    }
+
+    fun resizeTask(task: TaskModel, newEnd: Int) = viewModelScope.launch {
+        val end = newEnd.coerceIn(task.startMinute + 5, 24 * 60)
+        repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = task.startMinute, endMinute = end, category = task.category, colorHex = task.colorHex, priority = task.priority, notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
+    }
+
     fun checklist(taskId: Long) = repository.checklist(taskId)
 
     fun addChecklistItem(taskId: Long, text: String) = viewModelScope.launch {
