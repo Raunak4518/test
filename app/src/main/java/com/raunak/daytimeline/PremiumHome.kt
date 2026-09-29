@@ -131,6 +131,73 @@ private fun TaskCard(t: TaskModel, onClick: () -> Unit, onComplete: () -> Unit) 
 @Composable private fun Toggle(t:String,sub:String,c:Boolean,f:(Boolean)->Unit){Surface(RoundedCornerShape(22.dp),color=Card){Row(Modifier.fillMaxWidth().padding(16.dp),Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(t,fontWeight=FontWeight.SemiBold);Text(sub,color=Muted,style=MaterialTheme.typography.bodySmall)};Switch(c,f)}}}
 @Composable private fun Setting(t:String,v:String,icon:androidx.compose.ui.graphics.vector.ImageVector){Surface(RoundedCornerShape(22.dp),color=Card){ListItem({Text(t)},{Text(v,color=Muted)},{Icon(icon,null,tint=Sage)},{Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,tint=Muted)})}}
 
-@OptIn(ExperimentalMaterial3Api::class) @Composable private fun AddSheet(vm:PlannerViewModel,close:()->Unit){var title by remember{mutableStateOf("")};var st by remember{mutableStateOf("09:00")};var en by remember{mutableStateOf("10:00")};var notes by remember{mutableStateOf("")};var pomo by remember{mutableStateOf(true)};ModalBottomSheet({close()}){Column(Modifier.padding(20.dp).fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(11.dp)){Text("New block",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);OutlinedTextField(title,{title=it},label={Text("What are you doing?")},modifier=Modifier.fillMaxWidth());Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(st,{st=it},label={Text("Start")},modifier=Modifier.weight(1f));OutlinedTextField(en,{en=it},label={Text("End")},modifier=Modifier.weight(1f))};Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(6.dp)){listOf(15,30,45,60,90,120).forEach{m->AssistChip({en=tm(pm(st)+m)},{Text(if(m<60)"${m}m" else "${m/60}h")})}};OutlinedTextField(notes,{notes=it},label={Text("Notes")},modifier=Modifier.fillMaxWidth(),minLines=2);Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Text("Pomodoro");Switch(pomo,{pomo=it})};Button({if(title.isNotBlank()){val a=pm(st);vm.addOrUpdateTask(null,title.trim(),a,pm(en).coerceAtLeast(a+5),pomo,notes,1,"NONE","NONE",10);close()}},Modifier.fillMaxWidth()){Icon(Icons.Default.Add,null);Spacer(Modifier.width(7.dp));Text("Add to my day")};Spacer(Modifier.height(18.dp))}}}
-@OptIn(ExperimentalMaterial3Api::class) @Composable private fun TaskSheet(t:TaskModel,vm:PlannerViewModel,close:()->Unit){ModalBottomSheet({close()}){Column(Modifier.padding(22.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){Text(t.title,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);Text("${tm(t.startMinute)} — ${tm(t.endMinute)}",color=Muted);if(t.notes.isNotBlank())Text(t.notes);Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilledTonalButton({vm.toggleComplete(t,!t.completed);close()}){Text(if(t.completed)"Reopen" else "Complete")};OutlinedButton({vm.duplicateTask(t);close()}){Text("Duplicate")};OutlinedButton({vm.deleteTask(t);close()}){Text("Delete")}};if(t.pomodoroEnabled)Button({vm.startPomodoro(t.id);close()},Modifier.fillMaxWidth()){Icon(Icons.Default.Timer,null);Spacer(Modifier.width(7.dp));Text("Start focus")}}}}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AddSheet(vm: PlannerViewModel, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    var startText by remember { mutableStateOf("09:00") }
+    var endText by remember { mutableStateOf("10:00") }
+    var notes by remember { mutableStateOf("") }
+    var pomo by remember { mutableStateOf(true) }
+    ModalBottomSheet(onDismissRequest = close) {
+        Column(Modifier.padding(20.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(11.dp)) {
+            Text("New block", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            OutlinedTextField(title, { title = it }, label = { Text("What are you doing?") }, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(startText, { startText = it }, label = { Text("Start") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(endText, { endText = it }, label = { Text("End") }, modifier = Modifier.weight(1f))
+            }
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                listOf(15, 30, 45, 60, 90, 120).forEach { minutes ->
+                    AssistChip(onClick = { endText = tm(pm(startText) + minutes) }, label = { Text(if (minutes < 60) "${minutes}m" else "${minutes / 60}h") })
+                }
+            }
+            OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Text("Pomodoro")
+                Switch(checked = pomo, onCheckedChange = { pomo = it })
+            }
+            Button(
+                onClick = {
+                    if (title.isNotBlank()) {
+                        val start = pm(startText)
+                        val end = pm(endText).coerceAtLeast(start + 5)
+                        vm.addOrUpdateTask(null, title.trim(), start, end, pomo, notes, 1, "NONE", "NONE", 10)
+                        close()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Add, null)
+                Spacer(Modifier.width(7.dp))
+                Text("Add to my day")
+            }
+            Spacer(Modifier.height(18.dp))
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TaskSheet(t: TaskModel, vm: PlannerViewModel, close: () -> Unit) {
+    ModalBottomSheet(onDismissRequest = close) {
+        Column(Modifier.padding(22.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(t.title, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Text("${tm(t.startMinute)} — ${tm(t.endMinute)}", color = Muted)
+            if (t.notes.isNotBlank()) Text(t.notes)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilledTonalButton(onClick = { vm.toggleComplete(t, !t.completed); close() }) { Text(if (t.completed) "Reopen" else "Complete") }
+                OutlinedButton(onClick = { vm.duplicateTask(t); close() }) { Text("Duplicate") }
+                OutlinedButton(onClick = { vm.deleteTask(t); close() }) { Text("Delete") }
+            }
+            if (t.pomodoroEnabled) {
+                Button(onClick = { vm.startPomodoro(t.id); close() }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Timer, null)
+                    Spacer(Modifier.width(7.dp))
+                    Text("Start focus")
+                }
+            }
+        }
+    }
+}
 private fun tm(m:Int)="%02d:%02d".format((m/60).coerceIn(0,23),m%60);private fun pm(s:String):Int{val p=s.trim().split(":");return((p.getOrNull(0)?.toIntOrNull()?:0)*60+(p.getOrNull(1)?.toIntOrNull()?:0)).coerceIn(0,1439)}
