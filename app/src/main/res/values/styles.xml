@@ -1,8 +1,8 @@
 <resources>
-    <style name="Theme.DayTimeline" parent="android:style/Theme.Material.Light.NoActionBar">
+    <style name="Theme.Chronora" parent="android:style/Theme.Material.Light.NoActionBar">
         <item name="android:fontFamily">sans</item>
         <item name="android:windowLightStatusBar">true</item>
-        <item name="android:statusBarColor">#FAFAFA</item>
-        <item name="android:navigationBarColor">#FAFAFA</item>
+        <item name="android:statusBarColor">#F4F1E9</item>
+        <item name="android:navigationBarColor">#F4F1E9</item>
     </style>
 </resources>
