@@ -34,7 +34,7 @@ object AlarmSchedulePlanner {
 
     fun matches(config: AlarmPersistentConfig, dateTime: LocalDateTime, rule: AdvancedRepeatRule = config.advancedRepeat()): Boolean {
         if (rule.mode == AlarmScheduleMode.WEEKLY && config.repeatDays.isEmpty()) {
-            return dateTime.toLocalDate() == LocalDate.now() && dateTime.toLocalTime() == LocalTime.of(config.hour, config.minute)
+            return true
         }
         return AlarmRepeatPlanner.matches(dateTime, rule, dateTime)
     }
