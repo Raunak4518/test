@@ -78,13 +78,22 @@ class OfflineProductivityStore(context: Context) {
         return streak
     }
 
-    fun addNote(title: String, body: String, tags: Set<String> = emptySet()) {
+    fun addNote(title: String, body: String, tags: Set<String> = emptySet(), folder: String = "General") {
         if (title.isBlank() && body.isBlank()) return
-        update(_notes, "notes") { it + OfflineNote(id(), title.trim().ifBlank { "Untitled" }, body, tags, System.currentTimeMillis()) }
+        update(_notes, "notes") { it + OfflineNote(id(), title.trim().ifBlank { "Untitled" }, body, tags, System.currentTimeMillis(), folder.trim().ifBlank { "General" }, false) }
     }
 
-    fun updateNote(id: Long, title: String, body: String, tags: Set<String>) = update(_notes, "notes") { list ->
-        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { "Untitled" }, body = body, tags = tags, updatedAt = System.currentTimeMillis()) else it }
+    fun updateNote(id: Long, title: String, body: String, tags: Set<String>, folder: String = "General", pinned: Boolean? = null) = update(_notes, "notes") { list ->
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { "Untitled" }, body = body, tags = tags, updatedAt = System.currentTimeMillis(), folder = folder.trim().ifBlank { "General" }, pinned = pinned ?: it.pinned) else it }
+    }
+
+    fun toggleNotePinned(id: Long) = update(_notes, "notes") { list -> list.map { if (it.id == id) it.copy(pinned = !it.pinned) else it } }
+    fun setNoteFolder(id: Long, folder: String) = update(_notes, "notes") { list -> list.map { if (it.id == id) it.copy(folder = folder.trim().ifBlank { "General" }) else it } }
+
+    fun noteBacklinks(note: OfflineNote): List<OfflineNote> {
+        val title = note.title.trim()
+        if (title.isBlank()) return emptyList()
+        return _notes.value.filter { it.id != note.id && it.body.contains(title, ignoreCase = true) }
     }
 
     fun deleteNote(id: Long) = update(_notes, "notes") { it.filterNot { n -> n.id == id } }
@@ -95,7 +104,17 @@ class OfflineProductivityStore(context: Context) {
     }
 
     fun updateGoal(id: Long, title: String, target: Int, deadline: LocalDate?, milestones: List<String>) = update(_goals, "goals") { list ->
-        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, target = target.coerceAtLeast(1), deadline = deadline?.toString(), milestones = milestones.filter { m -> m.isNotBlank() }) else it }
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, target = target.coerceAtLeast(1), deadline = deadline?.toString(), milestones = milestones.filter { m -> m.isNotBlank() }, milestoneDone = it.milestoneDone.filter { index -> index < milestones.size }) else it }
+    }
+
+    fun toggleGoalMilestone(id: Long, index: Int) = update(_goals, "goals") { list ->
+        list.map { goal ->
+            if (goal.id != id || index !in goal.milestones.indices) goal else {
+                val done = goal.milestoneDone.toMutableSet()
+                if (!done.add(index)) done.remove(index)
+                goal.copy(milestoneDone = done)
+            }
+        }
     }
 
     fun addGoalMilestone(id: Long, milestone: String) = update(_goals, "goals") { list ->
@@ -139,7 +158,18 @@ class OfflineProductivityStore(context: Context) {
     fun deleteRoutine(id: Long) = update(_routines, "routines") { it.filterNot { r -> r.id == id } }
 
     fun setRoutineCompleted(id: Long, date: LocalDate = LocalDate.now()) = update(_routines, "routines") { list ->
-        list.map { if (it.id == id) it.copy(lastCompletedDate = date.toString()) else it }
+        list.map { if (it.id == id) it.copy(lastCompletedDate = date.toString(), completionDates = it.completionDates + date.toString()) else it }
+    }
+
+    fun toggleRoutineStep(id: Long, stepIndex: Int, date: LocalDate = LocalDate.now()) = update(_routines, "routines") { list ->
+        list.map { routine ->
+            if (routine.id != id || stepIndex !in routine.steps.indices) routine else {
+                val key = date.toString() + ":" + stepIndex
+                val done = routine.completedSteps.toMutableSet()
+                if (!done.add(key)) done.remove(key)
+                routine.copy(completedSteps = done)
+            }
+        }
     }
 
     fun startTimeEntry(label: String, projectId: Long? = null): OfflineTimeEntry {
@@ -290,9 +320,9 @@ class OfflineProductivityStore(context: Context) {
 }
 
 data class OfflineHabit(val id: Long, val name: String, val targetPerWeek: Int, val preferredTime: String, val activeDays: Set<Int> = (1..7).toSet(), val completedDates: Set<String> = emptySet())
-data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean)
+data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean, val milestoneDone: Set<Int> = emptySet())
 data class OfflineProject(val id: Long, val name: String, val color: Long, val taskIds: List<Long>, val deadline: String?)
-data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null)
+data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null, val completionDates: Set<String> = emptySet(), val completedSteps: Set<String> = emptySet())
 data class OfflineRoutineStep(val title: String, val minutes: Int)
 data class OfflineTimeEntry(val id: Long, val label: String, val projectId: Long?, val startEpochMillis: Long, val endEpochMillis: Long?, val note: String, val tags: Set<String>)
 data class OfflineAchievement(val key: String, val title: String, val description: String, val unlockedAt: Long)
@@ -311,7 +341,7 @@ data class OfflineSettings(
     val defaultTaskMinutes: Int = 30,
     val defaultFocusMinutes: Int = 25
 )
-data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long)
+data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long, val folder: String = "General", val pinned: Boolean = false)
 
 data class OfflineBackup(
     val schema: Int,
