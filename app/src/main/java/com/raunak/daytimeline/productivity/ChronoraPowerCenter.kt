@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -27,8 +29,8 @@ import kotlin.math.roundToInt
 
 class ChronoraDependencyStore(context: Context) {
     private val prefs = context.getSharedPreferences("chronora_dependencies", Context.MODE_PRIVATE)
-    fun dependencies(taskId: Long): Set<Long> = prefs.getStringSet("d:" + taskId, emptySet()) ?: emptySet()
-    fun set(taskId: Long, ids: Set<Long>) = prefs.edit().putStringSet("d:" + taskId, ids).apply()
+    fun dependencies(taskId: Long): Set<Long> = prefs.getStringSet("d:" + taskId, emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    fun set(taskId: Long, ids: Set<Long>) = prefs.edit().putStringSet("d:" + taskId, ids.map { it.toString() }.toSet()).apply()
     fun blocked(taskId: Long, completed: Set<Long>): Boolean = dependencies(taskId).any { it !in completed }
 }
 
@@ -92,7 +94,7 @@ fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore,
             NavigationBar {
                 val labels = listOf("Calendar", "Plan", "Insights", "Study", "Focus", "Review")
                 val icons = listOf(Icons.Default.CalendarViewWeek, Icons.Default.AutoAwesome, Icons.Default.Insights, Icons.Default.School, Icons.Default.DoNotDisturb, Icons.Default.RateReview)
-                labels.forEachIndexed { index, label -> NavigationBarItem(tab == index, { tab = index }, { Icon(icons[index], null) }, { Text(label) }) }
+                labels.forEachIndexed { index, label -> NavigationBarItem(selected = tab == index, onClick = { tab = index }, icon = { Icon(icons[index], null) }, label = { Text(label) }) }
             }
         }
     ) { padding ->
@@ -128,7 +130,7 @@ private fun CalendarMatrix(tasks: List<TaskModel>, onSelect: (LocalDate) -> Unit
             Row(Modifier.fillMaxSize()) {
                 (0..6).forEach { offset ->
                     val date = monday.plusDays(offset.toLong())
-                    Card(Modifier.weight(1f).fillMaxHeight().padding(2.dp), onClick = { onSelect(date) }) {
+                    Card(onClick = { onSelect(date) }, modifier = Modifier.weight(1f).fillMaxHeight().padding(2.dp)) {
                         LazyColumn(Modifier.padding(4.dp)) {
                             items(tasks.filter { it.date == date }.take(25), key = { it.id }) { task -> Text(task.title, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(vertical = 4.dp), maxLines = 2) }
                         }
@@ -141,7 +143,7 @@ private fun CalendarMatrix(tasks: List<TaskModel>, onSelect: (LocalDate) -> Unit
             LazyVerticalGrid(columns = GridCells.Fixed(7), modifier = Modifier.fillMaxSize()) {
                 items(42) { index ->
                     val date = start.plusDays(index.toLong())
-                    Card(Modifier.padding(2.dp).height(82.dp), onClick = { onSelect(date) }) {
+                    Card(onClick = { onSelect(date) }, modifier = Modifier.padding(2.dp).height(82.dp)) {
                         Column(Modifier.padding(5.dp)) {
                             Text(date.dayOfMonth.toString(), fontWeight = if (date == LocalDate.now()) FontWeight.Bold else FontWeight.Normal)
                             tasks.filter { it.date == date }.take(3).forEach { Text(it.title, style = MaterialTheme.typography.labelSmall, maxLines = 1) }
