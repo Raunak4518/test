@@ -25,7 +25,7 @@ class ReminderReceiver : BroadcastReceiver() {
             NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(android.R.drawable.ic_popup_reminder)
                 .setContentTitle(title)
-                .setContentText("Reminder from Day Timeline")
+                .setContentText("Reminder from Chronora")
                 .setPriority(NotificationCompat.PRIORITY_HIGH)
                 .setAutoCancel(true)
                 .addAction(android.R.drawable.checkbox_on_background, "Complete", complete)
