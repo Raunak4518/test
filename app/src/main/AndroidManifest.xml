@@ -21,6 +21,7 @@
         <receiver android:name=".alarm.AlarmWakeCheckReceiver" android:exported="false" />
         <receiver android:name=".receiver.ReminderReceiver" android:exported="false" />
         <receiver android:name=".receiver.NotificationActionReceiver" android:exported="false" />
+        <receiver android:name=".features.HabitReminderReceiver" android:exported="false" />
         <receiver android:name=".receiver.BootReceiver" android:enabled="true" android:exported="false">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
