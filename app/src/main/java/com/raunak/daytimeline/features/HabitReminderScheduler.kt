@@ -20,7 +20,7 @@ class HabitReminderScheduler(private val context: Context) {
             var guard = 0
             while (next.dayOfWeek.value !in habit.activeDays && guard < 7) { next = next.plusDays(1); guard++ }
         }
-        val intent = Intent(context, HabitReminderReceiver::class.java).putExtra("habitId", habit.id).putExtra("title", habit.name)
+        val intent = Intent(context, HabitReminderReceiver::class.java).putExtra("habitId", habit.id).putExtra("title", habit.name).putExtra("preferredTime", habit.preferredTime).putExtra("activeDays", habit.activeDays.joinToString(","))
         val pi = PendingIntent.getBroadcast(context, habit.id.hashCode(), intent, PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, next.toInstant().toEpochMilli(), pi)
     }
@@ -37,6 +37,8 @@ class HabitReminderReceiver : BroadcastReceiver() {
         manager.createNotificationChannel(channel)
         val title = intent.getStringExtra("title") ?: "Habit"
         manager.notify((intent.getLongExtra("habitId", 0L) and 0x7fffffff).toInt(), NotificationCompat.Builder(context, "habit_reminders").setSmallIcon(R.drawable.ic_notification).setContentTitle("Habit reminder").setContentText("Time for $title").setAutoCancel(true).build())
-        HabitReminderScheduler(context).schedule(OfflineHabit(intent.getLongExtra("habitId", 0L), title, 1, java.time.LocalTime.now().toString(), (1..7).toSet(), emptySet()))
+        val time = intent.getStringExtra("preferredTime") ?: ""
+        val days = intent.getStringExtra("activeDays").orEmpty().split(",").mapNotNull { it.toIntOrNull() }.toSet()
+        HabitReminderScheduler(context).schedule(OfflineHabit(intent.getLongExtra("habitId", 0L), title, 1, time, days, emptySet()))
     }
 }
