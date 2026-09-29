@@ -16,6 +16,7 @@ class AlarmManagerBridge(private val context: Context) {
             return
         }
         cancelScheduledCycle(config.id)
+        cancelWakeChecks(config.id)
         if (skipStore.consumeIfSkipped(config.id)) return
 
         val primary = AlarmSchedulePlanner.nextOccurrence(config)
