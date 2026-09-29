@@ -21,6 +21,8 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raunak.daytimeline.domain.TaskModel
 import com.raunak.daytimeline.features.OfflineProductivityStore
 import com.raunak.daytimeline.features.streak
+import com.raunak.daytimeline.productivity.LocalProductivityAnalytics
+import com.raunak.daytimeline.productivity.SmartPlanningEngine
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -92,6 +94,8 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "tools" -> OfflinePowerTools(productivity) { dialog = null }
         "note" -> NoteDialog({ title, body, tags -> productivity.addNote(title, body, tags); dialog = null }, { dialog = null })
         "routine" -> RoutineDialog({ name, steps -> productivity.addRoutine(name, steps); dialog = null }, { dialog = null })
+        "analytics" -> AnalyticsDialog(tasks, habits, entries, productivity) { dialog = null }
+        "smartplan" -> SmartPlanDialog(tasks) { dialog = null }
     }
 }
 
@@ -225,6 +229,41 @@ private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {
         if (steps.isNotEmpty()) onSave(name, steps)
     }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
+
+@Composable
+private fun AnalyticsDialog(tasks: List<TaskModel>, habits: List<com.raunak.daytimeline.features.OfflineHabit>, entries: List<com.raunak.daytimeline.features.OfflineTimeEntry>, store: OfflineProductivityStore, close: () -> Unit) {
+    val today = LocalDate.now()
+    val planned = tasks.size
+    val completed = tasks.count { it.completed }
+    val focus = entries.filter { it.endEpochMillis != null }.sumOf { e -> ((e.endEpochMillis!! - e.startEpochMillis).coerceAtLeast(0L) / 60000L) }
+    val habitDates = habits.flatMap { it.completedDates }.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.toSet()
+    val streak = LocalProductivityAnalytics.currentStreak(habitDates, today)
+    val score = LocalProductivityAnalytics.score(today, planned, completed, store.todayTrackedMinutes(), streak)
+    AlertDialog(onDismissRequest = close, title = { Text("Productivity insights") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Today score: ${(score.completionRate * 100).toInt()}%")
+        Text("Tasks: $completed/$planned completed")
+        Text("Tracked today: ${store.todayTrackedMinutes()} min")
+        Text("All recorded focus: ${focus} min")
+        Text("Habit streak: $streak days")
+        LinearProgressIndicator(progress = { score.completionRate.toFloat() }, modifier = Modifier.fillMaxWidth())
+    } }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
+}
+
+@Composable
+private fun SmartPlanDialog(tasks: List<TaskModel>, close: () -> Unit) {
+    val day = LocalDate.now()
+    val blocks = tasks.map { t -> SmartPlanningEngine.Block(LocalDateTime.of(day, java.time.LocalTime.of(t.startMinute / 60, t.startMinute % 60)), LocalDateTime.of(day, java.time.LocalTime.of(t.endMinute / 60, t.endMinute % 60)), t.title) }
+    val gaps = SmartPlanningEngine.freeGaps(blocks, day, java.time.LocalTime.of(6, 0), java.time.LocalTime.of(23, 0))
+    val suggestion = SmartPlanningEngine.suggestPlacement(25, gaps)
+    val health = SmartPlanningEngine.health(blocks, tasks.filter { it.pomodoroEnabled }.map { it.title }.toSet())
+    AlertDialog(onDismissRequest = close, title = { Text("Smart offline planner") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text("Planned: ${health.plannedMinutes} min · Free: ${health.freeMinutes} min")
+        Text(if (health.overlapMinutes > 0) "Schedule conflict: ${health.overlapMinutes} min overlap" else "No schedule overlap detected")
+        if (suggestion != null) Text("Suggested 25m focus block: ${suggestion.start.toLocalTime()}–${suggestion.end.toLocalTime()}") else Text("No 25m free slot found")
+        Text("Available gaps: ${gaps.size}")
+    } }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
+}
+
 
 private fun clock(minutes: Int) = "%02d:%02d".format((minutes / 60).coerceIn(0, 23), (minutes % 60).coerceIn(0, 59))
 private fun parseClock(value: String): Int { val p = value.trim().split(":"); return ((p.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (p.getOrNull(1)?.toIntOrNull() ?: 0)).coerceIn(0, 1439) }
