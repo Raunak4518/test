@@ -104,7 +104,8 @@ fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore,
                 2 -> InsightsCenter(tasks, store)
                 3 -> StudyCenter()
                 4 -> FocusShield()
-                5 -> ReviewCenter(tasks, store)\n                else -> OfflineCompletenessCenter(store)
+                5 -> ReviewCenter(tasks, store)
+                else -> OfflineCompletenessCenter(store)
             }
         }
     }
