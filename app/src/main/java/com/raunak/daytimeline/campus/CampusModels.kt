@@ -27,8 +27,20 @@ data class TimetableSlot(
     val start: Int,
     val end: Int,
     val room: String = "",
-    val type: ClassType = ClassType.LECTURE
-)
+    val type: ClassType = ClassType.LECTURE,
+    /** First date this weekly slot applies (null = from semester start). */
+    val validFrom: String? = null,
+    /** Last date this weekly slot applies (null = until semester end). */
+    val validUntil: String? = null
+) {
+    fun activeOn(date: LocalDate): Boolean {
+        val d = date.toString()
+        return (validFrom == null || d >= validFrom) && (validUntil == null || d <= validUntil)
+    }
+}
+
+/** One weekly slot being edited in the subject week editor. */
+data class SlotDraft(val day: Int, val start: Int, val end: Int, val room: String = "", val type: ClassType = ClassType.LECTURE)
 
 enum class ExceptionKind { HOLIDAY, CANCEL, RESCHEDULE, EXTRA }
 
@@ -157,7 +169,10 @@ data class CampusSettings(
     val breakMinutes: Int = 10,
     /** Walking time kept free before and after each class when finding library slots. */
     val walkBufferMinutes: Int = 10,
-    val minFreeWindowMinutes: Int = 40,
+    /** Only free gaps at least this long count as library time. */
+    val librarySlotMinutes: Int = 90,
+    /** Split each library slot into focus blocks with breaks instead of one long session. */
+    val splitLibraryIntoBlocks: Boolean = false,
     val libraryCloseReminderMinutes: Int = 30,
     /** A library visit counts toward "days this month" after this many minutes. */
     val libraryVisitMinutes: Int = 30,
@@ -204,7 +219,7 @@ data class CampusSettings(
             reviewGaps = (reviewGaps ?: d.reviewGaps).filter { it > 0 }.ifEmpty { d.reviewGaps },
             focusBlockMinutes = pos(focusBlockMinutes, d.focusBlockMinutes),
             breakMinutes = if (breakMinutes >= 0) breakMinutes else d.breakMinutes,
-            minFreeWindowMinutes = pos(minFreeWindowMinutes, d.minFreeWindowMinutes),
+            librarySlotMinutes = pos(librarySlotMinutes, d.librarySlotMinutes),
             libraryCloseReminderMinutes = if (libraryCloseReminderMinutes >= 0) libraryCloseReminderMinutes else d.libraryCloseReminderMinutes,
             libraryVisitMinutes = pos(libraryVisitMinutes, d.libraryVisitMinutes),
             deadlineReminderHours = deadlineReminderHours ?: d.deadlineReminderHours,

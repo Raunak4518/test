@@ -97,6 +97,16 @@ Built for a college student: every screen below comes from one weekly timetable.
 | Daily score (0–100): wake-up, classes, deep study, problems solved, screen time, discipline | 🆕 |
 | Discipline: private streak tracker behind the phone lock, urge SOS (breathing, reasons, actions), trigger and hour patterns, daily check-in, one-tap protection (web filter lock, risk-hour app blocking, strict mode); excluded from backups | 🆕 |
 
+### Timetable editing
+
+| Feature | Status |
+|---|---|
+| Week grid of any week (classes placed by time, holidays shaded, extra/moved classes outlined, absences faded), page through weeks | 🆕 |
+| Subject week editor: any number of classes per day, time pickers, duration presets, type and room per class, copy a day to other days, clash warnings | 🆕 |
+| Weekly schedule repeats until the semester ends; changes can apply from today so past attendance is kept | 🆕 |
+| Day editor: holiday toggle, cancel / re-time / move / undo any class for that date only, extra classes, attendance marking | 🆕 |
+| Library time = big free gaps only (90 min+ by default, editable), planned as one session per gap (optional split into focus blocks) | 🆕 |
+
 ### More for college
 
 | Feature | Status |

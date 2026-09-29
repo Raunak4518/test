@@ -69,9 +69,15 @@ class CampusUiTest {
         val data = CampusStore.get(ApplicationProvider.getApplicationContext()).data.value
         assertThat(data.marks.values.count { it == Mark.PRESENT }).isGreaterThan(5)
         compose.onAllNodesWithText("Timetable")[0].performClick()
-        compose.onNode(hasScrollToNodeAction()).performScrollToNode(hasText("Holiday"))
-        compose.onNodeWithText("Holiday").performClick()
+        compose.onNodeWithText("Changes").performClick()
+        compose.onNodeWithText("Holidays (date range)").performClick()
         compose.onNodeWithText("Holiday / no classes").assertExists()
+        compose.onNodeWithText("Cancel").performClick()
+        // Subject week editor opens from the Subjects view
+        compose.onNodeWithText("Subjects").performClick()
+        compose.onAllNodesWithText("Edit week")[0].performClick()
+        compose.onNodeWithText("Weekly schedule").assertExists()
+        compose.onNodeWithText("Monday").assertExists()
     }
 
     @Test

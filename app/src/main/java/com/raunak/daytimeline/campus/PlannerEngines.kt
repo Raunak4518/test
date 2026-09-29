@@ -14,7 +14,7 @@ object LibraryPlanner {
     }
 
     /** Free library windows of at least [minMinutes], leaving [buffer] minutes around classes for walking. */
-    fun freeWindows(data: CampusData, date: LocalDate, fromMinute: Int = 0, buffer: Int = data.settings.walkBufferMinutes, minMinutes: Int = data.settings.minFreeWindowMinutes): List<Window> {
+    fun freeWindows(data: CampusData, date: LocalDate, fromMinute: Int = 0, buffer: Int = data.settings.walkBufferMinutes, minMinutes: Int = data.settings.librarySlotMinutes): List<Window> {
         val holiday = data.exceptions.any { it.kind == ExceptionKind.HOLIDAY && it.date == date.toString() }
         val open = openWindow(data.library, date, holiday) ?: return emptyList()
         val busy = AttendanceEngine.occurrences(data, date).map { Window(it.start - buffer, it.end + buffer) }.sortedBy { it.start }
@@ -44,8 +44,10 @@ object LibraryPlanner {
      * Fills free library windows with study blocks: 50-minute focus blocks with 10-minute breaks,
      * rotating through [topics] (e.g. "DSA", the subject with the nearest exam, pending assignments).
      */
-    fun planBlocks(windows: List<Window>, topics: List<String>, focus: Int = 50, rest: Int = 10): List<Block> {
+    fun planBlocks(windows: List<Window>, topics: List<String>, focus: Int = 50, rest: Int = 10, split: Boolean = true): List<Block> {
         if (topics.isEmpty()) return emptyList()
+        // One long library session per free slot; the Pomodoro inside it handles breaks.
+        if (!split) return windows.mapIndexed { i, w -> Block(w.start, w.end, topics[i % topics.size]) }
         val out = mutableListOf<Block>()
         var i = 0
         for (w in windows) {

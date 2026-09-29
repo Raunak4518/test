@@ -112,7 +112,8 @@ internal fun CampusSettingsTab() {
                 NumberStepper("Focus block", st.focusBlockMinutes, 5, 10) { save(st.copy(focusBlockMinutes = it)) }
                 NumberStepper("Break between blocks", st.breakMinutes, 5, 0) { save(st.copy(breakMinutes = it)) }
                 NumberStepper("Walking time around classes", st.walkBufferMinutes, 5, 0) { save(st.copy(walkBufferMinutes = it)) }
-                NumberStepper("Shortest free slot worth using", st.minFreeWindowMinutes, 5, 10) { save(st.copy(minFreeWindowMinutes = it)) }
+                NumberStepper("Library slot: shortest free gap", st.librarySlotMinutes, 15, 30) { save(st.copy(librarySlotMinutes = it)) }
+                SwitchRow("Split library slots into focus blocks", st.splitLibraryIntoBlocks) { save(st.copy(splitLibraryIntoBlocks = it)) }
                 NumberStepper("Library closing reminder", st.libraryCloseReminderMinutes, 5, 0) { save(st.copy(libraryCloseReminderMinutes = it)) }
                 NumberStepper("A visit counts after", st.libraryVisitMinutes, 5, 5) { save(st.copy(libraryVisitMinutes = it)) }
                 Text("Opening hours and the daily study goal are in the Library tab.", style = MaterialTheme.typography.bodySmall)

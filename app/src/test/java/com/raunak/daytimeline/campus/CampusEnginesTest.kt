@@ -185,7 +185,7 @@ class CampusEnginesTest {
         assertThat(Cgpa.sgpa(listOf(Course("X", 3, "O"), Course("Y", 3, "a+")), scale)).isWithin(1e-9).of(9.5)
         assertThat(Cgpa.pointsFor("AA", scale)).isNull()
         // Library planner buffers and minimum window come from settings
-        val tight = base.copy(settings = CampusSettings(walkBufferMinutes = 0, minFreeWindowMinutes = 300))
+        val tight = base.copy(settings = CampusSettings(walkBufferMinutes = 0, librarySlotMinutes = 300))
         assertThat(LibraryPlanner.freeWindows(tight, mon)).containsExactly(Window(16 * 60, 22 * 60))
         // Afternoon cut-off for pasted times
         val (_, slots) = AttendanceEngine.parseTimetable("Mon 9-10 DSA", emptyList(), 1, afternoonBeforeHour = 10)

@@ -237,7 +237,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = windows.isNotEmpty(), onClick = {
                         val topics = studyTopics(data, sheets, today)
-                        val blocks = LibraryPlanner.planBlocks(windows, topics, data.settings.focusBlockMinutes, data.settings.breakMinutes)
+                        val blocks = LibraryPlanner.planBlocks(windows, topics, data.settings.focusBlockMinutes, data.settings.breakMinutes, data.settings.splitLibraryIntoBlocks)
                         scope.launch(Dispatchers.IO) {
                             val repo = AppContainer(context).repository
                             blocks.forEach { b -> repo.addTask(TaskEntity(title = "Library · ${b.title}", dateEpochDay = today.toEpochDay(), startMinute = b.start, endMinute = b.end, category = "Study", pomodoroEnabled = true, tags = "library,deep")) }

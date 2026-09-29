@@ -44,7 +44,7 @@ object AttendanceEngine {
         val out = mutableListOf<ClassOccurrence>()
         if (inSemester && !holiday) {
             val removed = exceptions.filter { (it.kind == ExceptionKind.CANCEL || it.kind == ExceptionKind.RESCHEDULE) && it.date == ds }.mapNotNull { it.slotId }.toSet()
-            data.slots.filter { it.day == date.dayOfWeek.value && it.id !in removed && data.subjects.any { s -> s.id == it.subjectId } }.forEach {
+            data.slots.filter { it.day == date.dayOfWeek.value && it.activeOn(date) && it.id !in removed && data.subjects.any { s -> s.id == it.subjectId } }.forEach {
                 out += ClassOccurrence(key(date, it.id), date, it.subjectId, it.start, it.end, it.room, it.type, it.id, "Regular")
             }
         }
@@ -65,6 +65,50 @@ object AttendanceEngine {
     }
 
     fun firstClass(data: CampusData, date: LocalDate): ClassOccurrence? = occurrences(data, date).firstOrNull()
+
+    /** Weekly slots in force on [date] (the "current timetable" for that week). */
+    fun currentSlots(data: CampusData, date: LocalDate) = data.slots.filter { it.activeOn(date) }
+
+    /**
+     * Replaces a subject's weekly schedule with [drafts]. With [from] set, slots that change stop the
+     * day before and new ones start on [from], so attendance already marked keeps its classes;
+     * unchanged slots are kept as they are. With [from] null the schedule is replaced for the whole
+     * semester (unchanged slots still keep their ids and marks).
+     */
+    fun applyWeekSchedule(slots: List<TimetableSlot>, subjectId: Long, drafts: List<SlotDraft>, from: LocalDate?, nextId: () -> Long): List<TimetableSlot> {
+        val fromS = from?.toString()
+        val pool = drafts.toMutableList()
+        val out = mutableListOf<TimetableSlot>()
+        for (slot in slots) {
+            val stillRunning = fromS == null || slot.validUntil == null || slot.validUntil >= fromS
+            if (slot.subjectId != subjectId || !stillRunning) { out += slot; continue }
+            val match = pool.firstOrNull { it.day == slot.day && it.start == slot.start && it.end == slot.end && it.room == slot.room && it.type == slot.type }
+            when {
+                match != null -> { pool.remove(match); out += slot }
+                fromS == null -> Unit // dropped for the whole semester
+                slot.validFrom != null && slot.validFrom >= fromS -> Unit // never took effect
+                else -> out += slot.copy(validUntil = from.minusDays(1).toString())
+            }
+        }
+        pool.forEach { d -> out += TimetableSlot(nextId(), subjectId, d.day, d.start, d.end, d.room, d.type, validFrom = fromS) }
+        return out
+    }
+
+    /** Overlapping slots on the same day, as pairs. */
+    fun conflicts(slots: List<TimetableSlot>): List<Pair<TimetableSlot, TimetableSlot>> {
+        val out = mutableListOf<Pair<TimetableSlot, TimetableSlot>>()
+        slots.groupBy { it.day }.values.forEach { day ->
+            val sorted = day.sortedBy { it.start }
+            for (i in sorted.indices) for (j in i + 1 until sorted.size) if (sorted[j].start < sorted[i].end) out += sorted[i] to sorted[j]
+        }
+        return out
+    }
+
+    /** Overlapping classes on a single date (after all changes), as pairs. */
+    fun dayConflicts(occ: List<ClassOccurrence>): List<Pair<ClassOccurrence, ClassOccurrence>> {
+        val s = occ.sortedBy { it.start }
+        return s.indices.flatMap { i -> (i + 1 until s.size).filter { s[it].start < s[i].end }.map { s[i] to s[it] } }
+    }
 
     private fun weight(subject: Subject, o: ClassOccurrence) = if (subject.countByHours) o.hours else 1
 
