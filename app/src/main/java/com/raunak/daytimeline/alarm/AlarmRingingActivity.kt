@@ -19,6 +19,7 @@ class AlarmRingingActivity : ComponentActivity() {
     private lateinit var references: AlarmReferenceStore
     private var flow: AlarmAlarmFlow? = null
     private var activeConfig: AlarmPersistentConfig? = null
+    private var missionRevision by androidx.compose.runtime.mutableIntStateOf(0)
     private var cameraCallback: ((android.graphics.Bitmap?) -> Unit)? = null
     private val timeoutHandler = Handler(Looper.getMainLooper())
     private val camera = registerForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
@@ -43,6 +44,7 @@ class AlarmRingingActivity : ComponentActivity() {
     @Composable private fun RingingScreen() {
         val f = flow ?: return
         val config = activeConfig ?: return
+        val revision = missionRevision
         var progress by remember { mutableIntStateOf(f.progress()) }
         var answer by remember { mutableStateOf("") }
         var memoryInput by remember { mutableStateOf("") }
@@ -53,7 +55,7 @@ class AlarmRingingActivity : ComponentActivity() {
         val mission = f.currentMission()
         val type = mission?.type ?: AlarmMissionType.TYPING
 
-        LaunchedEffect(type, f.missionIndex()) {
+        LaunchedEffect(type, f.missionIndex(), revision) {
             answer = ""; memoryInput = ""; feedback = ""; progress = f.progress()
             if (type == AlarmMissionType.MEMORY) {
                 memoryVisible = true
@@ -62,7 +64,7 @@ class AlarmRingingActivity : ComponentActivity() {
             }
         }
 
-        DisposableEffect(type, f.missionIndex()) {
+        DisposableEffect(type, f.missionIndex(), revision) {
             when (type) {
                 AlarmMissionType.SHAKE -> runtime.startShake(maxOf(5, mission?.target ?: 30), { progress = it }) { nextOrDismiss() }
                 AlarmMissionType.WALK -> runtime.startSteps(maxOf(1, mission?.target ?: 40), { progress = it }) { nextOrDismiss() }
@@ -129,7 +131,7 @@ class AlarmRingingActivity : ComponentActivity() {
 
     private fun nextOrDismiss() {
         val f = flow ?: return
-        if (f.recordProgress(maxOf(1, f.currentMission()?.target ?: 1))) dismissAlarm()
+        if (f.recordProgress(maxOf(1, f.currentMission()?.target ?: 1))) dismissAlarm() else missionRevision++
     }
 
     private fun dismissAlarm(cancelSnooze: Boolean = true, rescheduleRepeat: Boolean = true) {
