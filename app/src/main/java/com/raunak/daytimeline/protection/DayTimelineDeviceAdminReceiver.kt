@@ -8,7 +8,7 @@ import android.widget.Toast
 class DayTimelineDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
         context.getSharedPreferences("protection", Context.MODE_PRIVATE).edit().putBoolean("admin_enabled", true).apply()
-        Toast.makeText(context, "Day Timeline protection enabled", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Chronora protection enabled", Toast.LENGTH_SHORT).show()
     }
     override fun onDisabled(context: Context, intent: Intent) {
         context.getSharedPreferences("protection", Context.MODE_PRIVATE).edit().putBoolean("admin_enabled", false).apply()
