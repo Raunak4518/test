@@ -91,6 +91,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (AlarmEditorModel) -> Unit) {
     val context = LocalContext.current
