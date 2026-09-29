@@ -20,6 +20,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.raunak.daytimeline.domain.TaskModel
 import com.raunak.daytimeline.features.OfflineProductivityStore
+import com.raunak.daytimeline.features.streak
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -162,7 +163,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
     val today = LocalDate.now()
     val tracked = store.todayTrackedMinutes()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Habits", habits.count { it.completedDates.contains(today.toString()) }.toString()); StatCard("Tracked", "${tracked}m"); StatCard("Journal", journal.size.toString()) } }
+        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Habits", habits.count { it.completedDates.contains(today.toString()) }.toString(), Modifier.weight(1f)); StatCard("Tracked", "${tracked}m", Modifier.weight(1f)); StatCard("Journal", journal.size.toString(), Modifier.weight(1f)) } }
         item { SectionTitle("Habits") }
         items(habits, key = { it.id }) { h ->
             Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(h.name, fontWeight = FontWeight.SemiBold); Text("${h.streak()} day streak", color = HomeMuted) }; IconButton(onClick = { store.toggleHabit(h.id) }) { Icon(Icons.Default.CheckCircle, null) }; IconButton(onClick = { store.deleteHabit(h.id) }) { Icon(Icons.Default.Delete, null) } } }
@@ -177,7 +178,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
     }
 }
 
-@Composable private fun StatCard(label: String, value: String) { Card(Modifier.weight(1f)) { Column(Modifier.padding(12.dp)) { Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge); Text(label, color = HomeMuted, style = MaterialTheme.typography.labelSmall) } } }
+@Composable private fun StatCard(label: String, value: String, modifier: Modifier = Modifier) { Card(modifier) { Column(Modifier.padding(12.dp)) { Text(value, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge); Text(label, color = HomeMuted, style = MaterialTheme.typography.labelSmall) } } }
 @Composable private fun SectionTitle(text: String) { Text(text, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
 @Composable private fun EmptyCard(title: String, body: String) { Card { Column(Modifier.fillMaxWidth().padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) { Text(title, fontWeight = FontWeight.SemiBold); Text(body, color = HomeMuted) } } }
 
@@ -193,4 +194,3 @@ private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {
 
 private fun clock(minutes: Int) = "%02d:%02d".format((minutes / 60).coerceIn(0, 23), (minutes % 60).coerceIn(0, 59))
 private fun parseClock(value: String): Int { val p = value.trim().split(":"); return ((p.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (p.getOrNull(1)?.toIntOrNull() ?: 0)).coerceIn(0, 1439) }
-private fun com.raunak.daytimeline.features.OfflineHabit.streak(today: LocalDate = LocalDate.now()): Int { var cursor = today; var count = 0; while (completedDates.contains(cursor.toString())) { count++; cursor = cursor.minusDays(1) }; return count }
