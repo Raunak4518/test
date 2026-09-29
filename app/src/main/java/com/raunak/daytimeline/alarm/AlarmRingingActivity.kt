@@ -143,8 +143,8 @@ class AlarmRingingActivity : ComponentActivity() {
         bridge.cancelScheduledCycle(config.id)
         val runtimeStore = AlarmRuntimeStore(this)
         runtimeStore.markDismissed(config.id)
-        if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
         if (rescheduleRepeat && config.enabled && config.isRepeating() && !config.deleteAfterRinging) bridge.schedule(config)
+        if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
         if (config.deleteAfterRinging && !config.isRepeating()) { bridge.cancel(config.id); AlarmPersistentStore(this).delete(config.id); references.clear(config.id); runtimeStore.clear(config.id) }
         flow?.dismiss()
         finishAndRemoveTask()
