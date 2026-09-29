@@ -34,6 +34,8 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     var status by remember { mutableStateOf("") }
     var challengeEditor by remember { mutableStateOf<OfflineChallenge?>(null) }
     var newChallenge by remember { mutableStateOf(false) }
+    var projectEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineProject?>(null) }
+    var newProjectDialog by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(store.exportJson()) } ?: error("Unable to write backup") }.onSuccess { status = "Backup saved" }.onFailure { status = "Export failed" } }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) runCatching {
@@ -53,8 +55,8 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Projects", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(newProject, { newProject = it }, label = { Text("Project name") }, modifier = Modifier.weight(1f)); Button(onClick = { store.addProject(newProject); newProject = "" }, enabled = newProject.isNotBlank()) { Text("Add") } }
-                projects.forEach { project -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { FilterChip(selectedProject == project.id, { selectedProject = if (selectedProject == project.id) -1L else project.id }, label = { Text(project.name) }); IconButton(onClick = { store.deleteProject(project.id) }) { Icon(Icons.Default.Delete, "Delete project") } } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(newProject, { newProject = it }, label = { Text("Project name") }, modifier = Modifier.weight(1f)); Button(onClick = { store.addProject(newProject); newProject = "" }, enabled = newProject.isNotBlank()) { Text("Add") }; OutlinedButton(onClick = { newProjectDialog = true }) { Text("Advanced") } }
+                projects.forEach { project -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { FilterChip(selectedProject == project.id, { selectedProject = if (selectedProject == project.id) -1L else project.id }, label = { Text(project.name) }); Row { IconButton(onClick = { projectEditor = project }) { Icon(Icons.Default.Edit, "Edit project") }; IconButton(onClick = { store.deleteProject(project.id) }) { Icon(Icons.Default.Delete, "Delete project") } } } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Challenges", style = MaterialTheme.typography.titleMedium); TextButton(onClick = { newChallenge = true }) { Text("Create") } }
@@ -80,9 +82,10 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
         }
     }
     if (newChallenge || challengeEditor != null) ChallengeEditDialog(challengeEditor, store) { newChallenge = false; challengeEditor = null }
+    if (newProjectDialog || projectEditor != null) ProjectEditDialog(projectEditor, store) { newProjectDialog = false; projectEditor = null }
 }
 
-@Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
+@Composable private fun ProjectEditDialog(project: com.raunak.daytimeline.features.OfflineProject?, store: OfflineProductivityStore, close: () -> Unit) {\n    var name by remember { mutableStateOf(project?.name ?: \"\") }\n    var deadline by remember { mutableStateOf(project?.deadline ?: \"\") }\n    AlertDialog(onDismissRequest = close, title = { Text(if (project == null) \"New project\" else \"Edit project\") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(name, { name = it }, label = { Text(\"Project\") }); OutlinedTextField(deadline, { deadline = it }, label = { Text(\"Deadline YYYY-MM-DD\") }) } }, confirmButton = { Button(onClick = { val d = runCatching { java.time.LocalDate.parse(deadline) }.getOrNull(); if (project == null) store.addProject(name) else store.updateProject(project.id, name, d, project.color); close() }) { Text(\"Save\") } }, dismissButton = { TextButton(onClick = close) { Text(\"Cancel\") } })\n}\n\n@Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
     var title by remember { mutableStateOf(challenge?.title ?: "") }
     var description by remember { mutableStateOf(challenge?.description ?: "") }
     var target by remember { mutableStateOf((challenge?.target ?: 1).toString()) }
