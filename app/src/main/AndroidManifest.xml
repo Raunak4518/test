@@ -4,9 +4,11 @@
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
     <uses-permission android:name="android.permission.PACKAGE_USAGE_STATS" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <uses-permission android:name="android.permission.ACTIVITY_RECOGNITION" />
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-feature android:name="android.hardware.sensor.accelerometer" android:required="false" />
     <uses-feature android:name="android.hardware.sensor.stepcounter" android:required="false" />
+    <uses-feature android:name="android.hardware.sensor.stepdetector" android:required="false" />
     <application android:allowBackup="true" android:label="Day Timeline" android:theme="@style/Theme.DayTimeline">
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>
@@ -16,6 +18,7 @@
         </activity>
         <activity android:name=".alarm.AlarmRingingActivity" android:excludeFromRecents="true" android:exported="false" android:showWhenLocked="true" android:turnScreenOn="true" />
         <receiver android:name=".alarm.AlarmTriggerReceiver" android:exported="false" />
+        <receiver android:name=".alarm.AlarmWakeCheckReceiver" android:exported="false" />
         <receiver android:name=".receiver.ReminderReceiver" android:exported="false" />
         <receiver android:name=".receiver.NotificationActionReceiver" android:exported="false" />
         <receiver android:name=".alarm.AlarmChallengeReceiver" android:exported="false" />
@@ -24,6 +27,8 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
                 <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
         <receiver android:name=".widget.DayTimelineWidget" android:exported="true">
