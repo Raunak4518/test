@@ -1,3 +1,38 @@
+package com.raunak.daytimeline
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.raunak.daytimeline.domain.TaskModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+
+private val Ink = Color(0xFF17222A)
+private val Cream = Color(0xFFF7F5F0)
+private val Card = Color(0xFFFFFEFC)
+private val Sage = Color(0xFF4E7965)
+private val Muted = Color(0xFF77818A)
+
 @Composable
 fun PremiumHome() {
     val app = remember { AppContainer(androidx.compose.ui.platform.LocalContext.current.applicationContext) }
