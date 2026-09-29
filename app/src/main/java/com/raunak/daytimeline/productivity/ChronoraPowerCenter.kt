@@ -3,6 +3,7 @@ package com.raunak.daytimeline.productivity
 import android.content.Context
 import android.content.Intent
 import android.provider.Settings
+import android.provider.CalendarContract
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -286,4 +287,20 @@ private fun InsightsCenter(tasks: List<TaskModel>, store: OfflineProductivitySto
 private fun shareText(context: Context, name: String, value: String, mime: String) {
     val intent = Intent(Intent.ACTION_SEND).apply { type = mime; putExtra(Intent.EXTRA_TEXT, value); putExtra(Intent.EXTRA_TITLE, name) }
     context.startActivity(Intent.createChooser(intent, "Share " + name))
+}
+
+
+private fun openCalendar(context: Context, task: TaskModel) {
+    val start = task.date.atTime(task.startMinute / 60, task.startMinute % 60)
+        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val end = task.date.atTime(task.endMinute / 60, task.endMinute % 60)
+        .atZone(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+    val intent = Intent(Intent.ACTION_INSERT).apply {
+        data = CalendarContract.Events.CONTENT_URI
+        putExtra(CalendarContract.Events.TITLE, task.title)
+        putExtra(CalendarContract.Events.DESCRIPTION, task.notes)
+        putExtra(CalendarContract.EXTRA_EVENT_BEGIN_TIME, start)
+        putExtra(CalendarContract.EXTRA_EVENT_END_TIME, end)
+    }
+    runCatching { context.startActivity(intent) }
 }
