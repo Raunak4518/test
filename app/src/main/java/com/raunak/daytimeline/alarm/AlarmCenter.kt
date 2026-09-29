@@ -99,7 +99,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                     .minByOrNull { it.second }
                 Text(nextAlarm?.let { (_, at) ->
                     val dt = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
-                    "Next alarm: " + String.format("%1\\$tb %1\\$td · %1\\$tH:%1\\$tM", dt)
+                    "Next alarm: " + dt.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM · HH:mm"))
                 } ?: "Next alarm: None")
             }
         }
