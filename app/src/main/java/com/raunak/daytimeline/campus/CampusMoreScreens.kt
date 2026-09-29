@@ -79,7 +79,8 @@ internal fun DeadlinesTab() {
 private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: CampusStore) {
     val overdue = !d.done && (daysUntil(d.date, today) ?: 0) < 0
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(d.done, { on -> store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = on) else it }) } })
+        val ctx = LocalContext.current
+        Checkbox(d.done, { on -> store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = on) else it }) }; if (on) com.raunak.daytimeline.classroom.ClassroomSync.deadlineDone(ctx, d.notes) })
         Column(Modifier.weight(1f)) {
             Text(d.title, fontWeight = FontWeight.SemiBold)
             Text("${d.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Chronora.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant)

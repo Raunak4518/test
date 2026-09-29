@@ -83,7 +83,7 @@ class CampusUiTest {
     @Test
     fun sheet_detail_and_discipline_flow() {
         compose.setContent { CampusScreen() }
-        compose.onAllNodesWithText("Sheets")[0].performClick()
+        compose.onAllNodesWithText("Sheets")[0].performScrollTo().performClick()
         compose.onNodeWithText("DSA — 196 must-do problems").performClick()
         compose.onAllNodes(hasScrollToNodeAction())[0].performScrollToNode(hasText("Two Sum"))
         compose.onNodeWithText("Two Sum").assertExists()

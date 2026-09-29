@@ -36,27 +36,38 @@ import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 
+/** Lets other parts of the app (e.g. a notification) open a Campus tab by name. */
+object CampusNav {
+    private val _requested = kotlinx.coroutines.flow.MutableStateFlow<String?>(null)
+    val requested: kotlinx.coroutines.flow.StateFlow<String?> = _requested
+    fun open(tab: String) { _requested.value = tab }
+    fun consume() { _requested.value = null }
+}
+
 /** The student home: classes, attendance, study sheets, wake-up, library, exams, CGPA, placements. */
 @Composable
 fun CampusScreen(modifier: Modifier = Modifier) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Today", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline", "Settings")
+    val tabs = listOf("Today", "Classroom", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline", "Settings")
+    val requested by CampusNav.requested.collectAsStateWithLifecycle()
+    LaunchedEffect(requested) { requested?.let { name -> tabs.indexOf(name).takeIf { it >= 0 }?.let { tab = it }; CampusNav.consume() } }
     Column(modifier.fillMaxSize()) {
         ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
             tabs.forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) }
         }
         when (tab) {
             0 -> TodayTab { tab = it }
-            1 -> AttendanceTab()
-            2 -> TimetableTab()
-            3 -> SheetsTab()
-            4 -> DeadlinesTab()
-            5 -> WakeTab()
-            6 -> LibraryTab()
-            7 -> CgpaTab()
-            8 -> PlacementTab()
-            9 -> DisciplineGate()
-            10 -> CampusSettingsTab()
+            1 -> com.raunak.daytimeline.classroom.ClassroomTab()
+            2 -> AttendanceTab()
+            3 -> TimetableTab()
+            4 -> SheetsTab()
+            5 -> DeadlinesTab()
+            6 -> WakeTab()
+            7 -> LibraryTab()
+            8 -> CgpaTab()
+            9 -> PlacementTab()
+            10 -> DisciplineGate()
+            11 -> CampusSettingsTab()
         }
     }
 }
@@ -156,7 +167,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (data.subjects.isEmpty()) item {
             SectionCard("Set up your semester", "Add your weekly timetable once — attendance, alarms, reminders and library plans follow from it.") {
-                Button(onClick = { goTo(2) }) { Text("Add timetable") }
+                Button(onClick = { goTo(3) }) { Text("Add timetable") }
             }
         }
         item {
@@ -187,6 +198,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                 }
             }
         }
+        item { com.raunak.daytimeline.classroom.ClassroomTodayCard { goTo(1) } }
         val meals = Mess.meals(data, today)
         if (meals.isNotEmpty()) item {
             val missed = Mess.clashes(data, today)
@@ -208,7 +220,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
         if (pending.isNotEmpty()) item {
             SectionCard("Unmarked classes · ${pending.size}", "Mark them so your percentages stay right") {
                 pending.take(5).forEach { o -> subjectOf[o.subjectId]?.let { s -> ClassRow(o, s, null, past = true, showDate = true) { m -> store.mark(o.key, m) } } }
-                if (pending.size > 5) TextButton(onClick = { goTo(1) }) { Text("See all") }
+                if (pending.size > 5) TextButton(onClick = { goTo(2) }) { Text("See all") }
             }
         }
         item {
@@ -226,7 +238,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                         }
                         planned = "Added ${blocks.size} study blocks to today's timeline"
                     }) { Text("Plan my library time") }
-                    OutlinedButton(onClick = { goTo(6) }) { Text("Check in") }
+                    OutlinedButton(onClick = { goTo(7) }) { Text("Check in") }
                 }
                 if (planned.isNotBlank()) Text(planned, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
             }
@@ -243,7 +255,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                         TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.setStatus(it, ItemStatus.SOLVED, today, store.gaps) } }) { Text("Solved") }
                     }
                 }
-                if (sheets.isEmpty()) TextButton(onClick = { goTo(3) }) { Text("Add the DSA sheet") }
+                if (sheets.isEmpty()) TextButton(onClick = { goTo(4) }) { Text("Add the DSA sheet") }
                 sheets.filter { it.examDate != null }.forEach { s ->
                     val exam = runCatching { LocalDate.parse(s.examDate) }.getOrNull() ?: return@forEach
                     if (exam.isBefore(today)) return@forEach
@@ -265,7 +277,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
             SectionCard("Due this week") {
                 upcoming.forEach { d ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(false, { store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = true) else it }) } })
+                        Checkbox(false, { store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = true) else it }) }; com.raunak.daytimeline.classroom.ClassroomSync.deadlineDone(context, d.notes) })
                         Column(Modifier.weight(1f)) {
                             Text(d.title, fontWeight = FontWeight.SemiBold)
                             Text("${d.label} · ${dueLabel(d, today)}" + (d.subjectId?.let { " · " + (subjectOf[it]?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall)
@@ -282,7 +294,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                     val onTime = logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + data.settings.onTimeToleranceMinutes * 60_000L }
                     Text("On time $onTime of the last ${logs.size} mornings", style = MaterialTheme.typography.bodySmall)
                 }
-                TextButton(onClick = { goTo(5) }) { Text("Wake-up settings & readiness") }
+                TextButton(onClick = { goTo(6) }) { Text("Wake-up settings & readiness") }
             }
         }
         item { StudyTimerCard(data, store) }

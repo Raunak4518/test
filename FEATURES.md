@@ -239,6 +239,20 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 - **Widgets**
   - Home-screen habit widget (tap to tick); rounded style across all widgets.
 
+
+### Google Classroom (Campus → Classroom)
+- **Two connections:**
+  - Classroom notifications (and Classroom e-mails in Gmail) are read instantly, with no setup beyond notification access.
+  - Optional direct Google Classroom sync: courses, coursework with due dates, your submission state, grades, materials and announcements. Read-only; syncs every few hours.
+- **Understands each item:** assignment, quiz, question, material, announcement, private message or grade, plus title, course and due date ("Due tomorrow, 11:59 PM", "by 15 March 5pm", "Due Fri").
+- **Links to your subjects:** each course is matched by code, shared words or acronym (DBMS ↔ Database Management Systems). You can override any match.
+- **Ranks what needs you:** overdue, due soon, quizzes, new messages, grades, and announcements with important words (editable).
+- **Study targets:** each piece of work's expected effort (editable per type) is spread evenly until the day before it's due, with a daily cap. One tap puts the blocks into today's free time.
+- **Deadlines:** pending work becomes a Campus deadline with reminders. It is ticked off when you turn the work in or tick it in Chronora.
+- **Actions from announcements:** "no class tomorrow", "test on 14 March", "extra class", "deadline extended" become one-tap timetable, exam or deadline updates.
+- **Alerts:** urgent items right away, everything else in a morning digest at an editable time.
+- **Also:** paste any Classroom text to add it; snooze, hide, mark done, open in Classroom.
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |

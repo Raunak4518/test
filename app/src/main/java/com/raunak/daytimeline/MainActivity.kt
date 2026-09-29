@@ -89,6 +89,10 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleOpen(intent: android.content.Intent?) {
+        if (intent?.getStringExtra(com.raunak.daytimeline.classroom.ClassroomSync.EXTRA_OPEN) == "classroom") {
+            com.raunak.daytimeline.campus.CampusNav.open("Classroom")
+            intent.removeExtra(com.raunak.daytimeline.classroom.ClassroomSync.EXTRA_OPEN)
+        }
         if (intent?.getStringExtra(com.raunak.daytimeline.pro.FocusWidget.EXTRA_OPEN) == com.raunak.daytimeline.pro.FocusWidget.OPEN_QUICK_ADD) {
             quickAddRequest.value = true
             intent.removeExtra(com.raunak.daytimeline.pro.FocusWidget.EXTRA_OPEN)

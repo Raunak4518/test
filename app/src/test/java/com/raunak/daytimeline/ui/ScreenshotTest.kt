@@ -41,6 +41,17 @@ class ScreenshotTest {
         store.updateSemesters { listOf(SemesterResult(1, listOf(Course("Maths", 4, "AB"), Course("Physics", 4, "BB"))), SemesterResult(2, listOf(Course("DSA", 4, "AA"), Course("OS", 3, "AB")))) }
         store.updateCompanies { listOf(Company(1, "Google", "SWE intern", "₹1.2L/mo", stageLabel = "Applied", excitement = 5, minCgpa = 7.0, nextDate = today.plusDays(2).toString(), nextEvent = "OA"),
             Company(2, "Amazon", "SDE", stageLabel = "Interview", excitement = 4, prep = "[x] LP stories\n[ ] System design"), Company(3, "Flipkart", "SDE 1", stageLabel = "Wishlist", applyBy = today.plusDays(4).toString())) }
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val zone = java.time.ZoneId.systemDefault()
+        fun at(d: Long, h: Int) = today.plusDays(d).atTime(h, 59).atZone(zone).toInstant().toEpochMilli()
+        val nowMs = System.currentTimeMillis()
+        com.raunak.daytimeline.classroom.ClassroomSync.ingest(ctx, listOf(
+            com.raunak.daytimeline.classroom.ClassItem("w1", "API", com.raunak.daytimeline.classroom.ClassKind.QUIZ, "ML", "Quiz 2: Regression", dueAt = at(1, 10), postedAt = nowMs - 3_600_000, state = com.raunak.daytimeline.classroom.WorkState.PENDING),
+            com.raunak.daytimeline.classroom.ClassItem("w2", "API", com.raunak.daytimeline.classroom.ClassKind.ASSIGNMENT, "CN Lab", "Lab 4 – Socket programming", dueAt = at(4, 23), postedAt = nowMs - 86_400_000, state = com.raunak.daytimeline.classroom.WorkState.PENDING),
+            com.raunak.daytimeline.classroom.ClassItem("w3", "API", com.raunak.daytimeline.classroom.ClassKind.ASSIGNMENT, "DSA", "Tree traversal problems", dueAt = at(-1, 23), postedAt = nowMs - 3 * 86_400_000, state = com.raunak.daytimeline.classroom.WorkState.LATE),
+            com.raunak.daytimeline.classroom.ClassItem("a1", "API", com.raunak.daytimeline.classroom.ClassKind.ANNOUNCEMENT, "CN", "No class tomorrow", "There will be no class tomorrow due to the department seminar.", postedAt = nowMs - 1_800_000),
+            com.raunak.daytimeline.classroom.ClassItem("c1", "NOTIFICATION", com.raunak.daytimeline.classroom.ClassKind.COMMENT, "ML", "Prof. Rao added a private comment", "Please add the loss curves and resubmit.", postedAt = nowMs - 600_000)
+        ))
         store.updateSheets { listOf(store.template("dsa.txt", "DSA — 196 must-do problems", SheetKind.DSA)) }
     }
 
@@ -60,6 +71,7 @@ class ScreenshotTest {
         save("campus-today-$mode")
         compose.onAllNodesWithText("Attendance")[0].performClick(); save("campus-attendance-$mode")
         compose.onAllNodesWithText("Timetable")[0].performClick(); save("campus-timetable-$mode")
+        compose.onAllNodesWithText("Classroom")[0].performScrollTo().performClick(); save("campus-classroom-$mode")
         compose.onAllNodesWithText("CGPA")[0].performScrollTo().performClick(); save("campus-cgpa-$mode")
         compose.onAllNodesWithText("Placements")[0].performScrollTo().performClick(); save("campus-placements-$mode")
     }
