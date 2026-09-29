@@ -133,6 +133,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
 
 @Composable
 private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit) {
+    var showChecklist by remember { mutableStateOf(false) }
     Card(shape = RoundedCornerShape(20.dp)) {
         Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
             Checkbox(checked = task.completed, onCheckedChange = { onComplete() })
@@ -141,10 +142,11 @@ private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Uni
                 Text("${clock(task.startMinute)}–${clock(task.endMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted, style = MaterialTheme.typography.bodySmall)
                 if (task.notes.isNotBlank()) Text(task.notes, color = HomeMuted, maxLines = 2)
             }
-            IconButton(onClick = { /* checklist opens below */ }) { }
+            IconButton(onClick = { showChecklist = true }) { Icon(Icons.Default.Checklist, "Checklist") }
             if (task.pomodoroEnabled) IconButton(onClick = onFocus) { Icon(Icons.Default.PlayArrow, "Focus") }
         }
     }
+    if (showChecklist) ChecklistDialog(task, vm) { showChecklist = false }
 }
 
 @Composable private fun ChecklistDialog(task: TaskModel, vm: PlannerViewModel, close: () -> Unit) {
