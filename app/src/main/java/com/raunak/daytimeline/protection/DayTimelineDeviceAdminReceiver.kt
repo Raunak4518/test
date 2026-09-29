@@ -12,7 +12,7 @@ class DayTimelineDeviceAdminReceiver : DeviceAdminReceiver() {
     }
     override fun onDisabled(context: Context, intent: Intent) {
         context.getSharedPreferences("protection", Context.MODE_PRIVATE).edit().putBoolean("admin_enabled", false).apply()
-        Toast.makeText(context, "Day Timeline protection disabled", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Chronora protection disabled", Toast.LENGTH_SHORT).show()
     }
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence? =
         "Protection is being disabled. Alarms and productivity data will remain local, but Android will allow normal uninstall after protection is disabled."
