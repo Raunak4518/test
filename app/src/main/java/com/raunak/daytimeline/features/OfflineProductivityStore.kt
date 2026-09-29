@@ -76,12 +76,30 @@ class OfflineProductivityStore(context: Context) {
         update(_notes, "notes") { it + OfflineNote(id(), title.trim().ifBlank { "Untitled" }, body, tags, System.currentTimeMillis()) }
     }
 
+    fun updateNote(id: Long, title: String, body: String, tags: Set<String>) = update(_notes, "notes") { list ->
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { "Untitled" }, body = body, tags = tags, updatedAt = System.currentTimeMillis()) else it }
+    }
+
     fun deleteNote(id: Long) = update(_notes, "notes") { it.filterNot { n -> n.id == id } }
 
     fun addGoal(title: String, target: Int, deadline: LocalDate? = null) {
         if (title.isBlank()) return
         update(_goals, "goals") { it + OfflineGoal(id(), title.trim(), 0, target.coerceAtLeast(1), deadline?.toString(), emptyList(), false) }
     }
+
+    fun updateGoal(id: Long, title: String, target: Int, deadline: LocalDate?, milestones: List<String>) = update(_goals, "goals") { list ->
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, target = target.coerceAtLeast(1), deadline = deadline?.toString(), milestones = milestones.filter { m -> m.isNotBlank() }) else it }
+    }
+
+    fun addGoalMilestone(id: Long, milestone: String) = update(_goals, "goals") { list ->
+        list.map { if (it.id == id && milestone.isNotBlank()) it.copy(milestones = it.milestones + milestone.trim()) else it }
+    }
+
+    fun removeGoalMilestone(id: Long, index: Int) = update(_goals, "goals") { list ->
+        list.map { if (it.id == id && index in it.milestones.indices) it.copy(milestones = it.milestones.toMutableList().also { ms -> ms.removeAt(index) }) else it }
+    }
+
+    fun deleteGoal(id: Long) = update(_goals, "goals") { it.filterNot { g -> g.id == id } }
 
     fun setGoalProgress(id: Long, progress: Int) = update(_goals, "goals") { list ->
         list.map { if (it.id == id) it.copy(progress = progress.coerceIn(0, it.target), completed = progress >= it.target) else it }
@@ -92,11 +110,23 @@ class OfflineProductivityStore(context: Context) {
         update(_projects, "projects") { it + OfflineProject(id(), name.trim(), color, emptyList(), null) }
     }
 
+    fun updateProject(id: Long, name: String, deadline: LocalDate?, color: Long) = update(_projects, "projects") { list ->
+        list.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, deadline = deadline?.toString(), color = color) else it }
+    }
+
+    fun archiveProject(id: Long) = update(_projects, "projects") { list ->
+        list.filterNot { it.id == id }
+    }
+
     fun deleteProject(id: Long) = update(_projects, "projects") { it.filterNot { p -> p.id == id } }
 
     fun addRoutine(name: String, steps: List<OfflineRoutineStep>) {
         if (name.isBlank() || steps.isEmpty()) return
         update(_routines, "routines") { it + OfflineRoutine(id(), name.trim(), steps, false) }
+    }
+
+    fun updateRoutine(id: Long, name: String, steps: List<OfflineRoutineStep>) = update(_routines, "routines") { list ->
+        list.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, steps = steps) else it }
     }
 
     fun deleteRoutine(id: Long) = update(_routines, "routines") { it.filterNot { r -> r.id == id } }
@@ -136,6 +166,17 @@ class OfflineProductivityStore(context: Context) {
             (list.filterNot { it.date == entry.date } + entry).sortedByDescending { it.date }.take(365)
         }
     }
+
+    fun addChallenge(title: String, description: String, target: Int) {
+        if (title.isBlank() || target <= 0) return
+        update(_challenges, "challenges") { it + OfflineChallenge(id(), title.trim(), description.trim(), target, 0) }
+    }
+
+    fun updateChallenge(id: Long, title: String, description: String, target: Int) = update(_challenges, "challenges") { list ->
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, description = description, target = target.coerceAtLeast(1), progress = it.progress.coerceAtMost(target)) else it }
+    }
+
+    fun deleteChallenge(id: Long) = update(_challenges, "challenges") { it.filterNot { c -> c.id == id } }
 
     fun completeChallenge(id: Long) = update(_challenges, "challenges") { list -> list.map { if (it.id == id) it.copy(progress = (it.progress + 1).coerceAtMost(it.target)) else it } }
 
