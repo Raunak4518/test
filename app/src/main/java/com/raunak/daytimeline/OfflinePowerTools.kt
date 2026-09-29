@@ -32,6 +32,8 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     var timerLabel by remember { mutableStateOf("") }
     var selectedProject by remember { mutableLongStateOf(-1L) }
     var status by remember { mutableStateOf("") }
+    var challengeEditor by remember { mutableStateOf<OfflineChallenge?>(null) }
+    var newChallenge by remember { mutableStateOf(false) }
     val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(store.exportJson()) } ?: error("Unable to write backup") }.onSuccess { status = "Backup saved" }.onFailure { status = "Export failed" } }
     val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
         if (uri != null) runCatching {
@@ -55,8 +57,8 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 projects.forEach { project -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { FilterChip(selectedProject == project.id, { selectedProject = if (selectedProject == project.id) -1L else project.id }, label = { Text(project.name) }); IconButton(onClick = { store.deleteProject(project.id) }) { Icon(Icons.Default.Delete, "Delete project") } } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Challenges", style = MaterialTheme.typography.titleMedium)
-                challenges.forEach { challenge -> val ratio = if (challenge.target == 0) 0f else challenge.progress.toFloat() / challenge.target; Text(challenge.title); Text(challenge.description, style = MaterialTheme.typography.bodySmall); LinearProgressIndicator(progress = { ratio.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth()); Text(challenge.progress.toString() + " / " + challenge.target); if (challenge.progress < challenge.target) TextButton(onClick = { store.completeChallenge(challenge.id) }) { Text("Record progress") } }
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text("Challenges", style = MaterialTheme.typography.titleMedium); TextButton(onClick = { newChallenge = true }) { Text("Create") } }
+                challenges.forEach { challenge -> val ratio = if (challenge.target == 0) 0f else challenge.progress.toFloat() / challenge.target; Text(challenge.title); Text(challenge.description, style = MaterialTheme.typography.bodySmall); LinearProgressIndicator(progress = { ratio.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth()); Text(challenge.progress.toString() + " / " + challenge.target); Row { if (challenge.progress < challenge.target) TextButton(onClick = { store.completeChallenge(challenge.id) }) { Text("Record") }; TextButton(onClick = { challengeEditor = challenge }) { Text("Edit") }; TextButton(onClick = { store.deleteChallenge(challenge.id) }) { Text("Delete") } } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Achievements", style = MaterialTheme.typography.titleMedium)
@@ -77,6 +79,14 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             if (status.isNotBlank()) item { Text(status, color = MaterialTheme.colorScheme.primary) }
         }
     }
+    if (newChallenge || challengeEditor != null) ChallengeEditDialog(challengeEditor, store) { newChallenge = false; challengeEditor = null }
+}
+
+@Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
+    var title by remember { mutableStateOf(challenge?.title ?: "") }
+    var description by remember { mutableStateOf(challenge?.description ?: "") }
+    var target by remember { mutableStateOf((challenge?.target ?: 1).toString()) }
+    AlertDialog(onDismissRequest = close, title = { Text(if (challenge == null) "New challenge" else "Edit challenge") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(title, { title = it }, label = { Text("Title") }); OutlinedTextField(description, { description = it }, label = { Text("Description") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }) } }, confirmButton = { Button(onClick = { if (challenge == null) store.addChallenge(title, description, target.toIntOrNull() ?: 1) else store.updateChallenge(challenge.id, title, description, target.toIntOrNull() ?: challenge.target); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
 @Composable private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(label); Switch(checked = checked, onCheckedChange = onChange) } }
