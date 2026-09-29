@@ -8,6 +8,16 @@ android {
     namespace = "com.raunak.daytimeline"
     compileSdk = 35
     defaultConfig { applicationId = "com.raunak.daytimeline"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "1.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    // One fixed key for every build, so a new APK installs over the previous one without uninstalling.
+    // This is a development key committed on purpose; use a private release key for Play Store uploads.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("chronora-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }

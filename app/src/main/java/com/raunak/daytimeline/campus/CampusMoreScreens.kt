@@ -45,6 +45,7 @@ internal fun DeadlinesTab() {
     val exams = open.filter { data.settings.isExam(it.label) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item { QuickDeadlineCard(data, store) }
         if (exams.isNotEmpty()) item {
             SectionCard("Exam countdown") {
                 exams.take(6).forEach { e ->
@@ -166,6 +167,7 @@ internal fun WakeTab() {
                 SwitchRow("Ask \"did you attend?\" after each class", w.askAttendanceAfterClass) { save(w.copy(askAttendanceAfterClass = it)) }
             }
         }
+        item { SleepCard(data, store) }
         item {
             val logs = data.wakeLogs.takeLast(30).reversed()
             val tol = data.settings.onTimeToleranceMinutes
@@ -309,6 +311,7 @@ internal fun CgpaTab() {
                 }
             }
         }
+        item { MarksCard(data, store) }
         item {
             SectionCard("Target planner") {
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {

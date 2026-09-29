@@ -132,6 +132,20 @@ data class WakeConfig(
 
 data class WakeLog(val date: String, val target: Long, val dismissedAt: Long?)
 
+/** Timed study on a subject or topic (Campus → Today → Study timer). */
+data class StudySession(val start: Long, val end: Long?, val subjectId: Long?, val topic: String)
+
+/** An internal assessment: minor, mid-sem, quiz, assignment… with its weight in the final grade. */
+data class Assessment(val id: Long, val subjectId: Long, val name: String, val maxMarks: Double, val obtained: Double?, val weightPercent: Double)
+
+/** One day's final score, saved for trends and weekly reviews. */
+data class ScoreEntry(val date: String, val score: Int, val parts: Map<String, Int>)
+
+/** Estimated night of sleep from screen-off / first unlock. */
+data class SleepEntry(val date: String, val sleptAt: Long, val wokeAt: Long) { val minutes: Int get() = ((wokeAt - sleptAt) / 60_000L).toInt() }
+
+data class GradeCutoff(val minPercent: Int, val grade: String)
+
 data class GradePoint(val letter: String, val points: Double)
 data class GradeBand(val minScore: Int, val letter: String)
 
@@ -165,6 +179,11 @@ data class CampusSettings(
     /** In pasted timetables, times without am/pm before this hour are read as afternoon. */
     val afternoonBeforeHour: Int = 8,
     val lockInMinutes: List<Int> = listOf(60, 120, 180),
+    /** Predicted grade from weighted internal marks (percent → grade). */
+    val gradeCutoffs: List<GradeCutoff> = listOf(GradeCutoff(90, "AA"), GradeCutoff(80, "AB"), GradeCutoff(70, "BB"), GradeCutoff(60, "BC"), GradeCutoff(50, "CC"), GradeCutoff(45, "CD"), GradeCutoff(40, "DD"), GradeCutoff(0, "FF")),
+    /** Days before an exam kept free for full revision when spreading topics out. */
+    val examBufferDays: Int = 2,
+    val sleepGoalMinutes: Int = 7 * 60 + 30,
     /** Ring on boot if the phone was off at wake time, up to this many hours late. */
     val missedAlarmRecoveryHours: Int = 3,
     val batteryCheckEveryMinutes: Int = 30,
@@ -199,7 +218,10 @@ data class CampusSettings(
             batteryCheckEveryMinutes = pos(batteryCheckEveryMinutes, d.batteryCheckEveryMinutes),
             wakeSnoozeMinutes = pos(wakeSnoozeMinutes, d.wakeSnoozeMinutes),
             wakeHoldToDismissSeconds = pos(wakeHoldToDismissSeconds, d.wakeHoldToDismissSeconds),
-            gradeScale = (gradeScale ?: d.gradeScale).ifEmpty { d.gradeScale }
+            gradeScale = (gradeScale ?: d.gradeScale).ifEmpty { d.gradeScale },
+            gradeCutoffs = (gradeCutoffs ?: d.gradeCutoffs).ifEmpty { d.gradeCutoffs },
+            examBufferDays = if (examBufferDays >= 0) examBufferDays else d.examBufferDays,
+            sleepGoalMinutes = if (sleepGoalMinutes > 0) sleepGoalMinutes else d.sleepGoalMinutes
         )
     }
 
@@ -219,9 +241,20 @@ data class CampusData(
     val wake: WakeConfig = WakeConfig(),
     val wakeLogs: List<WakeLog> = emptyList(),
     val studyGoalMinutes: Int = 300,
-    val settings: CampusSettings = CampusSettings()
+    val settings: CampusSettings = CampusSettings(),
+    val studySessions: List<StudySession> = emptyList(),
+    val assessments: List<Assessment> = emptyList(),
+    val scoreHistory: List<ScoreEntry> = emptyList(),
+    val sleepLog: List<SleepEntry> = emptyList()
 ) {
     /** Upgrades data saved by older versions so new fields have their defaults. */
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
-    fun normalized() = copy(settings = (settings ?: CampusSettings()).normalized())
+    fun normalized() = copy(
+        settings = (settings ?: CampusSettings()).normalized(),
+        subjects = subjects ?: emptyList(), slots = slots ?: emptyList(), exceptions = exceptions ?: emptyList(), marks = marks ?: emptyMap(),
+        deadlines = deadlines ?: emptyList(), librarySessions = librarySessions ?: emptyList(), wakeLogs = wakeLogs ?: emptyList(),
+        library = library ?: LibraryHours(), wake = wake ?: WakeConfig(), semester = semester ?: Semester(),
+        studySessions = studySessions ?: emptyList(), assessments = assessments ?: emptyList(),
+        scoreHistory = scoreHistory ?: emptyList(), sleepLog = sleepLog ?: emptyList()
+    )
 }

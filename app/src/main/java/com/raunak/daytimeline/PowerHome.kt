@@ -125,6 +125,28 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
     }
 }
 
+/** Classes from the Campus timetable for [date], so the whole day is in one place. */
+@Composable
+private fun DayClasses(date: LocalDate) {
+    val context = LocalContext.current
+    val store = remember { com.raunak.daytimeline.campus.CampusStore.get(context) }
+    val data by store.data.collectAsStateWithLifecycle()
+    val classes = com.raunak.daytimeline.campus.AttendanceEngine.occurrences(data, date)
+    if (classes.isEmpty()) return
+    val now = LocalDateTime.now()
+    val minute = now.hour * 60 + now.minute
+    Card(shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Classes · ${classes.size}", fontWeight = FontWeight.Bold)
+            classes.forEach { o ->
+                val s = data.subjects.firstOrNull { it.id == o.subjectId } ?: return@forEach
+                val past = date.isBefore(now.toLocalDate()) || (date == now.toLocalDate() && o.end <= minute)
+                com.raunak.daytimeline.campus.ClassRow(o, s, data.marks[o.key], past) { m -> store.mark(o.key, m) }
+            }
+        }
+    }
+}
+
 @Composable
 private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, onEdit: (TaskModel) -> Unit) {
     val visible = if (showCompleted) tasks else tasks.filterNot { it.completed }
@@ -148,6 +170,7 @@ private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerView
             }
         }
         item { Text(date.dayOfWeek.toString().lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item { DayClasses(date) }
         items(visible.sortedBy { it.startMinute }, key = { it.id }) { task ->
             TaskRow(task, vm, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) }, { onEdit(task) })
         }

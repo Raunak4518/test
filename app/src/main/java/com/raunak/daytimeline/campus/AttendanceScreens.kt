@@ -41,6 +41,7 @@ internal fun AttendanceTab() {
                 val danger = stats.filter { it.mustAttend > 0 }
                 if (danger.isNotEmpty()) Text("Below requirement: " + danger.joinToString { "${it.subject.name} (attend next ${it.mustAttend})" }, color = Color(0xFFC62828), style = MaterialTheme.typography.bodySmall)
                 else if (stats.isNotEmpty()) Text("Every subject is at or above its requirement.", color = Color(0xFF2E7D32), style = MaterialTheme.typography.bodySmall)
+                if (stats.isNotEmpty()) TextButton(onClick = { shareAttendance(context, data, stats) }) { Text("Export / share (CSV)") }
             }
         }
         if (pending.isNotEmpty()) item {

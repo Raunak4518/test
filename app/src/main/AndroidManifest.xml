@@ -63,6 +63,10 @@
         <receiver android:name=".pro.LocationReminderReceiver" android:exported="false" />
         <receiver android:name=".wellbeing.WellbeingAlarmReceiver" android:exported="false" />
         <receiver android:name=".campus.CampusReceiver" android:exported="false" />
+        <receiver android:name=".campus.CampusWidget" android:exported="true" android:label="Chronora Campus">
+            <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>
+            <meta-data android:name="android.appwidget.provider" android:resource="@xml/campus_widget_info" />
+        </receiver>
         <receiver android:name=".campus.DirectBootAlarmReceiver" android:exported="false" android:directBootAware="true" />
         <receiver android:name=".campus.LockedBootReceiver" android:exported="false" android:directBootAware="true">
             <intent-filter>

@@ -97,6 +97,24 @@ Built for a college student: every screen below comes from one weekly timetable.
 | Daily score (0–100): wake-up, classes, deep study, problems solved, screen time, discipline | 🆕 |
 | Discipline: private streak tracker behind the phone lock, urge SOS (breathing, reasons, actions), trigger and hour patterns, daily check-in, one-tap protection (web filter lock, risk-hour app blocking, strict mode); excluded from backups | 🆕 |
 
+### More for college
+
+| Feature | Status |
+|---|---|
+| Full backup & restore of everything in one file (private data optional) — Campus → Settings | 🆕 |
+| Classes shown on the main Today timeline with Present/Absent marking | 🆕 |
+| "Chronora Campus" home-screen widget: next class and room, attendance, problems solved, next deadline | 🆕 |
+| Study timer per subject/topic with today and this-week totals (counts toward the daily score) | 🆕 |
+| Daily score history and a weekly review: score trend, study hours, problems, on-time wake-ups, sleep | 🆕 |
+| Internal marks per subject (minors, mid-sems, quizzes…) with weights → predicted grade and marks needed for the next grade | 🆕 |
+| Exam revision plan: a sheet's remaining topics spread day by day before the exam, shown on Today | 🆕 |
+| Search covers sheet questions, deadlines, subjects and companies | 🆕 |
+| Quick-add deadlines in plain words ("ML assignment due fri 11pm") | 🆕 |
+| "Cancelled" button on class reminders | 🆕 |
+| Sleep estimated from screen-off and first unlock, with a bedtime target for tomorrow's alarm | 🆕 |
+| Attendance export/share as CSV | 🆕 |
+| Rename sheets | 🆕 |
+
 ### Everything is editable
 
 Campus → Settings holds every number and list the Campus features use: revision gaps, study-block and break lengths, walking buffer, minimum free slot, library reminders, deadline and interview reminder times, deadline/exam types, placement stages, daily-score weights and grade letters, on-time tolerance, attendance warning margin, afternoon cut-off for pasted timetables and lock-in durations. Also editable: the CGPA grade scale, wake-up snoozes, hold-to-dismiss time, battery-check interval and missed-alarm window (Wake-up tab), the Discipline milestones, triggers, actions, check-in time, urge timer, lock length and guarded apps, every web-filter category list, the adult keywords, the anti-bypass list and download sources, digest and report times, Shorts/Reels screen ids, and Focus Guard pause, unlock and session lengths. Settings saved by older versions are upgraded with defaults.

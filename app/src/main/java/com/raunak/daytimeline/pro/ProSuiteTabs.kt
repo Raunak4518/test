@@ -44,9 +44,21 @@ internal fun SearchTab(vm: PlannerViewModel, onOpenDate: (LocalDate) -> Unit) {
     val habits by store.habits.collectAsStateWithLifecycle()
     val goals by store.goals.collectAsStateWithLifecycle()
     val routines by store.routines.collectAsStateWithLifecycle()
+    val campus = remember { com.raunak.daytimeline.campus.CampusStore.get(context) }
+    val campusData by campus.data.collectAsStateWithLifecycle()
+    val sheets by campus.sheets.collectAsStateWithLifecycle()
+    val companies by campus.companies.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
-    val index = remember(tasks, notes, journal, habits, goals, routines) {
+    val index = remember(tasks, notes, journal, habits, goals, routines, campusData, sheets, companies) {
         buildList {
+            sheets.forEach { s -> s.items.forEach { i ->
+                add(SearchItem(SearchKind.QUESTION, "q${s.id}-${i.id}", i.title, "${s.name} · ${i.section} ${i.notes}", i.doneDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() }, setOfNotNull(i.difficulty?.label?.lowercase(), i.section.lowercase()), i.status.done))
+            } }
+            campusData.deadlines.forEach { d ->
+                add(SearchItem(SearchKind.DEADLINE, "d${d.id}", d.title, d.label + " " + (campusData.subjects.firstOrNull { it.id == d.subjectId }?.name ?: "") + " " + d.notes, runCatching { LocalDate.parse(d.date) }.getOrNull(), setOf(d.label.lowercase()), d.done))
+            }
+            campusData.subjects.forEach { s -> add(SearchItem(SearchKind.SUBJECT, "s${s.id}", s.name, "${s.code} ${s.faculty}")) }
+            companies.forEach { c -> add(SearchItem(SearchKind.COMPANY, "c${c.id}", c.name, "${c.role} ${c.stageName} ${c.notes}", c.nextDate?.let { runCatching { LocalDate.parse(it) }.getOrNull() })) }
             tasks.forEach { add(SearchItem(SearchKind.TASK, "t${it.id}", it.title, it.notes, it.date, it.tags.split(',').map(String::trim).filter(String::isNotBlank).toSet(), it.completed)) }
             notes.forEach { add(SearchItem(SearchKind.NOTE, "n${it.id}", it.title, it.body + " " + it.folder, java.time.Instant.ofEpochMilli(it.updatedAt).atZone(java.time.ZoneId.systemDefault()).toLocalDate(), it.tags)) }
             journal.forEach { j -> add(SearchItem(SearchKind.JOURNAL, "j${j.date}", "Journal ${j.date}", listOf(j.wins, j.blockers, j.gratitude, j.note).joinToString(" "), runCatching { LocalDate.parse(j.date) }.getOrNull())) }
@@ -59,7 +71,7 @@ internal fun SearchTab(vm: PlannerViewModel, onOpenDate: (LocalDate) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             OutlinedTextField(query, { query = it }, label = { Text("Search everything") }, placeholder = { Text("unfinished dsa tasks · notes #exam · everything yesterday") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Filters: task/note/journal/habit/goal/routine, done/unfinished, #tag, today, yesterday, this/last/next week, this/last month", style = MaterialTheme.typography.bodySmall)
+            Text("Filters: task/note/journal/habit/goal/routine/question/deadline/subject/company, done/unfinished, #tag, today, yesterday, this/last/next week, this/last month", style = MaterialTheme.typography.bodySmall)
         }
         if (query.isNotBlank()) item { Text("${results.size} results", style = MaterialTheme.typography.labelMedium) }
         items(results, key = { it.id }) { r ->

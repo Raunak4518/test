@@ -14,6 +14,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /** Editable list of short values: remove with ×, add with the field below. */
 @Composable
@@ -43,6 +46,48 @@ internal fun ListEditor(title: String, values: List<String>, numeric: Boolean = 
 @Composable
 private fun NumberStepper(label: String, value: Int, step: Int, min: Int, max: Int = 10_000, suffix: String = "m", onChange: (Int) -> Unit) =
     Stepper(label, "$value$suffix", { onChange((value - step).coerceAtLeast(min)) }, { onChange((value + step).coerceAtMost(max)) })
+
+/** Save everything to one file and restore it on a new phone. */
+@Composable
+private fun BackupCard() {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var includePrivate by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("") }
+    var restored by remember { mutableStateOf(false) }
+    val exporter = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            status = runCatching {
+                val json = FullBackup.export(context, includePrivate)
+                withContext(Dispatchers.IO) { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(json) } }
+                "Backup saved"
+            }.getOrElse { "Backup failed: ${it.message}" }
+        }
+    }
+    val importer = androidx.activity.compose.rememberLauncherForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        scope.launch {
+            val json = withContext(Dispatchers.IO) { runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } }.getOrNull() }
+            if (json == null) { status = "Couldn't read that file"; return@launch }
+            FullBackup.import(context, json).onSuccess { status = "$it. Restart Chronora to finish."; restored = true }.onFailure { status = "Restore failed: ${it.message}" }
+        }
+    }
+    SectionCard("Backup & restore", "Everything in one file: timeline, Campus, habits, notes, alarms, blocking, wellbeing and web-filter settings") {
+        SwitchRow("Include private Discipline data", includePrivate) { includePrivate = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(onClick = { exporter.launch("chronora-backup-${java.time.LocalDate.now()}.json") }) { Text("Back up") }
+            OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore") }
+        }
+        Text("Restoring replaces current settings and data, and adds the backed-up timeline tasks.", style = MaterialTheme.typography.bodySmall)
+        if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.primary)
+        if (restored) Button(onClick = {
+            val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            context.startActivity(intent)
+            Runtime.getRuntime().exit(0)
+        }) { Text("Restart now") }
+    }
+}
 
 /** Every number and list Campus uses, in one place. */
 @Composable
@@ -115,6 +160,17 @@ internal fun CampusSettingsTab() {
                 Text("Required % and credits are set per subject in the Attendance tab.", style = MaterialTheme.typography.bodySmall)
             }
         }
+        item {
+            SectionCard("Exams & marks") {
+                NumberStepper("Free days before an exam for full revision", st.examBufferDays, 1, 0, 14, "d") { save(st.copy(examBufferDays = it)) }
+                ListEditor("Predicted grade from internal marks (percent=grade)", st.gradeCutoffs.sortedByDescending { it.minPercent }.map { "${it.minPercent}=${it.grade}" }) { v ->
+                    val cuts = v.mapNotNull { e -> e.split('=').takeIf { it.size == 2 }?.let { (n, g) -> n.trim().toIntOrNull()?.let { GradeCutoff(it, g.trim()) } } }
+                    save(st.copy(gradeCutoffs = cuts.ifEmpty { CampusSettings().gradeCutoffs }))
+                }
+                NumberStepper("Sleep goal", st.sleepGoalMinutes, 15, 240, 720) { save(st.copy(sleepGoalMinutes = it)) }
+            }
+        }
+        item { BackupCard() }
         item {
             SectionCard("Lock-in buttons") {
                 ListEditor("Durations on the Today tab (minutes)", st.lockInMinutes.map { it.toString() }, numeric = true) { v -> save(st.copy(lockInMinutes = v.mapNotNull(String::toIntOrNull).filter { it > 0 })) }

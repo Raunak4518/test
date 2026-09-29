@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 
 // ---------------------------------------------------------------- Universal search
 
-enum class SearchKind { TASK, NOTE, JOURNAL, HABIT, GOAL, ROUTINE }
+enum class SearchKind { TASK, NOTE, JOURNAL, HABIT, GOAL, ROUTINE, QUESTION, DEADLINE, SUBJECT, COMPANY }
 
 data class SearchItem(
     val kind: SearchKind,
@@ -42,7 +42,11 @@ object UniversalSearch {
         "journal" to SearchKind.JOURNAL, "journals" to SearchKind.JOURNAL, "diary" to SearchKind.JOURNAL,
         "habit" to SearchKind.HABIT, "habits" to SearchKind.HABIT,
         "goal" to SearchKind.GOAL, "goals" to SearchKind.GOAL,
-        "routine" to SearchKind.ROUTINE, "routines" to SearchKind.ROUTINE
+        "routine" to SearchKind.ROUTINE, "routines" to SearchKind.ROUTINE,
+        "question" to SearchKind.QUESTION, "questions" to SearchKind.QUESTION, "problem" to SearchKind.QUESTION, "problems" to SearchKind.QUESTION, "topics" to SearchKind.QUESTION,
+        "deadline" to SearchKind.DEADLINE, "deadlines" to SearchKind.DEADLINE, "assignments" to SearchKind.DEADLINE, "exams" to SearchKind.DEADLINE,
+        "subject" to SearchKind.SUBJECT, "subjects" to SearchKind.SUBJECT, "class" to SearchKind.SUBJECT, "classes" to SearchKind.SUBJECT,
+        "company" to SearchKind.COMPANY, "companies" to SearchKind.COMPANY
     )
     private val stopWords = setOf("all", "everything", "i", "did", "my", "the", "a", "an", "from", "of", "in", "on", "with", "involving", "about", "show", "find")
 

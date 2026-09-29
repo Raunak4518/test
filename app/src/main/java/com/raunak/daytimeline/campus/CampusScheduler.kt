@@ -60,6 +60,7 @@ object CampusScheduler {
         val app = context.applicationContext
         runCatching { scheduleWake(app) }
         runCatching { scheduleReminders(app) }
+        runCatching { CampusWidget.refresh(app) }
     }
 
     private fun millis(t: LocalDateTime) = t.atZone(ZoneId.systemDefault()).toInstant().toEpochMilli()
@@ -233,6 +234,7 @@ object CampusScheduler {
     const val ACTION_CHECKIN = "chronora.campus.CHECKIN"
     const val ACTION_CHECKIN_ANSWER = "chronora.campus.CHECKIN_ANSWER"
     const val ACTION_RECOMPUTE = "chronora.campus.RECOMPUTE"
+    const val ACTION_CANCEL_CLASS = "chronora.campus.CANCEL_CLASS"
 }
 
 class CampusReceiver : BroadcastReceiver() {
@@ -245,7 +247,14 @@ class CampusReceiver : BroadcastReceiver() {
         when (intent.action) {
             CampusScheduler.ACTION_CLASS -> occurrence(data, key)?.let { (o, s) ->
                 val minutes = maxOf(data.wake.classReminderMinutes, data.wake.leaveMinutes)
-                notify(context, CH_CLASS, key.hashCode(), "${s.name} in $minutes min — leave now", listOf(o.type.label, o.room.ifBlank { null }, "${clock(o.start)}–${clock(o.end)}", o.note.ifBlank { null }).filterNotNull().joinToString(" · "))
+                val b = builder(context, CH_CLASS, "${s.name} in $minutes min — leave now", listOf(o.type.label, o.room.ifBlank { null }, "${clock(o.start)}–${clock(o.end)}", o.note.ifBlank { null }).filterNotNull().joinToString(" · "))
+                b.addAction(0, "Cancelled", PendingIntent.getBroadcast(context, (key + "cancel").hashCode(), Intent(context, CampusReceiver::class.java).setAction(CampusScheduler.ACTION_CANCEL_CLASS).putExtra("key", key), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT))
+                nm.notify(key.hashCode(), b.build())
+            }
+            CampusScheduler.ACTION_CANCEL_CLASS -> occurrence(data, key)?.let { (o, _) ->
+                if (o.source == "Regular" && o.slotId != null) store.update { d -> d.copy(exceptions = d.exceptions + ScheduleException(store.nextId(), ExceptionKind.CANCEL, o.date.toString(), slotId = o.slotId, note = "Cancelled from reminder")) }
+                else store.mark(key, Mark.NO_CLASS)
+                nm.cancel(key.hashCode())
             }
             CampusScheduler.ACTION_ASK -> occurrence(data, key)?.let { (o, s) ->
                 if (data.marks[key] != null) return@let

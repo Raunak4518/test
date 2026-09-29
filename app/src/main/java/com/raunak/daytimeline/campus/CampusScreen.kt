@@ -171,7 +171,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
         wakeOnTime = wakeLog?.dismissedAt?.let { it <= wakeLog.target + data.settings.onTimeToleranceMinutes * 60_000L },
         classesAttended = classes.count { data.marks[it.key]?.attended == true },
         classesTotal = classes.count { data.marks[it.key]?.counts != false && it.end <= minute },
-        studyMinutes = maxOf(gardenMinutes, libraryMinutes),
+        studyMinutes = maxOf(gardenMinutes, libraryMinutes, StudyEngines.minutesOn(data.studySessions, today)),
         studyGoal = data.studyGoalMinutes,
         problemsSolved = solvedToday,
         problemTarget = target,
@@ -180,6 +180,13 @@ private fun TodayTab(goTo: (Int) -> Unit) {
         disciplineKept = DisciplineEngine.keptToday(discipline, today)
     )
     val score = DailyScore.total(parts)
+    // Keep today's score so trends and weekly reviews have history.
+    LaunchedEffect(score, today) {
+        val entry = ScoreEntry(today.toString(), score, parts.associate { it.label to it.earned.toInt() })
+        if (data.scoreHistory.lastOrNull { it.date == entry.date } != entry) {
+            store.update { d -> d.copy(scoreHistory = (d.scoreHistory.filterNot { it.date == entry.date } + entry).takeLast(400)) }
+        }
+    }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (data.subjects.isEmpty()) item {
@@ -255,6 +262,20 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                     }
                 }
                 if (sheets.isEmpty()) TextButton(onClick = { goTo(3) }) { Text("Add the DSA sheet") }
+                sheets.filter { it.examDate != null }.forEach { s ->
+                    val exam = runCatching { LocalDate.parse(s.examDate) }.getOrNull() ?: return@forEach
+                    if (exam.isBefore(today)) return@forEach
+                    val todays = StudyEngines.revisionPlan(s.items, exam, today, data.settings.examBufferDays)[today].orEmpty()
+                    if (todays.isNotEmpty()) {
+                        Text("${s.name} · exam in ${daysUntil(s.examDate!!, today)} days — today:", style = MaterialTheme.typography.labelLarge)
+                        todays.forEach { item ->
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Checkbox(false, { store.updateItem(s.id, item.id) { SheetEngine.setStatus(it, ItemStatus.SOLVED, today, store.gaps) } })
+                                Text(item.title, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
             }
         }
         val upcoming = data.deadlines.filter { !it.done && (daysUntil(it.date, today) ?: 99) in 0..7 }.sortedBy { it.date + clock(it.minute) }
@@ -282,6 +303,8 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                 TextButton(onClick = { goTo(5) }) { Text("Wake-up settings & readiness") }
             }
         }
+        item { StudyTimerCard(data, store) }
+        item { WeeklyReviewCard(data, sheets, today) }
         item {
             SectionCard("Lock in", "Block distracting apps right now") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -336,3 +359,54 @@ internal fun ClassRow(o: ClassOccurrence, s: Subject, mark: Mark?, past: Boolean
 }
 
 internal fun nowMinute() = LocalTime.now().let { it.hour * 60 + it.minute }
+
+/** Start/stop a study timer on a subject or topic; shows today's total and this week per subject. */
+@Composable
+private fun StudyTimerCard(data: CampusData, store: CampusStore) {
+    val running = data.studySessions.lastOrNull()?.takeIf { it.end == null }
+    var subjectId by remember { mutableStateOf<Long?>(null) }
+    var topic by remember { mutableStateOf("") }
+    var tick by remember { mutableIntStateOf(0) }
+    LaunchedEffect(running) { while (running != null) { delay(30_000); tick++ } }
+    val today = LocalDate.now()
+    val now = System.currentTimeMillis() + tick * 0
+    SectionCard("Study timer", "Today ${hm(StudyEngines.minutesOn(data.studySessions, today, now = now))}") {
+        if (running != null) {
+            val name = running.subjectId?.let { id -> data.subjects.firstOrNull { it.id == id }?.name } ?: running.topic.ifBlank { "Study" }
+            Text("$name · ${hm(StudyEngines.minutes(running, now))}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            Button(onClick = { store.update { d -> d.copy(studySessions = d.studySessions.dropLast(1) + running.copy(end = System.currentTimeMillis())) } }) { Text("Stop") }
+        } else {
+            if (data.subjects.isNotEmpty()) androidx.compose.foundation.lazy.LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                items(data.subjects, key = { it.id }) { s -> FilterChip(subjectId == s.id, { subjectId = if (subjectId == s.id) null else s.id }, label = { Text(s.name) }) }
+            }
+            OutlinedTextField(topic, { topic = it }, label = { Text("Topic (optional): DSA, project, revision…") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            Button(onClick = { store.update { d -> d.copy(studySessions = (d.studySessions + StudySession(System.currentTimeMillis(), null, subjectId, topic.trim())).takeLast(3000)) } }) { Text("Start") }
+        }
+        val week = StudyEngines.bySubject(data.studySessions, data.subjects, today.minusDays(6), today, now = now)
+        if (week.isNotEmpty()) Text("This week: " + week.joinToString { "${it.first} ${hm(it.second)}" }, style = MaterialTheme.typography.bodySmall)
+    }
+}
+
+/** Last 7 days at a glance: score trend, study hours, problems, wake-ups and sleep. */
+@Composable
+private fun WeeklyReviewCard(data: CampusData, sheets: List<StudySheet>, today: LocalDate) {
+    val w = StudyEngines.week(data, sheets, today)
+    val days = (6L downTo 0L).map { today.minusDays(it) }
+    val scores = days.map { d -> data.scoreHistory.firstOrNull { it.date == d.toString() }?.score }
+    SectionCard("This week", "Average score ${w.avgScore ?: "—"}" + (w.bestDay?.let { " · best day ${LocalDate.parse(it).dayOfWeek.name.take(3).lowercase()}" } ?: "")) {
+        Row(Modifier.fillMaxWidth().height(64.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            days.forEachIndexed { i, d ->
+                Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Bottom) {
+                    val v = scores[i] ?: 0
+                    Text(scores[i]?.toString() ?: "–", style = MaterialTheme.typography.labelSmall)
+                    Surface(color = MaterialTheme.colorScheme.primary.copy(alpha = if (d == today) 1f else 0.55f), shape = RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp), modifier = Modifier.fillMaxWidth().height((36 * v / 100).coerceAtLeast(2).dp)) {}
+                    Text(d.dayOfWeek.name.take(1), style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        Text(
+            "Studied ${hm(w.studyMinutes)} · solved ${w.problems} · woke on time ${w.onTimeWakes}/${w.wakeDays}" + (w.avgSleep?.let { " · slept ${hm(it)} a night" } ?: ""),
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}

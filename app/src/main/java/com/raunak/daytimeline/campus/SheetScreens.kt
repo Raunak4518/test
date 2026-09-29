@@ -144,7 +144,17 @@ private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit)
             Row(verticalAlignment = Alignment.CenterVertically) {
                 IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, "Back") }
                 Column(Modifier.weight(1f)) { Text(sheet.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold); Text("${st.done}/${st.total} · ${st.percent}% · streak ${st.streak}d", style = MaterialTheme.typography.bodySmall) }
+                var renaming by remember { mutableStateOf(false) }
+                TextButton(onClick = { renaming = true }) { Text("Rename") }
                 TextButton(onClick = { adding = true }) { Text("Add") }
+                if (renaming) {
+                    var name by remember { mutableStateOf(sheet.name) }
+                    AlertDialog(onDismissRequest = { renaming = false }, title = { Text("Rename sheet") }, text = {
+                        OutlinedTextField(name, { name = it }, singleLine = true)
+                    }, confirmButton = {
+                        Button(onClick = { if (name.isNotBlank()) store.updateSheet(sheet.id) { it.copy(name = name.trim()) }; renaming = false }) { Text("Save") }
+                    }, dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel") } })
+                }
             }
         }
         item {
@@ -157,6 +167,17 @@ private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit)
                     val left = st.total - st.done
                     val days = (daysUntil(ex, today) ?: 0).coerceAtLeast(1)
                     Text("${daysUntil(ex, today)} days to exam · ${left} left → ${"%.1f".format(left.toDouble() / days)} per day", style = MaterialTheme.typography.bodySmall)
+                    var showPlan by remember { mutableStateOf(false) }
+                    val buffer = store.data.value.settings.examBufferDays
+                    TextButton(onClick = { showPlan = !showPlan }) { Text(if (showPlan) "Hide revision plan" else "Show day-by-day revision plan") }
+                    if (showPlan) {
+                        runCatching { LocalDate.parse(ex) }.getOrNull()?.let { exam ->
+                            StudyEngines.revisionPlan(sheet.items, exam, today, buffer).toSortedMap().forEach { (day, items) ->
+                                Text("${day.dayOfWeek.name.take(3)} ${day}: " + items.joinToString { it.title }, style = MaterialTheme.typography.bodySmall)
+                            }
+                            Text("Last $buffer day(s) before the exam are kept for full revision (change in Settings).", style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
                 }
                 st.sections.forEach { p ->
                     Row(Modifier.fillMaxWidth().clickable { section = if (section == p.section) null else p.section }, verticalAlignment = Alignment.CenterVertically) {
