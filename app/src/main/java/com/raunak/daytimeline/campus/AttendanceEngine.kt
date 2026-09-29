@@ -122,7 +122,7 @@ object AttendanceEngine {
         var conducted = subject.priorConducted
         var unmarked = 0
         for (o in past) {
-            val m = data.marks[o.key]
+            val m = data.marks[o.key] ?: if (data.settings.assumePresent) Mark.PRESENT else null
             if (m == null) { unmarked++; continue }
             if (m.counts) {
                 conducted += weight(subject, o)
@@ -146,10 +146,25 @@ object AttendanceEngine {
 
     /** Past classes still waiting for a Present/Absent mark, newest first. */
     fun unmarked(data: CampusData, today: LocalDate, nowMinute: Int): List<ClassOccurrence> {
+        if (data.settings.assumePresent) return emptyList()
         val semStart = runCatching { LocalDate.parse(data.semester.start) }.getOrDefault(today)
         return occurrencesBetween(data, maxOf(semStart, today.minusDays(30)), today)
             .filter { (it.date.isBefore(today) || it.end <= nowMinute) && data.marks[it.key] == null }
             .sortedWith(compareByDescending<ClassOccurrence> { it.date }.thenByDescending { it.start })
+    }
+
+    /** Percentage after attending [attend] and skipping [skip] more classes (one class each). */
+    fun whatIf(stat: SubjectAttendance, attend: Int, skip: Int): Double {
+        val held = stat.conducted + attend + skip
+        return if (held <= 0) 100.0 else 100.0 * (stat.attended + attend) / held
+    }
+
+    /** Classes in a row needed afterwards to get back to the requirement. */
+    fun toRecover(stat: SubjectAttendance, attend: Int, skip: Int): Int {
+        val a = stat.attended + attend
+        val c = stat.conducted + attend + skip
+        val r = stat.subject.requiredPercent / 100.0
+        return if (r >= 1.0 || a >= r * c - 1e-9) 0 else ceil((r * c - a) / (1 - r) - 1e-9).toInt()
     }
 
     /** What happens if you skip one specific class. */

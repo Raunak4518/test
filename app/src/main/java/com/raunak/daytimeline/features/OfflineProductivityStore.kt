@@ -46,7 +46,7 @@ class OfflineProductivityStore(context: Context) {
 
     fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "", activeDays: Set<Int> = (1..7).toSet()) {
         if (name.isBlank()) return
-        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, activeDays.ifEmpty { (1..7).toSet() }, emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
+        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, activeDays.ifEmpty { (1..7).toSet() }, emptySet(), createdDate = LocalDate.now().toString()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
     }
 
     fun updateHabit(id: Long, name: String, targetPerWeek: Int, preferredTime: String, activeDays: Set<Int> = (1..7).toSet()) {
@@ -55,15 +55,48 @@ class OfflineProductivityStore(context: Context) {
         _habits.value.firstOrNull { it.id == id }?.let(habitScheduler::schedule)
     }
 
+    /** Adds or replaces a habit with every field (frequency, colour, note…) and reschedules its reminder. */
+    fun saveHabit(habit: OfflineHabit) {
+        if (habit.name.isBlank()) return
+        val clean = habit.copy(
+            id = if (habit.id == 0L) id() else habit.id,
+            name = habit.name.trim(),
+            targetPerWeek = habit.targetPerWeek.coerceIn(1, 7),
+            intervalDays = habit.intervalDays.coerceIn(2, 60),
+            activeDays = habit.activeDays.ifEmpty { (1..7).toSet() },
+            createdDate = habit.createdDate ?: LocalDate.now().toString()
+        )
+        habitScheduler.cancel(clean.id)
+        update(_habits, "habits") { list -> if (list.any { it.id == clean.id }) list.map { if (it.id == clean.id) clean else it } else list + clean }
+        if (!clean.archived) habitScheduler.schedule(clean)
+    }
+
+    /** Marks [date] as skipped (or clears the skip); a skip also clears a completion on that day. */
+    fun skipHabit(id: Long, date: LocalDate = LocalDate.now()) = update(_habits, "habits") { list ->
+        list.map { h ->
+            if (h.id != id) h else {
+                val key = date.toString()
+                val skipped = HabitEngine.skipped(h).toMutableSet()
+                if (!skipped.add(key)) skipped.remove(key)
+                h.copy(skippedDates = skipped, completedDates = HabitEngine.done(h) - key)
+            }
+        }
+    }
+
+    fun archiveHabit(id: Long, archived: Boolean) {
+        update(_habits, "habits") { list -> list.map { if (it.id == id) it.copy(archived = archived) else it } }
+        _habits.value.firstOrNull { it.id == id }?.let { if (archived) habitScheduler.cancel(id) else habitScheduler.schedule(it) }
+    }
+
     fun deleteHabit(id: Long) { habitScheduler.cancel(id); update(_habits, "habits") { it.filterNot { h -> h.id == id } } }
 
     fun toggleHabit(id: Long, date: LocalDate = LocalDate.now()) = update(_habits, "habits") { list ->
         list.map { h ->
             if (h.id != id) h else {
                 val key = date.toString()
-                val done = h.completedDates.toMutableSet()
+                val done = HabitEngine.done(h).toMutableSet()
                 if (!done.add(key)) done.remove(key)
-                h.copy(completedDates = done)
+                h.copy(completedDates = done, skippedDates = HabitEngine.skipped(h) - key)
             }
         }
     }
@@ -319,7 +352,24 @@ class OfflineProductivityStore(context: Context) {
     )
 }
 
-data class OfflineHabit(val id: Long, val name: String, val targetPerWeek: Int, val preferredTime: String, val activeDays: Set<Int> = (1..7).toSet(), val completedDates: Set<String> = emptySet())
+data class OfflineHabit(
+    val id: Long,
+    val name: String,
+    val targetPerWeek: Int,
+    val preferredTime: String,
+    val activeDays: Set<Int> = (1..7).toSet(),
+    val completedDates: Set<String> = emptySet(),
+    /** A [HabitFrequency] name. */
+    val frequency: String = "DAYS",
+    val intervalDays: Int = 2,
+    val color: Long = 0xFF55786A,
+    /** Days deliberately skipped (ill, travelling); they never break a streak. */
+    val skippedDates: Set<String> = emptySet(),
+    val createdDate: String? = null,
+    val archived: Boolean = false,
+    /** Why this habit matters, shown under its name. */
+    val note: String = ""
+)
 data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean, val milestoneDone: Set<Int> = emptySet())
 data class OfflineProject(val id: Long, val name: String, val color: Long, val taskIds: List<Long>, val deadline: String?)
 data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null, val completionDates: Set<String> = emptySet(), val completedSteps: Set<String> = emptySet())
@@ -339,7 +389,13 @@ data class OfflineSettings(
     val autoScrollNow: Boolean = true,
     val showCompleted: Boolean = true,
     val defaultTaskMinutes: Int = 30,
-    val defaultFocusMinutes: Int = 25
+    val defaultFocusMinutes: Int = 25,
+    /** Eisenhower matrix: tasks due within this many days (and overdue ones) are urgent. */
+    val matrixUrgentDays: Int = 1,
+    /** Eisenhower matrix: tasks at or above this priority (0–3) are important. */
+    val matrixImportantPriority: Int = 2,
+    /** Eisenhower matrix: how far ahead to look, in days. */
+    val matrixHorizonDays: Int = 14
 )
 data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long, val folder: String = "General", val pinned: Boolean = false)
 

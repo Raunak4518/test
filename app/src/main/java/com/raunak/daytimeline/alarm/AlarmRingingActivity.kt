@@ -12,6 +12,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -77,9 +78,19 @@ class AlarmRingingActivity : ComponentActivity() {
             onDispose { runtime.stopShake(); runtime.stopSteps(); runtime.stopSquats() }
         }
 
-        Column(Modifier.fillMaxSize().padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.fillMaxSize().verticalScroll(androidx.compose.foundation.rememberScrollState()).padding(28.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             Text(if (intent.getBooleanExtra(EXTRA_TEST_MODE, false)) "ALARM TEST" else "WAKE UP", style = MaterialTheme.typography.displaySmall)
             Text(config.label, style = MaterialTheme.typography.titleLarge)
+            val briefing = remember {
+                // Storage may be locked before the first unlock after boot; the alarm must still work.
+                runCatching {
+                    val data = com.raunak.daytimeline.campus.CampusStore.get(applicationContext).data.value
+                    val today = java.time.LocalDate.now()
+                    com.raunak.daytimeline.campus.WakeBriefing.quote(data.settings, today) to com.raunak.daytimeline.campus.WakeBriefing.lines(data, today)
+                }.getOrNull()
+            }
+            briefing?.first?.let { Text("“$it”", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }
+            briefing?.second?.forEach { Text(it, style = MaterialTheme.typography.bodyMedium) }
             Text("Mission ${f.missionIndex() + 1} / ${config.missionChain.size}", style = MaterialTheme.typography.labelLarge)
             if (config.timeoutMinutes > 0) Text("Mission timeout ${config.timeoutMinutes}m · alarm remains active until verified", style = MaterialTheme.typography.labelSmall)
             when (type) {

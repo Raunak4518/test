@@ -41,47 +41,15 @@ fun OfflineCompletenessCenter(store: OfflineProductivityStore) {
 @Composable
 private fun OfflineHabitsPanel(store: OfflineProductivityStore) {
     val habits by store.habits.collectAsStateWithLifecycle()
-    var add by remember { mutableStateOf(false) }
-    Column(Modifier.fillMaxSize().padding(12.dp)) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Habit system", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-            Button({ add = true }) { Text("Add habit") }
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(habits, key = { it.id }) { habit ->
-                Card(Modifier.fillMaxWidth()) {
-                    Column(Modifier.padding(14.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Column(Modifier.weight(1f)) {
-                                Text(habit.name, fontWeight = FontWeight.Bold)
-                                Text("Streak " + habit.streak() + " · " + habit.weekCompletion() + "/7 this week · target " + habit.targetPerWeek + "/week")
-                            }
-                            IconButton({ store.toggleHabit(habit.id) }) { Icon(Icons.Default.CheckCircle, "Toggle today") }
-                            IconButton({ store.deleteHabit(habit.id) }) { Icon(Icons.Default.Delete, "Delete") }
-                        }
-                        Text("7-day history", style = MaterialTheme.typography.labelMedium)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            (6 downTo 0).forEach { offset ->
-                                val date = LocalDate.now().minusDays(offset.toLong())
-                                FilterChip(selected = habit.completedDates.contains(date.toString()), onClick = { store.toggleHabit(habit.id, date) }, label = { Text(date.dayOfWeek.name.take(1)) })
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    var editing by remember { mutableStateOf<OfflineHabit?>(null) }
+    var adding by remember { mutableStateOf(false) }
+    com.raunak.daytimeline.ui.ScreenList {
+        item { HabitTodayHero(habits) }
+        item { com.raunak.daytimeline.ui.SectionHeader("Habit system") { Button({ adding = true }) { Text("Add habit") } } }
+        item { HabitList(habits, store, { editing = it }) }
     }
-    if (add) {
-        var name by remember { mutableStateOf("") }
-        var time by remember { mutableStateOf("") }
-        AlertDialog(onDismissRequest = { add = false }, title = { Text("New habit") },
-            text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it }, label = { Text("Name") })
-                OutlinedTextField(time, { time = it }, label = { Text("Reminder HH:mm (optional)") })
-            }},
-            confirmButton = { Button({ if (name.isNotBlank()) { store.addHabit(name, 7, time); add = false } }) { Text("Create") } },
-            dismissButton = { TextButton({ add = false }) { Text("Cancel") } })
-    }
+    if (adding) HabitEditorDialog(null, { store.saveHabit(it); adding = false }) { adding = false }
+    editing?.let { h -> HabitEditorDialog(h, { store.saveHabit(it); editing = null }) { editing = null } }
 }
 
 @Composable

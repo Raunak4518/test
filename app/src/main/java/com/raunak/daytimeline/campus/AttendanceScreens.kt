@@ -3,6 +3,8 @@ package com.raunak.daytimeline.campus
 import com.raunak.daytimeline.ui.*
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -43,6 +45,7 @@ internal fun AttendanceTab() {
                 val danger = stats.filter { it.mustAttend > 0 }
                 if (danger.isNotEmpty()) Text("Below requirement: " + danger.joinToString { "${it.subject.name} (attend next ${it.mustAttend})" }, color = Chronora.colors.bad, style = MaterialTheme.typography.bodySmall)
                 else if (stats.isNotEmpty()) Text("Every subject is at or above its requirement.", color = Chronora.colors.good, style = MaterialTheme.typography.bodySmall)
+                SwitchRow("Only mark bunks — unmarked classes count as attended", data.settings.assumePresent) { on -> store.update { it.copy(settings = it.settings.copy(assumePresent = on)) } }
                 if (stats.isNotEmpty()) TextButton(onClick = { shareAttendance(context, data, stats) }) { Text("Export / share (CSV)") }
             }
         }
@@ -77,6 +80,7 @@ internal fun AttendanceTab() {
                 }
             }
         }
+        if (stats.isNotEmpty()) item { WhatIfCard(stats) }
         if (data.subjects.isEmpty()) item { Text("Add subjects and your weekly timetable in the Timetable tab.") }
     }
     editing?.let { s -> SubjectDialog(s, onSave = { u -> store.update { d -> d.copy(subjects = d.subjects.map { if (it.id == u.id) u else it }) }; editing = null }, onDelete = {
@@ -179,3 +183,23 @@ internal fun HolidayDialog(store: CampusStore, close: () -> Unit) {
 
 private fun ChronoUnitDays(a: LocalDate, b: LocalDate) = java.time.temporal.ChronoUnit.DAYS.between(a, b) + 1
 
+
+/** Bunk calculator: what your percentage becomes after attending and skipping some classes. */
+@Composable
+private fun WhatIfCard(stats: List<SubjectAttendance>) {
+    var index by remember { mutableIntStateOf(0) }
+    var attend by remember { mutableIntStateOf(0) }
+    var skip by remember { mutableIntStateOf(1) }
+    val st = stats.getOrNull(index) ?: stats.first()
+    val r = AttendanceEngine.whatIf(st, attend, skip)
+    SectionCard("What if…", "Plan a bunk before you take it") {
+        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            stats.forEachIndexed { i, s -> FilterChip(selected = i == index, onClick = { index = i }, label = { Text(s.subject.code.ifBlank { s.subject.name }.take(8)) }) }
+        }
+        Stepper("Attend next", "$attend", { attend = (attend - 1).coerceAtLeast(0) }, { attend++ })
+        Stepper("Skip", "$skip", { skip = (skip - 1).coerceAtLeast(0) }, { skip++ })
+        Text("${"%.1f".format(st.percent)}% → ${"%.1f".format(r)}%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
+            color = if (r >= st.subject.requiredPercent) Chronora.colors.good else Chronora.colors.bad)
+        Text(if (r >= st.subject.requiredPercent) "Still at or above ${st.subject.requiredPercent}%." else "Below ${st.subject.requiredPercent}% — you'd then need to attend ${AttendanceEngine.toRecover(st, attend, skip)} in a row to recover.", style = MaterialTheme.typography.bodySmall)
+    }
+}

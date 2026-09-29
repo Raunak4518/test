@@ -135,6 +135,7 @@ internal fun CampusSettingsTab() {
         item {
             SectionCard("Attendance & timetable") {
                 NumberStepper("Warn when within this many % of the requirement", st.attendanceMargin, 1, 0, 50, "%") { save(st.copy(attendanceMargin = it)) }
+                SwitchRow("Only mark bunks (unmarked classes count as attended)", st.assumePresent) { save(st.copy(assumePresent = it)) }
                 NumberStepper("Pasted times before this hour are afternoon", st.afternoonBeforeHour, 1, 1, 12, ":00") { save(st.copy(afternoonBeforeHour = it)) }
                 Text("Required % and credits are set per subject in the Attendance tab.", style = MaterialTheme.typography.bodySmall)
             }
@@ -150,6 +151,12 @@ internal fun CampusSettingsTab() {
             }
         }
         item { BackupCard() }
+        item {
+            SectionCard("Wake-up screen", "Shown while the alarm rings") {
+                SwitchRow("Morning briefing (first class, deadlines today)", !st.wakeBriefingOff) { save(st.copy(wakeBriefingOff = !it)) }
+                ListEditor("Wake-up quotes (one is picked each day)", st.wakeQuotes) { v -> save(st.copy(wakeQuotes = v)) }
+            }
+        }
         item {
             SectionCard("Lock-in buttons") {
                 ListEditor("Durations on the Today tab (minutes)", st.lockInMinutes.map { it.toString() }, numeric = true) { v -> save(st.copy(lockInMinutes = v.mapNotNull(String::toIntOrNull).filter { it > 0 })) }

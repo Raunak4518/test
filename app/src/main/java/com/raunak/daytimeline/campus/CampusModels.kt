@@ -204,6 +204,18 @@ data class CampusSettings(
     /** Ring on boot if the phone was off at wake time, up to this many hours late. */
     val missedAlarmRecoveryHours: Int = 3,
     val batteryCheckEveryMinutes: Int = 30,
+    /** One is shown on the alarm screen each morning. */
+    val wakeQuotes: List<String> = listOf(
+        "Win the morning, win the day.",
+        "Discipline is choosing what you want most over what you want now.",
+        "You don't have to feel like it. You just have to start.",
+        "Small steps every day beat big plans some day.",
+        "The version of you that you want to be is already awake."
+    ),
+    /** Show today's first class and deadlines on the alarm screen. */
+    val wakeBriefingOff: Boolean = false,
+    /** Only bunks need marking: past classes left unmarked count as attended. */
+    val assumePresent: Boolean = false,
     val wakeSnoozes: Int = 1,
     val wakeSnoozeMinutes: Int = 5,
     val wakeHoldToDismissSeconds: Int = 5,
@@ -236,6 +248,7 @@ data class CampusSettings(
             wakeSnoozeMinutes = pos(wakeSnoozeMinutes, d.wakeSnoozeMinutes),
             wakeHoldToDismissSeconds = pos(wakeHoldToDismissSeconds, d.wakeHoldToDismissSeconds),
             gradeScale = (gradeScale ?: d.gradeScale).ifEmpty { d.gradeScale },
+            wakeQuotes = wakeQuotes ?: d.wakeQuotes,
             gradeCutoffs = (gradeCutoffs ?: d.gradeCutoffs).ifEmpty { d.gradeCutoffs },
             examBufferDays = if (examBufferDays >= 0) examBufferDays else d.examBufferDays,
             sleepGoalMinutes = if (sleepGoalMinutes > 0) sleepGoalMinutes else d.sleepGoalMinutes

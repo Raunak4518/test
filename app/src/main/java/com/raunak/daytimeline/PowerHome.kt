@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -96,11 +97,13 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                 if (tab != 3) FloatingActionButton(onClick = { if (tab == 2) dialog = "habit" else addTask = true }) { Icon(Icons.Default.Add, "Add") }
             }
         ) { padding ->
-            when (tab) {
-                0 -> TodayScreen(tasks, date, vm, settings.showCompleted) { editTask = it }
-                1 -> FocusScreen(pomo, tasks, vm)
-                2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
-                3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier.padding(padding))
+            Box(Modifier.fillMaxSize().padding(padding)) {
+                when (tab) {
+                    0 -> TodayScreen(tasks, allTasks, date, vm, settings.showCompleted, productivity) { vm.selectDate(it.date); editTask = it }
+                    1 -> com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, vm)
+                    2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
+                    3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
+                }
             }
         }
     }
@@ -114,10 +117,10 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     if (dialog?.startsWith("editHabit:") == true) {
         val id = dialog!!.substringAfter(":").toLongOrNull()
         val habit = habits.firstOrNull { it.id == id }
-        if (habit != null) HabitDialog({ name, target, time, days -> productivity.updateHabit(habit.id, name, target, time, days); dialog = null }, { dialog = null }, habit.name, habit.targetPerWeek, habit.preferredTime, habit.activeDays)
+        if (habit != null) com.raunak.daytimeline.productivity.HabitEditorDialog(habit, { productivity.saveHabit(it); dialog = null }) { dialog = null }
     }
     when (dialog) {
-        "habit" -> HabitDialog({ name, target, time, days -> productivity.addHabit(name, target, time, days); dialog = null }, { dialog = null })
+        "habit" -> com.raunak.daytimeline.productivity.HabitEditorDialog(null, { productivity.saveHabit(it); dialog = null }) { dialog = null }
         "goal" -> GoalDialog({ title, target, deadline -> productivity.addGoal(title, target, deadline); dialog = null }, { dialog = null })
         "journal" -> JournalDialog({ mood, energy, wins, blockers, gratitude, note -> productivity.addJournal(LocalDate.now(), mood, energy, wins, blockers, gratitude, note); dialog = null }, { dialog = null })
         "tools" -> OfflinePowerTools(productivity) { dialog = null }
@@ -154,11 +157,23 @@ private fun DayClasses(date: LocalDate) {
 }
 
 @Composable
-private fun TodayScreen(tasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, onEdit: (TaskModel) -> Unit) {
+private fun TodayScreen(tasks: List<TaskModel>, allTasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, store: OfflineProductivityStore, onEdit: (TaskModel) -> Unit) {
     val visible = if (showCompleted) tasks else tasks.filterNot { it.completed }
     val total = tasks.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
     val done = tasks.filter { it.completed }.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
+    val prefs by store.settings.collectAsStateWithLifecycle()
+    var matrix by rememberSaveable { mutableStateOf(false) }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+                SegmentedButton(selected = !matrix, onClick = { matrix = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Day plan") }
+                SegmentedButton(selected = matrix, onClick = { matrix = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Priority matrix") }
+            }
+        }
+        if (matrix) {
+            item { com.raunak.daytimeline.productivity.EisenhowerMatrix(allTasks, vm, prefs, store::updateSettings, onEdit) }
+            return@LazyColumn
+        }
         item {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DayButton("‹", Modifier.weight(1f)) { vm.onPrevDay() }
@@ -215,44 +230,18 @@ private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Uni
     } }, confirmButton = { TextButton(onClick = close) { Text("Done") } })
 }
 
-@Composable private fun FocusScreen(pomo: com.raunak.daytimeline.data.PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel) {
-    Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Spacer(Modifier.height(10.dp))
-        Surface(shape = CircleShape, color = HomeInk, modifier = Modifier.size(250.dp)) {
-            Box(contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("%02d:%02d".format(pomo.remainingSeconds / 60, pomo.remainingSeconds % 60), color = Chronora.colors.onHero, style = MaterialTheme.typography.displayMedium)
-                    Text(pomo.phase, color = Chronora.colors.heroMuted)
-                }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = { if (pomo.running) vm.pausePomodoro() else vm.resumePomodoro() }) { Text(if (pomo.running) "Pause" else "Start") }
-            OutlinedButton(onClick = vm::resetPomodoro) { Text("Reset") }
-        }
-        if (pomo.phase != "IDLE") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = vm::skipPomodoro) { Text("Skip") }
-            OutlinedButton(onClick = { vm.extendPomodoro(5) }) { Text("+5 min") }
-        }
-        tasks.filter { it.pomodoroEnabled }.take(5).forEach { task ->
-            ListItem(headlineContent = { Text(task.title) }, supportingContent = { Text("${clock(task.startMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted) }, trailingContent = { IconButton(onClick = { vm.startPomodoro(task.id) }) { Icon(Icons.Default.PlayArrow, null) } })
-        }
-    }
-}
-
 @Composable
 private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.OfflineHabit>, goals: List<com.raunak.daytimeline.features.OfflineGoal>, routines: List<com.raunak.daytimeline.features.OfflineRoutine>, entries: List<com.raunak.daytimeline.features.OfflineTimeEntry>, journal: List<com.raunak.daytimeline.features.OfflineJournalEntry>, notes: List<com.raunak.daytimeline.features.OfflineNote>, store: OfflineProductivityStore, openDialog: (String) -> Unit) {
     val today = LocalDate.now()
     val tracked = store.todayTrackedMinutes()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Habits", habits.count { it.completedDates.contains(today.toString()) }.toString(), Modifier.weight(1f)); StatCard("Tracked", "${tracked}m", Modifier.weight(1f)); StatCard("Journal", journal.size.toString(), Modifier.weight(1f)) } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Habits"); TextButton(onClick = { openDialog("tools") }) { Text("Power tools") } } }
-        items(habits, key = { it.id }) { h ->
-            Card { Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) { Column(Modifier.weight(1f)) { Text(h.name, fontWeight = FontWeight.SemiBold); Text("${h.streak()} day streak", color = HomeMuted) }; IconButton(onClick = { store.toggleHabit(h.id) }) { Icon(Icons.Default.CheckCircle, null) }; IconButton(onClick = { openDialog("editHabit:${h.id}") }) { Icon(Icons.Default.Edit, "Edit habit") }; IconButton(onClick = { store.deleteHabit(h.id) }) { Icon(Icons.Default.Delete, null) } } }
-        }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Goals"); Row { TextButton(onClick = { openDialog("goals") }) { Text("Manage") }; TextButton(onClick = { openDialog("goal") }) { Text("Add") } } } }
+        item { com.raunak.daytimeline.productivity.HabitTodayHero(habits, today) }
+        item { SectionHeader("Habits") { Row { TextButton(onClick = { openDialog("habit") }) { Text("Add") }; TextButton(onClick = { openDialog("tools") }) { Text("Power tools") } } } }
+        item { com.raunak.daytimeline.productivity.HabitList(habits, store, { openDialog("editHabit:${it.id}") }, today) }
+        item { SectionHeader("Goals") { Row { TextButton(onClick = { openDialog("goals") }) { Text("Manage") }; TextButton(onClick = { openDialog("goal") }) { Text("Add") } } } }
         items(goals, key = { it.id }) { g -> Card { Column(Modifier.padding(14.dp)) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(g.title, fontWeight = FontWeight.SemiBold); Text("${g.progress}/${g.target}") }; LinearProgressIndicator(progress = { g.progress.toFloat() / g.target }, modifier = Modifier.fillMaxWidth()); Row { TextButton(onClick = { store.setGoalProgress(g.id, g.progress + 1) }) { Text("+1") }; TextButton(onClick = { store.setGoalProgress(g.id, g.progress - 1) }) { Text("-1") } } } } }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Routines"); TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
+        item { SectionHeader("Routines") { TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
         items(routines, key = { it.id }) { r ->
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(r.name, fontWeight = FontWeight.SemiBold)
@@ -271,7 +260,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
                 }
             } }
         }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
+        item { SectionHeader("Notes") { Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
         items(notes.sortedWith(compareByDescending<com.raunak.daytimeline.features.OfflineNote> { it.pinned }.thenByDescending { it.updatedAt }).take(8), key = { it.id }) { n ->
             var backlinksOpen by remember(n.id) { mutableStateOf(false) }
             Card { Column(Modifier.padding(14.dp)) {
@@ -293,7 +282,7 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
             if (backlinksOpen) NoteBacklinksDialog(n, store) { backlinksOpen = false }
             }
         }
-        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Reflection"); Row { TextButton(onClick = { openDialog("journalHistory") }) { Text("History") }; TextButton(onClick = { openDialog("journal") }) { Text("Write") } } } }
+        item { SectionHeader("Reflection") { Row { TextButton(onClick = { openDialog("journalHistory") }) { Text("History") }; TextButton(onClick = { openDialog("journal") }) { Text("Write") } } } }
         item { if (journal.isEmpty()) EmptyCard("No journal yet", "Capture mood, energy, wins, blockers and gratitude.") else Card { Column(Modifier.padding(14.dp)) { val j = journal.first(); Text(j.date, fontWeight = FontWeight.Bold); Text("Mood ${j.mood}/5 · Energy ${j.energy}/5", color = HomeSage); if (j.wins.isNotBlank()) Text("Wins: ${j.wins}"); if (j.blockers.isNotBlank()) Text("Blockers: ${j.blockers}") } } }
         item { SectionTitle("Tracked time"); Text("${entries.size} local time entries · ${tracked} minutes today", color = HomeMuted) }
     }
@@ -309,14 +298,6 @@ private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text("New block") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(title, { title = it }, label = { Text("Task") }); Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(start, { start = it }, label = { Text("Start") }, modifier = Modifier.weight(1f)); OutlinedTextField(end, { end = it }, label = { Text("End") }, modifier = Modifier.weight(1f)) }; OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }) } }, confirmButton = { Button(onClick = { if (title.isNotBlank()) { val s = parseClock(start); vm.addOrUpdateTask(null, title, s, parseClock(end).coerceAtLeast(s + 5), true, notes, 1, "NONE", "NONE", 10); close() } }) { Text("Add") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
-@Composable private fun HabitDialog(onSave: (String, Int, String, Set<Int>) -> Unit, close: () -> Unit, initialName: String = "", initialTarget: Int = 7, initialTime: String = "", initialDays: Set<Int> = (1..7).toSet()) {
-    var name by remember { mutableStateOf(initialName) }
-    var target by remember { mutableStateOf(initialTarget.toString()) }
-    var time by remember { mutableStateOf(initialTime) }; var days by remember { mutableStateOf(initialDays) }
-    AlertDialog(onDismissRequest = close, title = { Text(if (initialName.isBlank()) "New habit" else "Edit habit") }, text = {
-        Column { OutlinedTextField(name, { name = it }, label = { Text("Habit") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Days/week") }); OutlinedTextField(time, { time = it }, label = { Text("Preferred time HH:mm (optional)") }); Text("Active days"); Row { (1..7).forEach { day -> FilterChip(selected = day in days, onClick = { days = if (day in days) days - day else days + day }, label = { Text(day.toString()) }) } } }
-    }, confirmButton = { Button(onClick = { onSave(name, target.toIntOrNull() ?: 7, time, days) }) { Text(if (initialName.isBlank()) "Create" else "Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
-}
 @Composable private fun GoalDialog(onSave: (String, Int, LocalDate?) -> Unit, close: () -> Unit) { var title by remember { mutableStateOf("") }; var target by remember { mutableStateOf("100") }; var deadline by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = close, title = { Text("New goal") }, text = { Column { OutlinedTextField(title, { title = it }, label = { Text("Goal") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }); OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD (optional)") }) } }, confirmButton = { Button(onClick = { onSave(title, target.toIntOrNull() ?: 100, runCatching { LocalDate.parse(deadline) }.getOrNull()) }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 @Composable private fun JournalDialog(onSave: (Int, Int, String, String, String, String) -> Unit, close: () -> Unit) { var mood by remember { mutableIntStateOf(3) }; var energy by remember { mutableIntStateOf(3) }; var wins by remember { mutableStateOf("") }; var blockers by remember { mutableStateOf("") }; var gratitude by remember { mutableStateOf("") }; var note by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = close, title = { Text("Daily reflection") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Mood $mood/5"); Row { (1..5).forEach { TextButton(onClick = { mood = it }) { Text(it.toString()) } } }; Text("Energy $energy/5"); Row { (1..5).forEach { TextButton(onClick = { energy = it }) { Text(it.toString()) } } }; OutlinedTextField(wins, { wins = it }, label = { Text("Wins") }); OutlinedTextField(blockers, { blockers = it }, label = { Text("Blockers") }); OutlinedTextField(gratitude, { gratitude = it }, label = { Text("Gratitude") }); OutlinedTextField(note, { note = it }, label = { Text("Notes") }) } }, confirmButton = { Button(onClick = { onSave(mood, energy, wins, blockers, gratitude, note) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 

@@ -93,6 +93,10 @@ class PlannerViewModel(
         repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = safeStart, endMinute = (safeStart + duration).coerceAtMost(24 * 60), category = task.category, colorHex = task.colorHex, priority = task.priority, notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
     }
 
+    fun setPriority(task: TaskModel, priority: Int) = viewModelScope.launch {
+        repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = task.startMinute, endMinute = task.endMinute, category = task.category, colorHex = task.colorHex, priority = priority.coerceIn(0, 3), notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
+    }
+
     fun autoSchedule(dayStartMinute: Int, dayEndMinute: Int) = viewModelScope.launch {
         repository.autoSchedule(selectedDate.value, dayStartMinute, dayEndMinute)
     }
@@ -120,6 +124,10 @@ class PlannerViewModel(
     fun resumePomodoro() = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.resume(pomodoro.value)); focusService() }
     fun resetPomodoro() = viewModelScope.launch { garden?.onAbandon(pomodoro.value); repository.savePomodoro(PomodoroEngine.reset(pomodoro.value)); focusService(FocusSessionService.ACTION_STOP) }
     fun skipPomodoro() = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.skip(pomodoro.value)); focusService() }
+    /** Saves focus / break lengths and round size; a running phase keeps its current end time. */
+    fun configurePomodoro(focus: Int, shortBreak: Int, longBreak: Int, cycles: Int) = viewModelScope.launch {
+        repository.savePomodoro(pomodoro.value.copy(focusMinutes = focus.coerceIn(1, 180), shortBreakMinutes = shortBreak.coerceIn(1, 60), longBreakMinutes = longBreak.coerceIn(1, 90), cyclesPerRound = cycles.coerceIn(1, 12)))
+    }
     fun extendPomodoro(minutes: Int = 5) = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.extend(pomodoro.value, minutes)); focusService() }
 
     /** Keeps the timer, lock-screen countdown and focus sounds alive outside the app. */

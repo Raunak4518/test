@@ -168,6 +168,31 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 | Commitment lock: loosening protection needs a 5 min to 24 h wait | 🆕 |
 | Always-on VPN support, start on boot, blocked-today counter, recent block log, website tester | 🆕 |
 
+## Best-in-class upgrades (compared against the top Play Store apps)
+
+- **Habits (like Loop, Habitify, HabitNow):**
+  - Habit strength score that recovers gradually after a miss.
+  - Three frequencies: specific days, X times per week, every N days.
+  - Skip days (long-press) that never break a streak.
+  - Current and best streak, 30-day completion rate and total count.
+  - 7-day tap strip and a 16-week heatmap.
+  - Colours, a "why it matters" note, archive, and grouping into Morning, Afternoon, Evening and Anytime.
+- **Tasks (like TickTick):**
+  - Eisenhower priority matrix on the Today tab.
+  - Editable rules: what counts as urgent, what counts as important, and how far ahead to look.
+  - One-tap change of a task's importance.
+- **Focus (like Forest, Focus To-Do):**
+  - Progress ring with a plant that grows as you focus, and dots showing progress through the round.
+  - Presets, plus editable focus, break and long-break lengths and round size.
+  - Link a session to a task.
+  - Today, streak and level stats, and a weekly focus chart.
+- **Attendance (like BunkMate, BunkWise):**
+  - "Only mark bunks" mode, where unmarked classes count as attended.
+  - A "What if…" calculator: attend X, skip Y, see the resulting % and how many classes it takes to recover.
+- **Wake-up (like Alarmy):**
+  - The alarm screen shows a daily quote from an editable list.
+  - It also shows a morning briefing: first class, room, and deadlines due today.
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |
