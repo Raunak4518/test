@@ -21,6 +21,7 @@ import java.time.temporal.ChronoUnit
 class OfflineProductivityStore(context: Context) {
     private val prefs = context.getSharedPreferences("offline_productivity_v2", Context.MODE_PRIVATE)
     private val gson = GsonBuilder().setPrettyPrinting().create()
+    private val habitScheduler = HabitReminderScheduler(context.applicationContext)
 
     private val _habits = MutableStateFlow(read("habits", emptyList<OfflineHabit>()))
     val habits: StateFlow<List<OfflineHabit>> = _habits.asStateFlow()
@@ -45,10 +46,10 @@ class OfflineProductivityStore(context: Context) {
 
     fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "") {
         if (name.isBlank()) return
-        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, emptySet()) }
+        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
     }
 
-    fun deleteHabit(id: Long) = update(_habits, "habits") { it.filterNot { h -> h.id == id } }
+    fun deleteHabit(id: Long) { habitScheduler.cancel(id); update(_habits, "habits") { it.filterNot { h -> h.id == id } } }
 
     fun toggleHabit(id: Long, date: LocalDate = LocalDate.now()) = update(_habits, "habits") { list ->
         list.map { h ->
@@ -242,6 +243,8 @@ class OfflineProductivityStore(context: Context) {
         _settings.value = settings
         _notes.value = notes
     }
+
+    fun rescheduleHabitReminders() { _habits.value.forEach(habitScheduler::schedule) }
 
     fun resetAll() {
         prefs.edit().clear().apply()
