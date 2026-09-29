@@ -200,4 +200,15 @@ private fun TaskSheet(t: TaskModel, vm: PlannerViewModel, close: () -> Unit) {
         }
     }
 }
-private fun tm(m:Int)="%02d:%02d".format((m/60).coerceIn(0,23),m%60);private fun pm(s:String):Int{val p=s.trim().split(":");return((p.getOrNull(0)?.toIntOrNull()?:0)*60+(p.getOrNull(1)?.toIntOrNull()?:0)).coerceIn(0,1439)}
+private fun tm(minutes: Int): String {
+    val hour = (minutes / 60).coerceIn(0, 23)
+    val minute = (minutes % 60).coerceIn(0, 59)
+    return "%02d:%02d".format(hour, minute)
+}
+
+private fun pm(value: String): Int {
+    val parts = value.trim().split(":")
+    val hour = parts.getOrNull(0)?.toIntOrNull() ?: 0
+    val minute = parts.getOrNull(1)?.toIntOrNull() ?: 0
+    return (hour * 60 + minute).coerceIn(0, 1439)
+}
