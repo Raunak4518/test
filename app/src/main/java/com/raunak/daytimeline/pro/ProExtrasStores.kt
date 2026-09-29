@@ -11,16 +11,31 @@ import java.time.LocalDate
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 
-/** Stores completed and abandoned focus sessions that grow the Focus Garden. */
+/** Stores completed and abandoned focus sessions that grow the Focus Garden and feed the focus reports. */
 class GardenStore(context: Context) {
-    private val prefs = context.applicationContext.getSharedPreferences("chronora_garden", Context.MODE_PRIVATE)
+    private val app = context.applicationContext
+    private val prefs = app.getSharedPreferences("chronora_garden", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     fun sessions(): List<GardenSession> = try {
         prefs.getString("sessions", null)?.let { gson.fromJson<List<GardenSession>>(it, object : TypeToken<List<GardenSession>>() {}.type) } ?: emptyList()
     } catch (_: Exception) { emptyList() }
 
-    private fun add(session: GardenSession) { prefs.edit().putString("sessions", gson.toJson(sessions() + session)).apply() }
+    private fun save(list: List<GardenSession>) { prefs.edit().putString("sessions", gson.toJson(list.takeLast(5000))).apply() }
+
+    fun add(session: GardenSession) = save(sessions() + session)
+
+    /** Replaces the session with the same start time (used for ratings and edits). */
+    fun update(session: GardenSession) = save(sessions().map { if (it.startedAt == session.startedAt && it.startedAt != 0L) session else it })
+
+    fun delete(session: GardenSession) = save(sessions().filterNot { it == session })
+
+    /** A finished session with the current tag, intention and interruption count, which are then cleared. */
+    private fun record(minutes: Int, completed: Boolean, taskId: Long?, startedAt: Long, flow: Boolean) {
+        val p = FocusPrefs(app)
+        add(GardenSession(LocalDate.now().toString(), minutes, completed, taskId, startedAt, p.tag.ifBlank { null }, p.intention.ifBlank { null }, p.interruptions().count { it >= startedAt }, flow = flow))
+        p.clearInterruptions()
+    }
 
     /**
      * Called by every Pomodoro ticker (view model and foreground service). The finished focus phase's
@@ -32,15 +47,27 @@ class GardenStore(context: Context) {
         val key = before.targetEpochMillis
         if (prefs.getLong("last_key", 0) == key) return
         prefs.edit().putLong("last_key", key).apply()
-        add(GardenSession(LocalDate.now().toString(), before.focusMinutes, true, before.taskId))
+        record(before.focusMinutes, true, before.taskId, key - before.focusMinutes * 60_000L, false)
+    }
+
+    /** A Flowtime session ended; shorter than the minimum it counts as withered. */
+    @Synchronized
+    fun onFlowStopped(state: PomodoroStateEntity, minutes: Int, minMinutes: Int) {
+        if (minutes < 1) { FocusPrefs(app).clearInterruptions(); return }
+        record(minutes, minutes >= minMinutes, state.taskId, state.targetEpochMillis, true)
     }
 
     /** A focus phase reset after at least a minute withers a plant. */
     fun onAbandon(state: PomodoroStateEntity, now: Long = System.currentTimeMillis()) {
-        if (state.phase != "FOCUS") return
+        if (state.phase == com.raunak.daytimeline.domain.PomodoroEngine.FLOW) {
+            val m = (com.raunak.daytimeline.domain.PomodoroEngine.flowElapsed(state, now) / 60).toInt()
+            onFlowStopped(state, m, FocusPrefs(app).config.flowMinMinutes)
+            return
+        }
+        if (state.phase != "FOCUS" || state.targetEpochMillis == 0L && !state.running && state.remainingSeconds >= state.focusMinutes * 60L) return
         val remaining = if (state.running) (state.targetEpochMillis - now) / 1000 else state.remainingSeconds
         val focused = ((state.focusMinutes * 60L - remaining) / 60).toInt()
-        if (focused >= 1) add(GardenSession(LocalDate.now().toString(), focused, false, state.taskId))
+        if (focused >= 1) record(focused, false, state.taskId, now - focused * 60_000L, false)
     }
 }
 

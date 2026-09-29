@@ -25,6 +25,7 @@ class PlannerViewModel(
     private val appContext: Context? = null
 ) : ViewModel() {
     private val garden = appContext?.let { GardenStore(it) }
+    private val focusPrefs = appContext?.let { com.raunak.daytimeline.pro.FocusPrefs(it) }
     private val selectedDate = MutableStateFlow(LocalDate.now())
     private val now = MutableStateFlow(System.currentTimeMillis())
 
@@ -44,7 +45,8 @@ class PlannerViewModel(
         viewModelScope.launch {
             while (true) {
                 now.value = System.currentTimeMillis()
-                val ticked = PomodoroEngine.tick(pomodoro.value, now.value)
+                val cfg = focusPrefs?.config
+                val ticked = PomodoroEngine.tick(pomodoro.value, now.value, cfg?.autoStartBreaks ?: true, cfg?.autoStartFocus ?: true)
                 if (ticked != pomodoro.value) {
                     garden?.onTransition(pomodoro.value, ticked)
                     repository.savePomodoro(ticked)
@@ -124,11 +126,33 @@ class PlannerViewModel(
         settingsStore.update(update)
     }
 
-    fun startPomodoro(taskId: Long?) = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.start(taskId, pomodoro.value)); focusService() }
+    /** Starts a focus session in the chosen mode (Pomodoro countdown or Flow count-up). */
+    fun startPomodoro(taskId: Long?) = viewModelScope.launch {
+        focusPrefs?.clearInterruptions()
+        val flow = focusPrefs?.config?.flow == true
+        repository.savePomodoro(if (flow) PomodoroEngine.startFlow(taskId, pomodoro.value) else PomodoroEngine.start(taskId, pomodoro.value))
+        focusService()
+    }
+
+    /** Ends a Flow session and starts the break it earned. */
+    fun stopFlow() = viewModelScope.launch {
+        val cfg = focusPrefs?.config ?: com.raunak.daytimeline.pro.FocusConfig()
+        val (next, minutes) = PomodoroEngine.stopFlow(pomodoro.value, System.currentTimeMillis(), cfg.flowBreakDivisor, cfg.autoStartBreaks)
+        garden?.onFlowStopped(pomodoro.value, minutes, cfg.flowMinMinutes)
+        repository.savePomodoro(next)
+        focusService()
+    }
+
+    /** Engross-style "I got distracted" tap during focus. */
+    fun logDistraction() { focusPrefs?.addInterruption() }
     fun pausePomodoro() = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.pause(pomodoro.value)); focusService() }
     fun resumePomodoro() = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.resume(pomodoro.value)); focusService() }
     fun resetPomodoro() = viewModelScope.launch { garden?.onAbandon(pomodoro.value); repository.savePomodoro(PomodoroEngine.reset(pomodoro.value)); focusService(FocusSessionService.ACTION_STOP) }
-    fun skipPomodoro() = viewModelScope.launch { repository.savePomodoro(PomodoroEngine.skip(pomodoro.value)); focusService() }
+    fun skipPomodoro() = viewModelScope.launch {
+        if (pomodoro.value.phase == PomodoroEngine.FLOW) { stopFlow(); return@launch }
+        val cfg = focusPrefs?.config
+        repository.savePomodoro(PomodoroEngine.skip(pomodoro.value, System.currentTimeMillis(), cfg?.autoStartBreaks ?: true, cfg?.autoStartFocus ?: true)); focusService()
+    }
     /** Saves focus / break lengths and round size; a running phase keeps its current end time. */
     fun configurePomodoro(focus: Int, shortBreak: Int, longBreak: Int, cycles: Int) = viewModelScope.launch {
         repository.savePomodoro(pomodoro.value.copy(focusMinutes = focus.coerceIn(1, 180), shortBreakMinutes = shortBreak.coerceIn(1, 60), longBreakMinutes = longBreak.coerceIn(1, 90), cyclesPerRound = cycles.coerceIn(1, 12)))

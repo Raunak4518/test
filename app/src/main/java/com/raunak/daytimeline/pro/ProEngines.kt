@@ -114,7 +114,21 @@ object UniversalSearch {
 
 // ---------------------------------------------------------------- Focus garden (gamification)
 
-data class GardenSession(val date: String, val minutes: Int, val completed: Boolean, val taskId: Long? = null)
+data class GardenSession(
+    val date: String,
+    val minutes: Int,
+    val completed: Boolean,
+    val taskId: Long? = null,
+    /** When the session started (epoch ms); 0 for sessions saved by older versions. */
+    val startedAt: Long = 0,
+    val tag: String? = null,
+    val intention: String? = null,
+    val interruptions: Int = 0,
+    /** 1–5 self-rating after the session (0 = not rated). */
+    val rating: Int = 0,
+    val note: String? = null,
+    val flow: Boolean = false
+)
 
 enum class Plant(val label: String, val emoji: String, val minMinutes: Int) {
     SPROUT("Sprout", "🌱", 0), BUSH("Bush", "🌿", 20), TREE("Tree", "🌳", 25), PINE("Pine", "🌲", 45), PALM("Palm", "🌴", 60), BLOSSOM("Blossom", "🌸", 90)

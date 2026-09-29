@@ -6,6 +6,9 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollToIndex
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
@@ -54,6 +57,15 @@ class HomeScreenshotTest {
         (0L..12L).forEach { store.saveJournal(OfflineJournalEntry(today.minusDays(it).toString(), listOf(4, 3, 5, 2, 4)[(it % 5).toInt()], 3, "", "", "", "", activities = listOf("Study", "Gym", "Friends").take((it % 3 + 1).toInt()))) }
         val proj = OfflineProject(0, "Placements", 0xFF5A6CF3, emptyList(), null); store.saveProject(proj)
         store.startTimer("Graphs revision", store.projects.value.firstOrNull()?.id, setOf("dsa"))
+        val garden = com.raunak.daytimeline.pro.GardenStore(ApplicationProvider.getApplicationContext())
+        val zone = java.time.ZoneId.systemDefault()
+        (0L..20L).forEach { d ->
+            val day = today.minusDays(d)
+            listOf(9 to 50, 14 to 25, 21 to 45).take((d % 3 + 1).toInt()).forEachIndexed { i, (h, m) ->
+                garden.add(com.raunak.daytimeline.pro.GardenSession(day.toString(), m, !(d == 3L && i == 1), null, day.atTime(h, 10).atZone(zone).toInstant().toEpochMilli(),
+                    listOf("DSA", "Study", "Reading")[i], interruptions = (d % 3).toInt(), rating = (3 + i).coerceAtMost(5)))
+            }
+        }
         var activity: MainActivity? = null
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity = it }
@@ -66,6 +78,8 @@ class HomeScreenshotTest {
         }
         compose.onAllNodesWithText("Focus")[0].performClick(); save("home-focus")
         assertThat(compose.onAllNodesWithText("Start focus").fetchSemanticsNodes()).isNotEmpty()
+        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Reports")); save("home-focus-reports")
+        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToIndex(0)
         compose.onAllNodes(hasText("Today") and hasClickAction())[0].performClick()
         save("home-day")
         compose.onAllNodesWithText("Upcoming")[0].performClick(); save("home-upcoming")

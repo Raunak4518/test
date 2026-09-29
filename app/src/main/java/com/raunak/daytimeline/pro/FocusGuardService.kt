@@ -107,9 +107,15 @@ class FocusGuardService : AccessibilityService() {
         val nowMillis = System.currentTimeMillis()
         val now = LocalDateTime.now()
         val config = store.config
-        val focusBlocking = FocusSoundPrefs(this).blockDuringFocus && PomodoroFocusFlag.isFocusRunning(this, nowMillis)
+        val pomodoroRunning = PomodoroFocusFlag.isFocusRunning(this, nowMillis)
+        val focusBlocking = FocusSoundPrefs(this).blockDuringFocus && pomodoroRunning
+        val focusCfg = FocusPrefs(this).config
+        // Deep focus: during a focus session only the allowlist (plus phone, launcher, Chronora) may open.
+        val deepFocus = focusCfg.strict && pomodoroRunning
         // Daily app timers are handled below so weekend limits can differ from weekdays.
-        val effective = config.copy(dailyLimits = emptyMap()).let { if (focusBlocking && !FocusGuardEngine.sessionActive(it, nowMillis)) it.copy(sessionUntil = nowMillis + 1) else it }
+        val effective = config.copy(dailyLimits = emptyMap())
+            .let { if ((focusBlocking || deepFocus) && !FocusGuardEngine.sessionActive(it, nowMillis)) it.copy(sessionUntil = nowMillis + 1) else it }
+            .let { if (deepFocus) it.copy(allowlistMode = true, allowedPackages = it.allowedPackages + focusCfg.strictAllowed, lockedMode = true) else it }
         val decision = FocusGuardEngine.decide(effective, store.runtime, pkg, now, nowMillis, extraAllowed = launchers + inputMethods())
         when (decision) {
             is GuardDecision.Block -> {

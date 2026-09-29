@@ -102,13 +102,13 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                 }
             },
             floatingActionButton = {
-                if (tab == 0 || tab == 1) FloatingActionButton(onClick = { addTask = true }) { Icon(Icons.Default.Add, "Add task") }
+                if (tab == 0) FloatingActionButton(onClick = { addTask = true }) { Icon(Icons.Default.Add, "Add task") }
             }
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (tab) {
                     0 -> TodayScreen(tasks, agenda, date, vm, settings.showCompleted, productivity) { editTask = it }
-                    1 -> com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, vm)
+                    1 -> com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, allTasks, vm)
                     2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
                     3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
                 }

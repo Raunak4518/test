@@ -37,23 +37,33 @@ class FocusWidget : AppWidgetProvider() {
                 val habits = runCatching { OfflineProductivityStore(app).habits.value }.getOrDefault(emptyList())
                 val today = LocalDate.now().toString()
                 val views = RemoteViews(app.packageName, R.layout.widget_focus)
+                val flow = state.phase == com.raunak.daytimeline.domain.PomodoroEngine.FLOW
+                val waiting = com.raunak.daytimeline.domain.PomodoroEngine.waiting(state)
                 val phase = when (state.phase) {
+                    com.raunak.daytimeline.domain.PomodoroEngine.FLOW -> "Flow focus"
                     "FOCUS" -> "Focus ${state.cycleIndex}/${state.cyclesPerRound}"
                     "SHORT_BREAK" -> "Short break"
                     "LONG_BREAK" -> "Long break"
                     else -> "Ready to focus"
                 }
-                views.setTextViewText(R.id.focus_phase, phase + if (state.phase != "IDLE" && !state.running) " · paused" else "")
+                views.setTextViewText(R.id.focus_phase, phase + if (waiting) " · ready" else if (state.phase != "IDLE" && !state.running) " · paused" else "")
                 val remainingMs = when {
                     state.phase == "IDLE" -> state.focusMinutes * 60_000L
                     state.running -> (state.targetEpochMillis - System.currentTimeMillis()).coerceAtLeast(0)
                     else -> state.remainingSeconds * 1000
                 }
-                views.setChronometer(R.id.focus_timer, SystemClock.elapsedRealtime() + remainingMs, null, state.running && state.phase != "IDLE")
-                views.setChronometerCountDown(R.id.focus_timer, true)
+                if (flow) {
+                    val elapsed = com.raunak.daytimeline.domain.PomodoroEngine.flowElapsed(state) * 1000
+                    views.setChronometer(R.id.focus_timer, SystemClock.elapsedRealtime() - elapsed, null, state.running)
+                    views.setChronometerCountDown(R.id.focus_timer, false)
+                } else {
+                    views.setChronometer(R.id.focus_timer, SystemClock.elapsedRealtime() + remainingMs, null, state.running && state.phase != "IDLE")
+                    views.setChronometerCountDown(R.id.focus_timer, true)
+                }
                 val habitsDone = habits.count { today in it.completedDates }
-                views.setTextViewText(R.id.focus_meta, "Garden lvl ${garden.level} · ${garden.todayMinutes}m today · habits $habitsDone/${habits.size}")
-                views.setTextViewText(R.id.focus_toggle, if (state.running) "Pause" else if (state.phase == "IDLE") "Start" else "Resume")
+                val goal = FocusPrefs(app).config.dailyGoalMinutes
+                views.setTextViewText(R.id.focus_meta, "${garden.todayMinutes}/${goal}m today · 🔥${garden.focusDayStreak} · habits $habitsDone/${habits.size}")
+                views.setTextViewText(R.id.focus_toggle, if (state.running) "Pause" else if (state.phase == "IDLE" || waiting) "Start" else "Resume")
                 views.setOnClickPendingIntent(
                     R.id.focus_toggle,
                     PendingIntent.getForegroundService(app, 41, Intent(app, FocusSessionService::class.java).setAction(FocusSessionService.ACTION_TOGGLE), PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
