@@ -246,6 +246,19 @@ private fun InsightsWorkspace(tasks: List<TaskModel>, habits: List<OfflineHabit>
         item { MetricCard("Habits", snap.habitCompletions.toString(), snap.streak.toString() + " day max streak") }
         item { MetricCard("Goals", snap.activeGoals.toString(), "active") }
         item { Text("Weekly review: " + weekly.days + " days · " + weekly.averageScore + "/5 average · " + weekly.wins + " win days") }
+        item {
+            Text("7-day completion trend", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            (0L..6L).toList().reversed().forEach { offset ->
+                val day = LocalDate.now().minusDays(offset)
+                val dayTasks = tasks.filter { it.date == day }
+                val pct = if (dayTasks.isEmpty()) 0f else dayTasks.count { it.completed }.toFloat() / dayTasks.size
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(day.dayOfWeek.name.take(3), Modifier.width(40.dp))
+                    LinearProgressIndicator(progress = { pct }, Modifier.weight(1f).height(8.dp))
+                    Text((pct * 100).roundToInt().toString() + "%", Modifier.width(44.dp))
+                }
+            }
+        }
         item { Text("Workload balancing is computed from duration, priority and overdue work. Use the smart planner for an actionable block suggestion.") }
     }
 }
