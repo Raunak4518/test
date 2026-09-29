@@ -47,6 +47,7 @@ class PlannerViewModel(
     fun onPrevDay() { selectedDate.value = selectedDate.value.minusDays(1) }
     fun onNextDay() { selectedDate.value = selectedDate.value.plusDays(1) }
     fun onToday() { selectedDate.value = LocalDate.now() }
+    fun selectDate(date: LocalDate) { selectedDate.value = date }
 
     fun addOrUpdateTask(id: Long?, title: String, start: Int, end: Int, pomodoroEnabled: Boolean, notes: String, priority: Int, recurrenceType: String, reminderMode: String, reminderOffsetMinutes: Int) {
         viewModelScope.launch {
