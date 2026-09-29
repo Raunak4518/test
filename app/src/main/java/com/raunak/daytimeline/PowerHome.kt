@@ -39,6 +39,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     val app = remember(context) { AppContainer(context.applicationContext) }
     val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
     val tasks by vm.tasks.collectAsStateWithLifecycle()
+    val allTasks by vm.allTasks.collectAsStateWithLifecycle()
     val date by vm.currentDate.collectAsStateWithLifecycle()
     val pomo by vm.pomodoro.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -92,7 +93,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     if (addTask) TaskEditorDialog(vm, null) { addTask = false }
     if (editTask != null) TaskEditorDialog(vm, editTask) { editTask = null }
     if (calendarOpen) CalendarDialog(date, vm) { calendarOpen = false }
-    if (searchOpen) TaskSearchDialog(tasks, vm) { searchOpen = false }
+    if (searchOpen) TaskSearchDialog(allTasks, vm) { searchOpen = false }
     when (dialog) {
         "habit" -> HabitDialog({ name, target, time -> productivity.addHabit(name, target, time); dialog = null }, { dialog = null })
         "goal" -> GoalDialog({ title, target, deadline -> productivity.addGoal(title, target, deadline); dialog = null }, { dialog = null })
