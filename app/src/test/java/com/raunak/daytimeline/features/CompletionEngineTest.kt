@@ -43,7 +43,7 @@ class CompletionEngineTest {
     }
 
     @Test fun workloadIsBounded() {
-        val tasks = (1..20).map { task(it, start = 60, end = 180, done = false) }
+        val tasks = (1..20).map { task(it.toLong(), start = 60, end = 180, done = false) }
         assertThat(WorkloadEngine.score(tasks, LocalDate.of(2026, 9, 29))).isAtMost(100)
     }
 
