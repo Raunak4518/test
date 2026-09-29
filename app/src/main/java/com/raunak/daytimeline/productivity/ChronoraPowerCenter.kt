@@ -158,11 +158,15 @@ private fun PlanningCenter(tasks: List<TaskModel>) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
     var menu by remember { mutableStateOf(false) }
+    var templateOpen by remember { mutableStateOf(false) }
+    var dependencyTask by remember { mutableStateOf<TaskModel?>(null) }
+    val planning = remember(context) { ChronoraPlanningStore(context) }
     val filtered = tasks.filter { task -> query.isBlank() || listOf(task.title, task.notes, task.tags, task.category).any { it.contains(query, true) } }
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth(), label = { Text("Search tasks, notes, tags and categories") }, leadingIcon = { Icon(Icons.Default.Search, null) })
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(vertical = 8.dp)) {
             Button({ menu = true }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(4.dp)); Text("Export") }
+            OutlinedButton({ templateOpen = true }) { Icon(Icons.Default.ContentCopy, null); Spacer(Modifier.width(4.dp)); Text("Templates") }
             OutlinedButton({ context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Icon(Icons.Default.Block, null); Spacer(Modifier.width(4.dp)); Text("Focus access") }
         }
         DropdownMenu(menu, { menu = false }) {
@@ -176,7 +180,7 @@ private fun PlanningCenter(tasks: List<TaskModel>) {
                 ListItem(
                     headlineContent = { Text(task.title) },
                     supportingContent = { Text(task.date.toString() + " · " + task.tags) },
-                    trailingContent = { Icon(if (task.completed) Icons.Default.Check else Icons.Default.RadioButtonUnchecked, null) }
+                    trailingContent = { Row(verticalAlignment = Alignment.CenterVertically) { IconButton({ dependencyTask = task }) { Icon(Icons.Default.Link, "Dependencies") }; Icon(if (task.completed) Icons.Default.Check else Icons.Default.RadioButtonUnchecked, null) } }
                 )
             }
         }
