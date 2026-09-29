@@ -74,7 +74,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                         val next = AlarmSchedulePlanner.nextOccurrence(alarm, LocalDateTime.now())
                 if (next != Long.MAX_VALUE) {
                     val dt = java.time.Instant.ofEpochMilli(next).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
-                    Text("Next: " + String.format("%1\\$tb %1\\$td · %1\\$tH:%1\\$tM", dt))
+                    Text("Next: " + dt.format(java.time.format.DateTimeFormatter.ofPattern("dd MMM · HH:mm")))
                 } else {
                     Text("No future occurrence")
                 }
