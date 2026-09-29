@@ -1,0 +1,336 @@
+package com.raunak.daytimeline.campus
+
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.raunak.daytimeline.AppContainer
+import com.raunak.daytimeline.data.TaskEntity
+import com.raunak.daytimeline.pro.FocusGarden
+import com.raunak.daytimeline.pro.FocusGuardStore
+import com.raunak.daytimeline.pro.GardenStore
+import com.raunak.daytimeline.wellbeing.UsageRepository
+import com.raunak.daytimeline.wellbeing.WellbeingStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
+
+/** The student home: classes, attendance, study sheets, wake-up, library, exams, CGPA, placements. */
+@Composable
+fun CampusScreen(modifier: Modifier = Modifier) {
+    var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+    val tabs = listOf("Today", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline")
+    Column(modifier.fillMaxSize()) {
+        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
+            tabs.forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) }
+        }
+        when (tab) {
+            0 -> TodayTab { tab = it }
+            1 -> AttendanceTab()
+            2 -> TimetableTab()
+            3 -> SheetsTab()
+            4 -> DeadlinesTab()
+            5 -> WakeTab()
+            6 -> LibraryTab()
+            7 -> CgpaTab()
+            8 -> PlacementTab()
+            9 -> DisciplineGate()
+        }
+    }
+}
+
+// ------------------------------------------------------------------ shared UI
+
+@Composable
+internal fun SectionCard(title: String, subtitle: String? = null, action: (@Composable () -> Unit)? = null, content: @Composable ColumnScope.() -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodySmall)
+                }
+                action?.invoke()
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+internal fun Stat(label: String, value: String, modifier: Modifier = Modifier, color: Color = MaterialTheme.colorScheme.onSurface) {
+    Column(modifier) {
+        Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = color)
+        Text(label, style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable
+internal fun SwitchRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        Switch(checked, onChange)
+    }
+}
+
+@Composable
+internal fun Stepper(label: String, value: String, onMinus: () -> Unit, onPlus: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = onMinus) { Text("−") }
+        Text(value, Modifier.widthIn(min = 52.dp), style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = onPlus) { Text("+") }
+    }
+}
+
+internal fun parseClock(text: String): Int? {
+    val t = text.trim().lowercase().replace(".", ":")
+    val m = Regex("""^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$""").find(t) ?: return null
+    var h = m.groupValues[1].toInt()
+    val min = m.groupValues[2].toIntOrNull() ?: 0
+    if (m.groupValues[3] == "pm" && h in 1..11) h += 12
+    if (m.groupValues[3] == "am" && h == 12) h = 0
+    if (h !in 0..23 || min !in 0..59) return null
+    return h * 60 + min
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun DateButton(label: String, date: LocalDate, onPick: (LocalDate) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    OutlinedButton(onClick = { open = true }) { Text("$label ${date.format(DateTimeFormatter.ofPattern("EEE d MMM"))}") }
+    if (open) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = date.toEpochDay() * 86_400_000L)
+        DatePickerDialog(
+            onDismissRequest = { open = false },
+            confirmButton = { TextButton(onClick = { state.selectedDateMillis?.let { onPick(LocalDate.ofEpochDay(it / 86_400_000L)) }; open = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { open = false }) { Text("Cancel") } }
+        ) { DatePicker(state) }
+    }
+}
+
+internal fun openUrl(context: android.content.Context, url: String) {
+    if (url.isBlank()) return
+    runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
+internal fun percentColor(p: Double, required: Int): Color = when {
+    p >= required + 5 -> Color(0xFF2E7D32)
+    p >= required -> Color(0xFFB7791F)
+    else -> Color(0xFFC62828)
+}
+
+// ------------------------------------------------------------------ Today
+
+@Composable
+private fun TodayTab(goTo: (Int) -> Unit) {
+    val context = LocalContext.current
+    val store = remember { CampusStore.get(context) }
+    val data by store.data.collectAsStateWithLifecycle()
+    val sheets by store.sheets.collectAsStateWithLifecycle()
+    val discipline by DisciplineStore.get(context).state.collectAsStateWithLifecycle()
+    var now by remember { mutableStateOf(LocalDateTime.now()) }
+    var screenMinutes by remember { mutableStateOf<Int?>(null) }
+    var planned by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(Unit) { CampusScheduler.rescheduleAll(context); while (true) { now = LocalDateTime.now(); delay(30_000) } }
+    LaunchedEffect(Unit) { screenMinutes = withContext(Dispatchers.IO) { runCatching { if (com.raunak.daytimeline.pro.UsageAccess.granted(context)) UsageRepository.todayTotals(context).second else null }.getOrNull() } }
+
+    val today = now.toLocalDate()
+    val minute = now.hour * 60 + now.minute
+    val classes = AttendanceEngine.occurrences(data, today)
+    val subjectOf = data.subjects.associateBy { it.id }
+    val gardenMinutes = remember(now) { FocusGarden.summarize(GardenStore(context).sessions(), today).todayMinutes }
+    val libraryMinutes = LibraryPlanner.minutesIn(data.librarySessions, today)
+    val dsaSheets = sheets.filter { it.kind == SheetKind.DSA }
+    val solvedToday = SheetEngine.doneOn(sheets, today)
+    val target = dsaSheets.sumOf { it.dailyTarget }.coerceAtLeast(if (sheets.isEmpty()) 0 else 2)
+    val wakeLog = data.wakeLogs.lastOrNull { it.date == today.toString() }
+    val parts = DailyScore.compute(
+        wakeOnTime = wakeLog?.dismissedAt?.let { it <= wakeLog.target + 10 * 60_000L },
+        classesAttended = classes.count { data.marks[it.key]?.attended == true },
+        classesTotal = classes.count { data.marks[it.key]?.counts != false && it.end <= minute },
+        studyMinutes = maxOf(gardenMinutes, libraryMinutes),
+        studyGoal = data.studyGoalMinutes,
+        problemsSolved = solvedToday,
+        problemTarget = target,
+        screenMinutes = screenMinutes,
+        screenGoal = WellbeingStore(context).config.screenTimeGoalMinutes,
+        disciplineKept = DisciplineEngine.keptToday(discipline, today)
+    )
+    val score = DailyScore.total(parts)
+
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (data.subjects.isEmpty()) item {
+            SectionCard("Set up your semester", "Add your weekly timetable once — attendance, alarms, reminders and library plans follow from it.") {
+                Button(onClick = { goTo(2) }) { Text("Add timetable") }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF17221E)), shape = RoundedCornerShape(24.dp)) {
+                Column(Modifier.padding(18.dp).fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text("Today's score", color = Color(0xFFB9CCC2), style = MaterialTheme.typography.labelMedium)
+                            Text("$score / 100", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                        }
+                        Text(DailyScore.grade(score), color = Color(0xFFA8C7B7), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                    }
+                    parts.forEach { p ->
+                        Row { Text(p.label, color = Color(0xFFD5E0DA), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall); Text("${p.detail}  ${p.earned.toInt()}/${p.max}", color = Color.White, style = MaterialTheme.typography.bodySmall) }
+                    }
+                }
+            }
+        }
+        item {
+            val next = classes.firstOrNull { it.end > minute }
+            SectionCard(
+                if (classes.isEmpty()) "No classes today" else "Classes · ${classes.size}",
+                next?.let { o -> if (o.start > minute) "Next: ${subjectOf[o.subjectId]?.name} in ${hm(o.start - minute)}" + (o.room.takeIf { it.isNotBlank() }?.let { " · $it" } ?: "") else "Now: ${subjectOf[o.subjectId]?.name} until ${clock(o.end)}" }
+            ) {
+                classes.forEach { o ->
+                    val s = subjectOf[o.subjectId] ?: return@forEach
+                    ClassRow(o, s, data.marks[o.key], past = o.end <= minute) { m -> store.mark(o.key, m) }
+                }
+            }
+        }
+        val pending = AttendanceEngine.unmarked(data, today, minute).filter { it.date != today }
+        if (pending.isNotEmpty()) item {
+            SectionCard("Unmarked classes · ${pending.size}", "Mark them so your percentages stay right") {
+                pending.take(5).forEach { o -> subjectOf[o.subjectId]?.let { s -> ClassRow(o, s, null, past = true, showDate = true) { m -> store.mark(o.key, m) } } }
+                if (pending.size > 5) TextButton(onClick = { goTo(1) }) { Text("See all") }
+            }
+        }
+        item {
+            val windows = LibraryPlanner.freeWindows(data, today, fromMinute = minute)
+            SectionCard("Library", LibraryPlanner.status(data.library, now)) {
+                if (windows.isEmpty()) Text("No free library slots left today.", style = MaterialTheme.typography.bodySmall)
+                else Text("Free: " + windows.joinToString { "${clock(it.start)}–${clock(it.end)}" } + " · ${hm(windows.sumOf { it.minutes })}", style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(enabled = windows.isNotEmpty(), onClick = {
+                        val topics = studyTopics(data, sheets, today)
+                        val blocks = LibraryPlanner.planBlocks(windows, topics)
+                        scope.launch(Dispatchers.IO) {
+                            val repo = AppContainer(context).repository
+                            blocks.forEach { b -> repo.addTask(TaskEntity(title = "Library · ${b.title}", dateEpochDay = today.toEpochDay(), startMinute = b.start, endMinute = b.end, category = "Study", pomodoroEnabled = true, tags = "library,deep")) }
+                        }
+                        planned = "Added ${blocks.size} study blocks to today's timeline"
+                    }) { Text("Plan my library time") }
+                    OutlinedButton(onClick = { goTo(6) }) { Text("Check in") }
+                }
+                if (planned.isNotBlank()) Text(planned, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
+            }
+        }
+        item {
+            val review = SheetEngine.reviewQueue(sheets, today)
+            val nextItem = dsaSheets.firstNotNullOfOrNull { s -> SheetEngine.next(s)?.let { s to it } }
+            SectionCard("Practice", "$solvedToday/$target solved today · ${review.size} due for revision") {
+                LinearProgressIndicator(progress = { if (target == 0) 0f else (solvedToday.toFloat() / target).coerceAtMost(1f) }, modifier = Modifier.fillMaxWidth())
+                nextItem?.let { (s, item) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text("Next: ${item.title}", fontWeight = FontWeight.SemiBold); Text("${item.section} · ${item.difficulty?.label ?: ""}", style = MaterialTheme.typography.bodySmall) }
+                        if (item.url.isNotBlank()) TextButton(onClick = { openUrl(context, item.url) }) { Text("Open") }
+                        TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.setStatus(it, ItemStatus.SOLVED, today) } }) { Text("Solved") }
+                    }
+                }
+                if (sheets.isEmpty()) TextButton(onClick = { goTo(3) }) { Text("Add the DSA sheet") }
+            }
+        }
+        val upcoming = data.deadlines.filter { !it.done && (daysUntil(it.date, today) ?: 99) in 0..7 }.sortedBy { it.date + clock(it.minute) }
+        if (upcoming.isNotEmpty()) item {
+            SectionCard("Due this week") {
+                upcoming.forEach { d ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(false, { store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = true) else it }) } })
+                        Column(Modifier.weight(1f)) {
+                            Text(d.title, fontWeight = FontWeight.SemiBold)
+                            Text("${d.kind.label} · ${dueLabel(d, today)}" + (d.subjectId?.let { " · " + (subjectOf[it]?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            val plan = CampusScheduler.nextWake(data, now)
+            SectionCard("Wake-up", plan?.let { "Alarm ${if (it.at.toLocalDate() == today) "today" else it.at.dayOfWeek.name.lowercase().replaceFirstChar { c -> c.uppercase() }} ${it.at.toLocalTime().withSecond(0)} · ${it.label}" } ?: "No wake alarm set") {
+                val logs = data.wakeLogs.takeLast(14)
+                if (logs.isNotEmpty()) {
+                    val onTime = logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + 10 * 60_000L }
+                    Text("On time $onTime of the last ${logs.size} mornings", style = MaterialTheme.typography.bodySmall)
+                }
+                TextButton(onClick = { goTo(5) }) { Text("Wake-up settings & readiness") }
+            }
+        }
+        item {
+            SectionCard("Lock in", "Block distracting apps right now") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(60, 120, 180).forEach { m ->
+                        OutlinedButton(onClick = { FocusGuardStore(context).update { it.copy(sessionUntil = System.currentTimeMillis() + m * 60_000L) } }) { Text("${m / 60}h") }
+                    }
+                }
+                Text("Uses the blocked-apps list from Free Pro Suite → Focus Guard.", style = MaterialTheme.typography.bodySmall)
+            }
+        }
+    }
+}
+
+internal fun dueLabel(d: Deadline, today: LocalDate): String = when (val n = daysUntil(d.date, today)) {
+    null -> d.date
+    0L -> "today ${clock(d.minute)}"
+    1L -> "tomorrow ${clock(d.minute)}"
+    else -> if (n < 0) "overdue" else "in $n days"
+}
+
+/** Topics for library blocks: DSA first, then subjects with the nearest exams/deadlines, then revision. */
+internal fun studyTopics(data: CampusData, sheets: List<StudySheet>, today: LocalDate): List<String> {
+    val out = mutableListOf<String>()
+    if (sheets.any { it.kind == SheetKind.DSA }) out += "DSA practice"
+    data.deadlines.filter { !it.done && (daysUntil(it.date, today) ?: 99) in 0..10 }.sortedBy { it.date }.forEach { d ->
+        out += (d.subjectId?.let { id -> data.subjects.firstOrNull { it.id == id }?.name } ?: d.title) + " · ${d.kind.label}"
+    }
+    if (SheetEngine.reviewQueue(sheets, today).isNotEmpty()) out += "Revision queue"
+    sheets.filter { it.kind == SheetKind.SUBJECT }.forEach { out += it.name }
+    if (out.size < 2) out += data.subjects.map { "${it.name} revision" }
+    return out.distinct().ifEmpty { listOf("Deep work") }
+}
+
+@Composable
+internal fun ClassRow(o: ClassOccurrence, s: Subject, mark: Mark?, past: Boolean, showDate: Boolean = false, onMark: (Mark?) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Surface(color = Color(s.colorHex), shape = RoundedCornerShape(4.dp), modifier = Modifier.width(4.dp).height(36.dp)) {}
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.weight(1f)) {
+            Text(s.name + if (o.type != ClassType.LECTURE) " (${o.type.label})" else "", fontWeight = FontWeight.SemiBold)
+            Text(
+                listOfNotNull(if (showDate) o.date.format(DateTimeFormatter.ofPattern("EEE d MMM")) else null, "${clock(o.start)}–${clock(o.end)}", o.room.ifBlank { null }, o.source.takeIf { it != "Regular" }).joinToString(" · "),
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+        if (past || mark != null) {
+            listOf(Mark.PRESENT to "P", Mark.ABSENT to "A", Mark.NO_CLASS to "–").forEach { (m, short) ->
+                FilterChip(mark == m, { onMark(if (mark == m) null else m) }, label = { Text(short) }, modifier = Modifier.padding(start = 2.dp))
+            }
+        } else Text("upcoming", style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+internal fun nowMinute() = LocalTime.now().let { it.hour * 60 + it.minute }

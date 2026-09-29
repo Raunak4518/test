@@ -1,0 +1,211 @@
+# Arrays & Hashing
+Two Sum | two-sum | E
+Contains Duplicate | contains-duplicate | E
+Valid Anagram | valid-anagram | E
+Best Time to Buy and Sell Stock | best-time-to-buy-and-sell-stock | E
+Majority Element | majority-element | E
+Merge Sorted Array | merge-sorted-array | E
+Move Zeroes | move-zeroes | E
+Pascal's Triangle | pascals-triangle | E
+Group Anagrams | group-anagrams | M
+Top K Frequent Elements | top-k-frequent-elements | M
+Product of Array Except Self | product-of-array-except-self | M
+Longest Consecutive Sequence | longest-consecutive-sequence | M
+Valid Sudoku | valid-sudoku | M
+Sort Colors | sort-colors | M
+Next Permutation | next-permutation | M
+Maximum Subarray | maximum-subarray | M
+Subarray Sum Equals K | subarray-sum-equals-k | M
+Merge Intervals | merge-intervals | M
+Insert Interval | insert-interval | M
+Rotate Image | rotate-image | M
+Spiral Matrix | spiral-matrix | M
+Set Matrix Zeroes | set-matrix-zeroes | M
+Find the Duplicate Number | find-the-duplicate-number | M
+First Missing Positive | first-missing-positive | H
+# Two Pointers
+Valid Palindrome | valid-palindrome | E
+Remove Duplicates from Sorted Array | remove-duplicates-from-sorted-array | E
+Two Sum II - Input Array Is Sorted | two-sum-ii-input-array-is-sorted | M
+3Sum | 3sum | M
+4Sum | 4sum | M
+Container With Most Water | container-with-most-water | M
+Trapping Rain Water | trapping-rain-water | H
+# Sliding Window
+Longest Substring Without Repeating Characters | longest-substring-without-repeating-characters | M
+Longest Repeating Character Replacement | longest-repeating-character-replacement | M
+Permutation in String | permutation-in-string | M
+Minimum Size Subarray Sum | minimum-size-subarray-sum | M
+Max Consecutive Ones III | max-consecutive-ones-iii | M
+Fruit Into Baskets | fruit-into-baskets | M
+Minimum Window Substring | minimum-window-substring | H
+Sliding Window Maximum | sliding-window-maximum | H
+# Stack
+Valid Parentheses | valid-parentheses | E
+Next Greater Element I | next-greater-element-i | E
+Min Stack | min-stack | M
+Evaluate Reverse Polish Notation | evaluate-reverse-polish-notation | M
+Generate Parentheses | generate-parentheses | M
+Daily Temperatures | daily-temperatures | M
+Car Fleet | car-fleet | M
+Asteroid Collision | asteroid-collision | M
+Online Stock Span | online-stock-span | M
+Largest Rectangle in Histogram | largest-rectangle-in-histogram | H
+# Binary Search
+Binary Search | binary-search | E
+Search a 2D Matrix | search-a-2d-matrix | M
+Koko Eating Bananas | koko-eating-bananas | M
+Find Minimum in Rotated Sorted Array | find-minimum-in-rotated-sorted-array | M
+Search in Rotated Sorted Array | search-in-rotated-sorted-array | M
+Find First and Last Position of Element in Sorted Array | find-first-and-last-position-of-element-in-sorted-array | M
+Find Peak Element | find-peak-element | M
+Single Element in a Sorted Array | single-element-in-a-sorted-array | M
+Capacity To Ship Packages Within D Days | capacity-to-ship-packages-within-d-days | M
+Time Based Key-Value Store | time-based-key-value-store | M
+Split Array Largest Sum | split-array-largest-sum | H
+Median of Two Sorted Arrays | median-of-two-sorted-arrays | H
+# Linked List
+Reverse Linked List | reverse-linked-list | E
+Merge Two Sorted Lists | merge-two-sorted-lists | E
+Linked List Cycle | linked-list-cycle | E
+Middle of the Linked List | middle-of-the-linked-list | E
+Palindrome Linked List | palindrome-linked-list | E
+Intersection of Two Linked Lists | intersection-of-two-linked-lists | E
+Linked List Cycle II | linked-list-cycle-ii | M
+Reorder List | reorder-list | M
+Remove Nth Node From End of List | remove-nth-node-from-end-of-list | M
+Copy List with Random Pointer | copy-list-with-random-pointer | M
+Add Two Numbers | add-two-numbers | M
+Sort List | sort-list | M
+Rotate List | rotate-list | M
+LRU Cache | lru-cache | M
+Merge k Sorted Lists | merge-k-sorted-lists | H
+Reverse Nodes in k-Group | reverse-nodes-in-k-group | H
+# Trees
+Binary Tree Inorder Traversal | binary-tree-inorder-traversal | E
+Invert Binary Tree | invert-binary-tree | E
+Maximum Depth of Binary Tree | maximum-depth-of-binary-tree | E
+Diameter of Binary Tree | diameter-of-binary-tree | E
+Balanced Binary Tree | balanced-binary-tree | E
+Same Tree | same-tree | E
+Symmetric Tree | symmetric-tree | E
+Subtree of Another Tree | subtree-of-another-tree | E
+Binary Tree Level Order Traversal | binary-tree-level-order-traversal | M
+Binary Tree Zigzag Level Order Traversal | binary-tree-zigzag-level-order-traversal | M
+Binary Tree Right Side View | binary-tree-right-side-view | M
+Count Good Nodes in Binary Tree | count-good-nodes-in-binary-tree | M
+Validate Binary Search Tree | validate-binary-search-tree | M
+Kth Smallest Element in a BST | kth-smallest-element-in-a-bst | M
+Lowest Common Ancestor of a Binary Search Tree | lowest-common-ancestor-of-a-binary-search-tree | M
+Lowest Common Ancestor of a Binary Tree | lowest-common-ancestor-of-a-binary-tree | M
+Construct Binary Tree from Preorder and Inorder Traversal | construct-binary-tree-from-preorder-and-inorder-traversal | M
+Path Sum II | path-sum-ii | M
+All Nodes Distance K in Binary Tree | all-nodes-distance-k-in-binary-tree | M
+Flatten Binary Tree to Linked List | flatten-binary-tree-to-linked-list | M
+Maximum Width of Binary Tree | maximum-width-of-binary-tree | M
+Vertical Order Traversal of a Binary Tree | vertical-order-traversal-of-a-binary-tree | H
+Binary Tree Maximum Path Sum | binary-tree-maximum-path-sum | H
+Serialize and Deserialize Binary Tree | serialize-and-deserialize-binary-tree | H
+# Heap / Priority Queue
+Kth Largest Element in a Stream | kth-largest-element-in-a-stream | E
+Last Stone Weight | last-stone-weight | E
+K Closest Points to Origin | k-closest-points-to-origin | M
+Kth Largest Element in an Array | kth-largest-element-in-an-array | M
+Task Scheduler | task-scheduler | M
+Design Twitter | design-twitter | M
+Find Median from Data Stream | find-median-from-data-stream | H
+# Backtracking
+Subsets | subsets | M
+Subsets II | subsets-ii | M
+Permutations | permutations | M
+Combination Sum | combination-sum | M
+Combination Sum II | combination-sum-ii | M
+Letter Combinations of a Phone Number | letter-combinations-of-a-phone-number | M
+Palindrome Partitioning | palindrome-partitioning | M
+Word Search | word-search | M
+N-Queens | n-queens | H
+Sudoku Solver | sudoku-solver | H
+# Tries
+Implement Trie (Prefix Tree) | implement-trie-prefix-tree | M
+Design Add and Search Words Data Structure | design-add-and-search-words-data-structure | M
+Word Search II | word-search-ii | H
+# Graphs
+Flood Fill | flood-fill | E
+Number of Islands | number-of-islands | M
+Max Area of Island | max-area-of-island | M
+Clone Graph | clone-graph | M
+Rotting Oranges | rotting-oranges | M
+01 Matrix | 01-matrix | M
+Surrounded Regions | surrounded-regions | M
+Pacific Atlantic Water Flow | pacific-atlantic-water-flow | M
+Number of Provinces | number-of-provinces | M
+Is Graph Bipartite? | is-graph-bipartite | M
+Course Schedule | course-schedule | M
+Course Schedule II | course-schedule-ii | M
+Find Eventual Safe States | find-eventual-safe-states | M
+Redundant Connection | redundant-connection | M
+Number of Operations to Make Network Connected | number-of-operations-to-make-network-connected | M
+Accounts Merge | accounts-merge | M
+Network Delay Time | network-delay-time | M
+Cheapest Flights Within K Stops | cheapest-flights-within-k-stops | M
+Path With Minimum Effort | path-with-minimum-effort | M
+Min Cost to Connect All Points | min-cost-to-connect-all-points | M
+Word Ladder | word-ladder | H
+Swim in Rising Water | swim-in-rising-water | H
+Making A Large Island | making-a-large-island | H
+Critical Connections in a Network | critical-connections-in-a-network | H
+# 1-D Dynamic Programming
+Climbing Stairs | climbing-stairs | E
+Min Cost Climbing Stairs | min-cost-climbing-stairs | E
+House Robber | house-robber | M
+House Robber II | house-robber-ii | M
+Longest Palindromic Substring | longest-palindromic-substring | M
+Palindromic Substrings | palindromic-substrings | M
+Decode Ways | decode-ways | M
+Coin Change | coin-change | M
+Maximum Product Subarray | maximum-product-subarray | M
+Word Break | word-break | M
+Longest Increasing Subsequence | longest-increasing-subsequence | M
+Partition Equal Subset Sum | partition-equal-subset-sum | M
+Jump Game | jump-game | M
+Jump Game II | jump-game-ii | M
+# 2-D Dynamic Programming
+Unique Paths | unique-paths | M
+Minimum Path Sum | minimum-path-sum | M
+Triangle | triangle | M
+Longest Common Subsequence | longest-common-subsequence | M
+Longest Palindromic Subsequence | longest-palindromic-subsequence | M
+Best Time to Buy and Sell Stock with Cooldown | best-time-to-buy-and-sell-stock-with-cooldown | M
+Coin Change II | coin-change-ii | M
+Target Sum | target-sum | M
+Interleaving String | interleaving-string | M
+Edit Distance | edit-distance | M
+Maximal Square | maximal-square | M
+Best Time to Buy and Sell Stock III | best-time-to-buy-and-sell-stock-iii | H
+Distinct Subsequences | distinct-subsequences | H
+Minimum Insertion Steps to Make a String Palindrome | minimum-insertion-steps-to-make-a-string-palindrome | H
+Wildcard Matching | wildcard-matching | H
+Burst Balloons | burst-balloons | H
+Regular Expression Matching | regular-expression-matching | H
+# Greedy & Intervals
+Assign Cookies | assign-cookies | E
+Gas Station | gas-station | M
+Hand of Straights | hand-of-straights | M
+Partition Labels | partition-labels | M
+Valid Parenthesis String | valid-parenthesis-string | M
+Non-overlapping Intervals | non-overlapping-intervals | M
+Minimum Number of Arrows to Burst Balloons | minimum-number-of-arrows-to-burst-balloons | M
+Candy | candy | H
+# Bit Manipulation & Math
+Single Number | single-number | E
+Number of 1 Bits | number-of-1-bits | E
+Counting Bits | counting-bits | E
+Reverse Bits | reverse-bits | E
+Missing Number | missing-number | E
+Power of Two | power-of-two | E
+Happy Number | happy-number | E
+Plus One | plus-one | E
+Single Number II | single-number-ii | M
+Sum of Two Integers | sum-of-two-integers | M
+Pow(x, n) | powx-n | M
+Multiply Strings | multiply-strings | M

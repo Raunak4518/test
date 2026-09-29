@@ -1,0 +1,47 @@
+# Operating Systems
+Processes vs threads, PCB, context switch
+CPU scheduling: FCFS, SJF, SRTF, Round Robin, Priority
+Process synchronization: race conditions, critical section
+Mutex, semaphores, monitors
+Classic problems: producer-consumer, readers-writers, dining philosophers
+Deadlock: conditions, prevention, avoidance (Banker's), detection
+Memory management: paging, segmentation, TLB
+Virtual memory, demand paging, page replacement (FIFO, LRU, Optimal)
+Thrashing and working set
+File systems, inodes, disk scheduling
+System calls, user vs kernel mode, interrupts
+# DBMS
+ER model, keys (primary, candidate, foreign, super)
+Relational algebra
+SQL: joins, group by, having, subqueries, window functions
+Normalization: 1NF, 2NF, 3NF, BCNF
+Functional dependencies and closure
+Transactions and ACID
+Concurrency control: locks, 2PL, timestamp ordering
+Serializability: conflict and view
+Indexing: B-tree, B+ tree, hashing
+Recovery: logs, checkpoints
+NoSQL vs SQL, CAP theorem
+# Computer Networks
+OSI vs TCP/IP layers
+TCP vs UDP, 3-way handshake, flow and congestion control
+IP addressing, subnetting, CIDR
+Routing: distance vector, link state
+DNS, DHCP, ARP, NAT
+HTTP/HTTPS, TLS basics, cookies, REST
+What happens when you type a URL
+Sockets, ports, firewalls
+# OOP & Design
+Classes, objects, encapsulation, abstraction
+Inheritance, polymorphism (overloading vs overriding)
+Interfaces vs abstract classes
+SOLID principles
+Design patterns: singleton, factory, observer, strategy
+Low-level design: parking lot, library system, LRU cache
+# System Design Basics
+Scalability: vertical vs horizontal
+Load balancers, caching, CDNs
+Database sharding and replication
+Message queues
+Design a URL shortener
+Design a rate limiter

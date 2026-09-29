@@ -51,7 +51,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
     val entries by productivity.timeEntries.collectAsStateWithLifecycle()
     val journal by productivity.journal.collectAsStateWithLifecycle()
     val notes by productivity.notes.collectAsStateWithLifecycle()
-    var tab by remember { mutableIntStateOf(0) }
+    var tab by remember { mutableIntStateOf(3) }
     var addTask by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<String?>(null) }
     var editTask by remember { mutableStateOf<TaskModel?>(null) }
@@ -69,7 +69,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
                     title = {
                         Column {
                             Text("Chronora", fontWeight = FontWeight.Bold)
-                            Text((if (tab == 0) "Today" else if (tab == 1) "Focus" else "Productivity") + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
+                            Text((when (tab) { 0 -> "Today"; 1 -> "Focus"; 3 -> "Campus"; else -> "Productivity" }) + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
                         }
                     },
                     actions = { IconButton(onClick = { proSuiteOpen = true }) { Icon(Icons.Default.AutoAwesome, "Free Pro Suite") }; IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { powerCenterOpen = true }) { Icon(Icons.Default.Dashboard, "Power Center") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
@@ -79,6 +79,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
                 Column {
                     MadeByRaunak(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 5.dp))
                     NavigationBar {
+                    NavigationBarItem(tab == 3, { tab = 3 }, icon = { Icon(Icons.Default.School, null) }, label = { Text("Campus") })
                     NavigationBarItem(tab == 0, { tab = 0 }, icon = { Icon(Icons.Default.CalendarToday, null) }, label = { Text("Today") })
                     NavigationBarItem(tab == 1, { tab = 1 }, icon = { Icon(Icons.Default.Timer, null) }, label = { Text("Focus") })
                     NavigationBarItem(tab == 2, { tab = 2 }, icon = { Icon(Icons.Default.Insights, null) }, label = { Text("Productivity") })
@@ -86,13 +87,14 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQu
                 }
             },
             floatingActionButton = {
-                FloatingActionButton(onClick = { if (tab == 2) dialog = "habit" else addTask = true }) { Icon(Icons.Default.Add, "Add") }
+                if (tab != 3) FloatingActionButton(onClick = { if (tab == 2) dialog = "habit" else addTask = true }) { Icon(Icons.Default.Add, "Add") }
             }
         ) { padding ->
             when (tab) {
                 0 -> TodayScreen(tasks, date, vm, settings.showCompleted) { editTask = it }
                 1 -> FocusScreen(pomo, tasks, vm)
                 2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
+                3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier.padding(padding))
             }
         }
     }

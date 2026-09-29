@@ -80,6 +80,10 @@ class AlarmManagerBridge(private val context: Context) {
         try {
             if (Build.VERSION.SDK_INT >= 31 && !alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
+            } else if (kind == AlarmKind.PRIMARY || kind == AlarmKind.BACKUP || kind == AlarmKind.SNOOZE) {
+                // Alarm-clock alarms are the most reliable kind: exempt from Doze and shown in the status bar.
+                val show = PendingIntent.getActivity(context, 0, Intent(context, com.raunak.daytimeline.MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
+                alarmManager.setAlarmClock(AlarmManager.AlarmClockInfo(at, show), p)
             } else if (Build.VERSION.SDK_INT >= 23) {
                 alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, p)
             } else {

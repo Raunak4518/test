@@ -1,0 +1,18 @@
+# Resume
+One-page resume in a clean template
+Quantify impact in every bullet
+Add GitHub and LinkedIn links
+Get resume reviewed by a senior
+# Projects
+Project 1: end-to-end ML project with deployment
+Project 2: full-stack or systems project
+Write README with results and screenshots
+# Profiles
+LeetCode: 300+ problems
+Codeforces / CodeChef: regular contests
+GitHub: consistent commits
+LinkedIn: headline, about, projects
+# Applications
+Shortlist target companies
+Referrals from alumni
+Mock interviews: 5 technical, 2 HR

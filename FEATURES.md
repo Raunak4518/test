@@ -72,6 +72,31 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Website blocking in Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, DuckDuckGo, Vivaldi and Kiwi (domains or path prefixes; during focus or all day) | 🆕 | Focus Guard → Blocked websites |
 | "Chronora Focus" home-screen widget: live Pomodoro countdown, Start/Pause, Quick add, garden level, habits done today | 🆕 | `FocusWidget` |
 
+## Campus (home tab)
+
+Built for a college student: every screen below comes from one weekly timetable.
+
+| Feature | Status |
+|---|---|
+| Weekly timetable with lectures, labs and tutorials; paste a whole week as text ("Mon 9-10 DSA L 203") | 🆕 |
+| Semester dates; holidays (single days or ranges), cancelled, rescheduled and extra classes | 🆕 |
+| Attendance per subject: %, classes you can safely skip, classes you must attend to recover, projection to semester end, what skipping the next class does | 🆕 |
+| Per-subject requirement (e.g. 75%), count labs by hours, carry over counts from before tracking | 🆕 |
+| "Did you attend?" notification after every class with Present / Absent / No class buttons; unmarked-class queue | 🆕 |
+| Leave-now and class reminders with room numbers | 🆕 |
+| Automatic wake-up alarm before each day's first class (or a free-day time), recomputed for holidays and changes | 🆕 |
+| Wake-up challenges (walk, squats, math, typing…), backup alarm, "still awake?" check, sleep reminder, on-time history | 🆕 |
+| Alarm reliability: alarm-clock scheduling, readiness check (exact alarms, battery optimisation, full-screen, volume, battery), night battery warnings, fallback alarm before first unlock after a reboot, missed-alarm recovery when the phone turns back on | 🆕 |
+| Library: opening hours, free slots between classes, one-tap study-block planning into the timeline, check-in/out with app blocking, hours per day/week | 🆕 |
+| Study sheets: ready-made 196-problem DSA sheet (LeetCode links, by topic and difficulty), CS core (OS/DBMS/CN/OOP/system design), AI/ML interview, aptitude/HR, resume/projects; custom syllabus sheets by paste | 🆕 |
+| Sheet tracking: status, difficulty, notes, time taken, stars, per-section progress, daily targets, streaks, activity heatmap, exam-date pacing | 🆕 |
+| Spaced revision of solved items (3 → 7 → 15 → 30 → 60 days) with a review queue | 🆕 |
+| Assignments, quizzes, mid-sem and end-sem with countdowns and reminders 1 day and 3 hours before | 🆕 |
+| CGPA: semester SGPA and CGPA on the 10-point AA–FF scale, target planner ("SGPA needed in remaining credits") | 🆕 |
+| Placement tracker: companies by stage, next rounds with reminders, notes | 🆕 |
+| Daily score (0–100): wake-up, classes, deep study, problems solved, screen time, discipline | 🆕 |
+| Discipline: private streak tracker behind the phone lock, urge SOS (breathing, reasons, actions), trigger and hour patterns, daily check-in, one-tap protection (web filter lock, risk-hour app blocking, strict mode); excluded from backups | 🆕 |
+
 ## Digital wellbeing (Free Pro Suite → Wellbeing)
 
 Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one sec, AppBlock, Lock Me Out and YourHour offer, including their paid tiers.

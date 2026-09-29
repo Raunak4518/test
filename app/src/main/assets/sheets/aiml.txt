@@ -1,0 +1,33 @@
+# Math for ML
+Linear algebra: vectors, matrices, eigenvalues, SVD
+Probability: Bayes theorem, distributions, expectation
+Statistics: hypothesis testing, p-values, confidence intervals
+Calculus: gradients, chain rule, optimisation
+# Classical ML
+Bias-variance trade-off, over/underfitting
+Linear and logistic regression
+Regularisation: L1, L2
+Decision trees, random forests, gradient boosting (XGBoost)
+SVM and kernels
+k-NN, k-means, PCA
+Evaluation: precision, recall, F1, ROC-AUC, cross-validation
+Handling imbalance, feature engineering, data leakage
+# Deep Learning
+Backpropagation and activation functions
+Optimisers: SGD, momentum, Adam; learning-rate schedules
+Batch norm, dropout, initialisation
+CNNs: convolution, pooling, ResNet
+RNNs, LSTMs, GRUs
+Attention and Transformers
+Embeddings and word2vec
+# Modern AI
+Large language models: pre-training, fine-tuning, RLHF
+Prompting, RAG, vector databases
+Diffusion models and GANs basics
+Evaluation of generative models
+# Practical
+Python, NumPy, pandas
+PyTorch training loop from scratch
+scikit-learn pipelines
+Experiment tracking and reproducibility
+Model deployment basics (REST API, ONNX)

@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_NOTIFICATION_POLICY" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" tools:ignore="ProtectedPermissions" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
@@ -36,6 +39,8 @@
     <uses-feature android:name="android.hardware.sensor.stepdetector" android:required="false" />
     <application
         android:allowBackup="true"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_chronora"
         android:roundIcon="@mipmap/ic_chronora"
@@ -57,6 +62,14 @@
         </service>
         <receiver android:name=".pro.LocationReminderReceiver" android:exported="false" />
         <receiver android:name=".wellbeing.WellbeingAlarmReceiver" android:exported="false" />
+        <receiver android:name=".campus.CampusReceiver" android:exported="false" />
+        <receiver android:name=".campus.DirectBootAlarmReceiver" android:exported="false" android:directBootAware="true" />
+        <receiver android:name=".campus.LockedBootReceiver" android:exported="false" android:directBootAware="true">
+            <intent-filter>
+                <action android:name="android.intent.action.LOCKED_BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <activity android:name=".campus.FallbackAlarmActivity" android:exported="false" android:directBootAware="true" android:excludeFromRecents="true" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/Theme.Chronora" />
         <service android:name=".wellbeing.WellbeingNotificationListener" android:exported="false" android:label="Chronora notification digest" android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
             <intent-filter>
                 <action android:name="android.service.notification.NotificationListenerService" />

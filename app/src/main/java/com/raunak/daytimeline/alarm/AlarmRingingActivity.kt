@@ -163,6 +163,7 @@ class AlarmRingingActivity : ComponentActivity() {
             runtimeStore.markDismissed(config.id)
             if (rescheduleRepeat && config.enabled && config.isRepeating() && !config.deleteAfterRinging) bridge.schedule(config)
             if (cancelSnooze && config.wakeCheckMinutes > 0) bridge.scheduleWakeChecksAfterDismissal(config)
+            if (config.id == com.raunak.daytimeline.campus.CampusScheduler.WAKE_ALARM_ID) com.raunak.daytimeline.campus.CampusScheduler.onWakeDismissed(this)
             if (config.deleteAfterRinging && !config.isRepeating()) {
                 bridge.cancel(config.id)
                 AlarmPersistentStore(this).delete(config.id)
