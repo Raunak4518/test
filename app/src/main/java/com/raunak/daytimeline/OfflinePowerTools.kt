@@ -99,6 +99,10 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Local behavior", style = MaterialTheme.typography.titleMedium); SettingSwitch("Haptics", settings.haptics) { store.updateSettings { current -> current.copy(haptics = it) } }; SettingSwitch("Sounds", settings.sounds) { store.updateSettings { current -> current.copy(sounds = it) } }; SettingSwitch("Auto-scroll to now", settings.autoScrollNow) { store.updateSettings { current -> current.copy(autoScrollNow = it) } }; SettingSwitch("Show completed", settings.showCompleted) { store.updateSettings { current -> current.copy(showCompleted = it) } }; Text("Default task: " + settings.defaultTaskMinutes + "m · Focus: " + settings.defaultFocusMinutes + "m", style = MaterialTheme.typography.bodySmall)
             } } }
+            item {
+                MadeByRaunak(Modifier.fillMaxWidth().padding(top = 8.dp))
+                ChronoraBrandLine(Modifier.fillMaxWidth())
+            }
             if (status.isNotBlank()) item { Text(status, color = MaterialTheme.colorScheme.primary) }
         }
     }
