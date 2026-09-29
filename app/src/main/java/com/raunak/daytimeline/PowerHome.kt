@@ -215,7 +215,24 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Goals"); Row { TextButton(onClick = { openDialog("goals") }) { Text("Manage") }; TextButton(onClick = { openDialog("goal") }) { Text("Add") } } } }
         items(goals, key = { it.id }) { g -> Card { Column(Modifier.padding(14.dp)) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(g.title, fontWeight = FontWeight.SemiBold); Text("${g.progress}/${g.target}") }; LinearProgressIndicator(progress = { g.progress.toFloat() / g.target }, modifier = Modifier.fillMaxWidth()); Row { TextButton(onClick = { store.setGoalProgress(g.id, g.progress + 1) }) { Text("+1") }; TextButton(onClick = { store.setGoalProgress(g.id, g.progress - 1) }) { Text("-1") } } } } }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Routines"); TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
-        items(routines, key = { it.id }) { r -> Card { Column(Modifier.padding(14.dp)) { Text(r.name, fontWeight = FontWeight.SemiBold); Text("${r.steps.sumOf { it.minutes }} min · ${r.steps.size} steps", color = HomeMuted); Row { TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") }; TextButton(onClick = { store.deleteRoutine(r.id) }) { Text("Delete") } } } } }
+        items(routines, key = { it.id }) { r ->
+            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(r.name, fontWeight = FontWeight.SemiBold)
+                Text(r.steps.sumOf { it.minutes }.toString() + " min · " + r.steps.size + " steps", color = HomeMuted)
+                r.steps.forEachIndexed { index, step ->
+                    val done = r.completedSteps.contains(today.toString() + ":" + index)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(done, { store.toggleRoutineStep(r.id, index, today) })
+                        Text(step.title + " · " + step.minutes + "m", modifier = Modifier.weight(1f))
+                    }
+                }
+                if (r.completionDates.isNotEmpty()) Text("History: " + r.completionDates.sortedDescending().take(5).joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = HomeMuted)
+                Row {
+                    TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") }
+                    TextButton(onClick = { store.deleteRoutine(r.id) }) { Text("Delete") }
+                }
+            } }
+        }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
         items(notes.sortedWith(compareByDescending<com.raunak.daytimeline.features.OfflineNote> { it.pinned }.thenByDescending { it.updatedAt }).take(8), key = { it.id }) { n ->
             var backlinksOpen by remember(n.id) { mutableStateOf(false) }
