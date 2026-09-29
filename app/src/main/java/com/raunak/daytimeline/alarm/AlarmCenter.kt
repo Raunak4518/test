@@ -93,6 +93,10 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                 }
             }
             item {
+                MadeByRaunak(Modifier.fillMaxWidth().padding(vertical = 8.dp))
+                ChronoraBrandLine(Modifier.fillMaxWidth())
+            }
+            item {
                 val nextAlarm = alarms.filter { it.enabled }
                     .map { it to AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }
                     .filter { it.second != Long.MAX_VALUE }
