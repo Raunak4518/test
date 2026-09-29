@@ -59,7 +59,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 Button(onClick = {
                     val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
                         putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
-                        putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Enable explicit Day Timeline protection. Android may require this administrator to be disabled before the app can be uninstalled.")
+                        putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Enable explicit Chronora protection. Android may require this administrator to be disabled before the app can be uninstalled.")
                     }
                     context.startActivity(intent)
                 }, enabled = !protectionEnabled) { Text(if (protectionEnabled) "Protection active" else "Enable protection") }
