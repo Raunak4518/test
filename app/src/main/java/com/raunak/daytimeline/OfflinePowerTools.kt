@@ -1,5 +1,7 @@
 package com.raunak.daytimeline
 
+import android.app.admin.DevicePolicyManager
+import android.content.ComponentName
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -15,6 +17,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.raunak.daytimeline.features.OfflineProductivityStore
+import com.raunak.daytimeline.protection.DayTimelineDeviceAdminReceiver
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -28,6 +31,9 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     val challenges by store.challenges.collectAsStateWithLifecycle()
     val achievements by store.achievements.collectAsStateWithLifecycle()
     val settings by store.settings.collectAsStateWithLifecycle()
+    val devicePolicyManager = remember(context) { context.getSystemService(DevicePolicyManager::class.java) }
+    val adminComponent = remember(context) { ComponentName(context, DayTimelineDeviceAdminReceiver::class.java) }
+    val protectionEnabled = devicePolicyManager?.isAdminActive(adminComponent) == true
     var newProject by remember { mutableStateOf("") }
     var timerLabel by remember { mutableStateOf("") }
     var selectedProject by remember { mutableLongStateOf(-1L) }
@@ -46,6 +52,20 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     Scaffold(topBar = { TopAppBar(title = { Text("Power tools") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Text("Offline command center", style = MaterialTheme.typography.headlineSmall); Text("Projects, time tracking, challenges, achievements and portable backups. Everything remains local.") }
+            item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Tamper protection", style = MaterialTheme.typography.titleMedium)
+                Text(if (protectionEnabled) "Android device-admin protection is active. It must be explicitly disabled before normal uninstall can proceed." else "Optional Android-managed protection. This does not bypass Android security or make the app permanently undeletable.")
+                Button(onClick = {
+                    val intent = Intent(DevicePolicyManager.ACTION_ADD_DEVICE_ADMIN).apply {
+                        putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, adminComponent)
+                        putExtra(DevicePolicyManager.EXTRA_ADD_EXPLANATION, "Enable explicit Day Timeline protection. Android may require this administrator to be disabled before the app can be uninstalled.")
+                    }
+                    context.startActivity(intent)
+                }, enabled = !protectionEnabled) { Text(if (protectionEnabled) "Protection active" else "Enable protection") }
+                if (protectionEnabled) {
+                    OutlinedButton(onClick = { context.startActivity(Intent(DevicePolicyManager.ACTION_DEVICE_ADMIN_SETTINGS)) }) { Text("Manage protection in Android settings") }
+                }
+            } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Time tracker", style = MaterialTheme.typography.titleMedium)
                 val active = entries.firstOrNull { it.endEpochMillis == null }
