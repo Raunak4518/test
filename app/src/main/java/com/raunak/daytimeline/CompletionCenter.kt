@@ -73,11 +73,17 @@ private fun CalendarWorkspace(vm: PlannerViewModel, tasks: List<TaskModel>, stor
     var date by remember { mutableStateOf(LocalDate.now()) }
     var month by remember { mutableStateOf(YearMonth.now()) }
     val graph = remember(store.dependencies()) { DependencyGraph(store.dependencies()) }
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    var scheduleStatus by remember { mutableStateOf("") }
     Column(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("Interactive calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Column(Modifier.weight(1f)) {
+                Text("Interactive calendar", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                if (scheduleStatus.isNotBlank()) Text(scheduleStatus, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+            }
             Row {
                 listOf("DAY", "WEEK", "MONTH").forEach { x -> FilterChip(mode == x, { mode = x }, label = { Text(x) }) }
+                IconButton(onClick = { vm.autoSchedule(settings.dayStartMinute, settings.dayEndMinute); scheduleStatus = "Auto-scheduling selected day" }) { Icon(Icons.Default.AutoFixHigh, "Auto schedule") }
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -99,7 +105,7 @@ private fun DaySchedule(vm: PlannerViewModel, tasks: List<TaskModel>, allTasks: 
         item {
             Card { Column(Modifier.padding(12.dp)) {
                 Text(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")), style = MaterialTheme.typography.titleMedium)
-                Text("Drag a block vertically to move it. Duration controls resize it.")
+                Text("Drag a block vertically to move it. Use the resize handle or duration buttons to resize it.")
             } }
         }
         items(tasks.sortedBy { it.startMinute }, key = { it.id }) { task ->
@@ -122,11 +128,23 @@ private fun DaySchedule(vm: PlannerViewModel, tasks: List<TaskModel>, allTasks: 
                     }
                     Text(clock(task.startMinute) + "–" + clock(task.endMinute) + " · " + (task.endMinute - task.startMinute) + "m")
                     if (blocked) Text("Waiting for: " + graph.blockers(task, allTasks).joinToString { it.title }, color = MaterialTheme.colorScheme.error)
-                    Row {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         TextButton(onClick = { vm.moveTask(task, task.startMinute - 15, task.endMinute - 15) }) { Text("−15m") }
                         TextButton(onClick = { vm.moveTask(task, task.startMinute + 15, task.endMinute + 15) }) { Text("+15m") }
                         TextButton(onClick = { vm.resizeTask(task, task.endMinute - 15) }) { Text("Shorten") }
                         TextButton(onClick = { vm.resizeTask(task, task.endMinute + 15) }) { Text("Extend") }
+                        Box(
+                            Modifier.width(42.dp).height(24.dp).pointerInput(task.id) {
+                                detectVerticalDragGestures(
+                                    onVerticalDrag = { _, amount -> drag += amount },
+                                    onDragEnd = {
+                                        val delta = (drag / 8f).roundToInt() * 15
+                                        if (delta != 0) vm.resizeTask(task, task.endMinute + delta)
+                                        drag = 0f
+                                    }
+                                )
+                            }
+                        ) { Text("↕", modifier = Modifier.align(Alignment.Center)) }
                     }
                 }
             }
@@ -259,7 +277,32 @@ private fun InsightsWorkspace(tasks: List<TaskModel>, habits: List<OfflineHabit>
                 }
             }
         }
+        item { Heatmap(tasks, habits) }
         item { Text("Workload balancing is computed from duration, priority and overdue work. Use the smart planner for an actionable block suggestion.") }
+    }
+}
+
+@Composable
+private fun Heatmap(tasks: List<TaskModel>, habits: List<OfflineHabit>) {
+    val end = LocalDate.now()
+    val start = end.minusDays(83)
+    val taskDates = tasks.groupingBy { it.date }.eachCount()
+    val doneDates = tasks.filter { it.completed }.groupingBy { it.date }.eachCount()
+    val habitDates = habits.flatMap { it.completedDates }.mapNotNull { runCatching { LocalDate.parse(it) }.getOrNull() }.groupingBy { it }.eachCount()
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text("12-week activity heatmap", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        for (row in 0 until 7) {
+            Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                for (week in 0 until 12) {
+                    val day = start.plusDays((week * 7L + row).coerceAtMost(83L))
+                    val total = (taskDates[day] ?: 0) + (habitDates[day] ?: 0)
+                    val done = (doneDates[day] ?: 0) + (habitDates[day] ?: 0)
+                    val ratio = if (total == 0) 0f else (done.toFloat() / total).coerceIn(0f, 1f)
+                    Box(Modifier.size(18.dp).background(MaterialTheme.colorScheme.primary.copy(alpha = if (total == 0) 0.08f else 0.18f + ratio * 0.72f), RoundedCornerShape(4.dp)))
+                }
+            }
+        }
+        Text("Intensity combines completed tasks and completed habits over the last 84 days.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
