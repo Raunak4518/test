@@ -26,7 +26,13 @@ data class QuickTaskInput(
     val date: LocalDate,
     val startMinute: Int,
     val endMinute: Int,
-    val pomodoro: Boolean
+    val pomodoro: Boolean,
+    val priority: Int = 1,
+    val tags: String = "",
+    val recurrenceType: String = "NONE",
+    val recurrenceDays: String = "",
+    val reminderMode: String = "NONE",
+    val reminderOffsetMinutes: Int = 0
 )
 
 data class TimelinePlacement(

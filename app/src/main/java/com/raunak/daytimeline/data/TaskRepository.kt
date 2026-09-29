@@ -75,7 +75,13 @@ class TaskRepository(
             dateEpochDay = parsed.date.toEpochDay(),
             startMinute = parsed.startMinute,
             endMinute = parsed.endMinute,
-            pomodoroEnabled = parsed.pomodoro
+            pomodoroEnabled = parsed.pomodoro,
+            priority = parsed.priority,
+            tags = parsed.tags,
+            recurrenceType = parsed.recurrenceType,
+            recurrenceDays = parsed.recurrenceDays,
+            reminderMode = parsed.reminderMode,
+            reminderOffsetMinutes = parsed.reminderOffsetMinutes
         )
         return addTask(task)
     }

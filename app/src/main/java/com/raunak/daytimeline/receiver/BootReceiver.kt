@@ -18,6 +18,7 @@ class BootReceiver : BroadcastReceiver() {
             com.raunak.daytimeline.features.OfflineProductivityStore(context.applicationContext).rescheduleHabitReminders()
             val store=AlarmPersistentStore(context); val scheduler=AlarmManagerBridge(context)
             store.all().filter { it.enabled }.forEach { scheduler.schedule(it) }
+            com.raunak.daytimeline.pro.LocationReminderManager(context.applicationContext).registerAll()
         }
     }
 }

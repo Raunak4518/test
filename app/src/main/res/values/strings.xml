@@ -5,4 +5,6 @@
     <string name="made_by">Made by</string>
     <string name="creator_name">Raunak</string>
     <string name="creator_github">https://github.com/Raunak4518</string>
+    <string name="focus_guard_label">Chronora Focus Guard</string>
+    <string name="focus_guard_description">Blocks the apps you chose during focus sessions, schedules and daily limits, and adds a breathing pause before mindful apps. Chronora reads which app is opened and, in supported browsers, only the address bar to block websites you chose. Nothing leaves your phone.</string>
 </resources>

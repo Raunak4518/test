@@ -32,6 +32,7 @@ class MainActivity : FragmentActivity() {
     private val security by lazy { ChronoraSecurityStore(applicationContext) }
     private var authenticated = false
     private var authenticating = false
+    private val quickAddRequest = mutableStateOf(false)
 
     private val credentialLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -48,6 +49,7 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        handleOpen(intent)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(
@@ -77,6 +79,18 @@ class MainActivity : FragmentActivity() {
                 ChronoraContent()
             }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        handleOpen(intent)
+    }
+
+    private fun handleOpen(intent: android.content.Intent?) {
+        if (intent?.getStringExtra(com.raunak.daytimeline.pro.FocusWidget.EXTRA_OPEN) == com.raunak.daytimeline.pro.FocusWidget.OPEN_QUICK_ADD) {
+            quickAddRequest.value = true
+            intent.removeExtra(com.raunak.daytimeline.pro.FocusWidget.EXTRA_OPEN)
         }
     }
 
@@ -122,6 +136,8 @@ class MainActivity : FragmentActivity() {
 
         Box(Modifier.fillMaxSize()) {
             PowerHome(
+                openQuickAdd = quickAddRequest.value,
+                onQuickAddHandled = { quickAddRequest.value = false },
                 onOpenAlarms = {
                     if (
                         Build.VERSION.SDK_INT >= 29 &&

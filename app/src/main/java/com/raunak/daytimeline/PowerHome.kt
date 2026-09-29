@@ -35,7 +35,7 @@ private val HomeMuted = Color(0xFF74807A)
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
-fun PowerHome(onOpenAlarms: () -> Unit = {}) {
+fun PowerHome(onOpenAlarms: () -> Unit = {}, openQuickAdd: Boolean = false, onQuickAddHandled: () -> Unit = {}) {
     val context = LocalContext.current
     val app = remember(context) { AppContainer(context.applicationContext) }
     val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
@@ -58,6 +58,8 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     var calendarOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
     var powerCenterOpen by remember { mutableStateOf(false) }
+    var proSuiteOpen by remember { mutableStateOf(false) }
+    LaunchedEffect(openQuickAdd) { if (openQuickAdd) { proSuiteOpen = true; onQuickAddHandled() } }
 
     MaterialTheme(colorScheme = lightColorScheme(background = HomeBg, surface = HomeCard, primary = HomeSage, onSurface = HomeInk)) {
         Scaffold(
@@ -70,7 +72,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
                             Text((if (tab == 0) "Today" else if (tab == 1) "Focus" else "Productivity") + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
                         }
                     },
-                    actions = { IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { powerCenterOpen = true }) { Icon(Icons.Default.Dashboard, "Power Center") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
+                    actions = { IconButton(onClick = { proSuiteOpen = true }) { Icon(Icons.Default.AutoAwesome, "Free Pro Suite") }; IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { powerCenterOpen = true }) { Icon(Icons.Default.Dashboard, "Power Center") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
                 )
             },
             bottomBar = {
@@ -99,6 +101,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     if (editTask != null) TaskEditorDialog(vm, editTask) { editTask = null }
     if (calendarOpen) CalendarDialog(date, vm) { calendarOpen = false }
     if (searchOpen) TaskSearchDialog(allTasks, vm) { searchOpen = false }
+    if (proSuiteOpen) com.raunak.daytimeline.pro.FreeProSuite(vm) { proSuiteOpen = false }
     if (powerCenterOpen) ChronoraPowerCenter(allTasks, productivity, { powerCenterOpen = false }) { vm.selectDate(it); powerCenterOpen = false }
     if (dialog?.startsWith("editHabit:") == true) {
         val id = dialog!!.substringAfter(":").toLongOrNull()
@@ -195,6 +198,10 @@ private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Uni
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { if (pomo.running) vm.pausePomodoro() else vm.resumePomodoro() }) { Text(if (pomo.running) "Pause" else "Start") }
             OutlinedButton(onClick = vm::resetPomodoro) { Text("Reset") }
+        }
+        if (pomo.phase != "IDLE") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = vm::skipPomodoro) { Text("Skip") }
+            OutlinedButton(onClick = { vm.extendPomodoro(5) }) { Text("+5 min") }
         }
         tasks.filter { it.pomodoroEnabled }.take(5).forEach { task ->
             ListItem(headlineContent = { Text(task.title) }, supportingContent = { Text("${clock(task.startMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted) }, trailingContent = { IconButton(onClick = { vm.startPomodoro(task.id) }) { Icon(Icons.Default.PlayArrow, null) } })

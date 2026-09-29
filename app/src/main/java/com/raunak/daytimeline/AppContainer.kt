@@ -7,6 +7,7 @@ import com.raunak.daytimeline.data.TaskRepository
 import com.raunak.daytimeline.settings.SettingsStore
 
 class AppContainer(context: Context) {
+    val context: Context = context.applicationContext
     private val db = AppDatabase.get(context)
     private val reminderScheduler = ReminderScheduler(context)
     val settingsStore = SettingsStore(context)

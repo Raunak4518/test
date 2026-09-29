@@ -100,7 +100,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                         FilterChip(selected = settings.theme == mode, onClick = { store.updateSettings { it.copy(theme = mode) } }, label = { Text(mode) })
                     }
                 }
-            } }
+            } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Data safety", style = MaterialTheme.typography.titleMedium)
                 OutlinedButton(onClick = { store.resetAll(); status = "Secondary productivity data reset" }) { Text("Reset secondary data") }

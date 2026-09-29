@@ -15,8 +15,8 @@ object PomodoroEngine {
         )
     }
 
-    fun pause(current: PomodoroStateEntity): PomodoroStateEntity {
-        val rem = ((current.targetEpochMillis - System.currentTimeMillis()) / 1000L).coerceAtLeast(0)
+    fun pause(current: PomodoroStateEntity, now: Long = System.currentTimeMillis()): PomodoroStateEntity {
+        val rem = ((current.targetEpochMillis - now) / 1000L).coerceAtLeast(0)
         return current.copy(running = false, remainingSeconds = rem)
     }
 
@@ -33,6 +33,23 @@ object PomodoroEngine {
         cycleIndex = 0,
         taskId = null
     )
+
+    /** Ends the current phase immediately and moves to the next one (focus → break → focus). */
+    fun skip(current: PomodoroStateEntity, now: Long = System.currentTimeMillis()): PomodoroStateEntity {
+        if (current.phase == "IDLE") return current
+        val advanced = tick(current.copy(running = true, targetEpochMillis = now), now)
+        return if (current.running) advanced else pause(advanced, now)
+    }
+
+    /** Adds time to the current phase, whether running or paused. */
+    fun extend(current: PomodoroStateEntity, minutes: Int, now: Long = System.currentTimeMillis()): PomodoroStateEntity {
+        if (current.phase == "IDLE") return current
+        val extra = minutes * 60L
+        return if (current.running) {
+            val target = maxOf(current.targetEpochMillis, now) + extra * 1000
+            current.copy(targetEpochMillis = target, remainingSeconds = (target - now) / 1000)
+        } else current.copy(remainingSeconds = current.remainingSeconds + extra)
+    }
 
     fun tick(current: PomodoroStateEntity, now: Long = System.currentTimeMillis()): PomodoroStateEntity {
         if (!current.running) return current
