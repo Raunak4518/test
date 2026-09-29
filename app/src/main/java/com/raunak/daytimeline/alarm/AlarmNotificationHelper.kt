@@ -32,7 +32,8 @@ object AlarmNotificationHelper {
         val n = NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(config.label)
-            .setContentText("Alarm — complete the wake-up mission")
+            .setContentText("%02d:%02d".format(config.hour, config.minute) + if (config.missionChain.isNotEmpty()) " · " + config.missionChain.joinToString(" ") { it.type.icon } else "")
+            .setContentIntent(pi)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setOngoing(true)
@@ -42,7 +43,7 @@ object AlarmNotificationHelper {
     }
 
     fun showBedtime(c: Context, config: AlarmPersistentConfig) =
-        show(c, config, "Bedtime reminder", "Your alarm is in ${config.bedtimeReminderMinutes} minutes")
+        show(c, config, "Time to wind down", "Alarm at %02d:%02d — in ${config.bedtimeReminderMinutes / 60}h ${config.bedtimeReminderMinutes % 60}m".format(config.hour, config.minute))
 
     fun showWakeCheck(c: Context, config: AlarmPersistentConfig, attempt: Int = 0) {
         ensure(c)
@@ -64,8 +65,8 @@ object AlarmNotificationHelper {
         )
         val n = NotificationCompat.Builder(c, CHANNEL)
             .setSmallIcon(R.drawable.ic_notification)
-            .setContentTitle("Wake-up check")
-            .setContentText(if (attempt == 0) "Confirm that you are awake." else "Still awake? Confirm again.")
+            .setContentTitle(if (attempt == 0) "Are you up?" else "Still up?")
+            .setContentText("Tap I'm awake, or the alarm rings again")
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_ALARM)
             .setAutoCancel(true)

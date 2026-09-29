@@ -29,7 +29,12 @@ data class AlarmEditorModel(
     val wakeCheckRetries: Int = 2,
     val wakeCheckRetryDelayMinutes: Int = 5,
     val wakeCheckConfirmationWindowMinutes: Int = 5,
-    val deleteAfterRinging: Boolean = false
+    val deleteAfterRinging: Boolean = false,
+    val soundUri: String? = null,
+    val soundName: String? = null,
+    val volume: Int = 90,
+    val vibrationPattern: String = "PULSE",
+    val briefing: Boolean = true
 ) {
     fun validate(): List<String> = buildList {
         if (hour !in 0..23) add("Hour must be 0–23")
@@ -63,7 +68,11 @@ data class AlarmEditorModel(
             label = label.trim(),
             enabled = enabled,
             repeatDays = repeatDays,
-            soundUri = null,
+            soundUri = soundUri,
+            soundName = soundName,
+            volume = volume,
+            vibrationPattern = vibrationPattern,
+            briefing = briefing,
             vibration = vibration,
             fullscreen = fullscreen,
             snoozeMinutes = snoozeMinutes,
@@ -120,7 +129,12 @@ data class AlarmEditorModel(
             wakeCheckRetries = a.wakeCheckRetries,
             wakeCheckRetryDelayMinutes = a.wakeCheckRetryDelayMinutes,
             wakeCheckConfirmationWindowMinutes = a.wakeCheckConfirmationWindowMinutes,
-            deleteAfterRinging = a.deleteAfterRinging
+            deleteAfterRinging = a.deleteAfterRinging,
+            soundUri = a.soundUri,
+            soundName = a.soundName,
+            volume = a.volume,
+            vibrationPattern = a.vibrationPattern,
+            briefing = a.briefing
         )
     }
 }

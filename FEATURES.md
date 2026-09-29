@@ -253,6 +253,20 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 - **Alerts:** urgent items right away, everything else in a morning digest at an editable time.
 - **Also:** paste any Classroom text to add it; snooze, hide, mark done, open in Classroom.
 
+
+### Alarms, rebuilt (compared with Alarmy)
+- **Challenges (missions):**
+  - Math (5 levels, 1–8 problems), Memory tile grid (3×3 up to 5×5), Typing (editable phrases, live colouring), Shake, Squats, Steps.
+  - Tap-the-moving-dot (new), Photo of a registered spot, QR/barcode scan.
+  - Up to 5 per alarm, or none for a one-tap alarm.
+- **Anti-cheat:** the sound drops while you work on a mission and returns to full after idle seconds (editable). Leaving mid-mission brings the alarm back. Back never dismisses.
+- **Ringing screen:** big clock and date, Start mission / Snooze. After the missions comes a good-morning briefing: mission time, on-time streak, quote, first class and today's deadlines.
+- **Sound:** any alarm ringtone, per-alarm volume (rings even in silent mode, then restores your volume), gradually louder (30s–5 min), repeating vibration patterns (pulse, heartbeat, strong).
+- **Repeats:** day circles plus Once, Weekdays, Weekends, Every day, odd/even weeks, every N days.
+- **Wake-up help:** snooze length and count (or off), wake-up check, backup alarm, bedtime reminder, delete after ringing.
+- **Alarm list:** "Rings in 8h 42m" hero, one-tap naps (10 min–1.5 h), on/off switches, day dots and mission icons, preview, skip next, duplicate, presets.
+- **Wake-up record:** on-time rate, streak, average minutes late, snoozes, and a daily bar chart.
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |

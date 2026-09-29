@@ -31,12 +31,24 @@ class AlarmMissionRuntime(private val context: Context) {
     private var lastShake = 0L
     private var lastSquat = 0L
 
+    private val audio = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+    private var savedAlarmVolume = -1
+    private var baseVolume = 1f
+
     fun startAlarmSound(config: AlarmPersistentConfig) {
         stopSound()
+        // Ring at the alarm's own volume on the alarm stream (works in silent mode), restored afterwards.
+        runCatching {
+            val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM)
+            savedAlarmVolume = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM)
+            audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, (max * config.volume / 100f).toInt().coerceIn(1, max), 0)
+        }
         val uri = config.soundUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        ringtone = RingtoneManager.getRingtone(context, uri)?.also { tone ->
+        ringtone = (RingtoneManager.getRingtone(context, uri) ?: RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)))?.also { tone ->
+            tone.audioAttributes = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_ALARM).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
             if (Build.VERSION.SDK_INT >= 28) tone.isLooping = true
             tone.play()
             if (Build.VERSION.SDK_INT >= 28 && config.gentleVolumeSeconds > 0) {
@@ -45,29 +57,46 @@ class AlarmMissionRuntime(private val context: Context) {
                 val handler = android.os.Handler(android.os.Looper.getMainLooper())
                 val tick = object : Runnable {
                     override fun run() {
+                        if (volumeRunnable !== this) return
                         val elapsed = SystemClock.elapsedRealtime() - start
                         val fraction = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-                        tone.volume = 0.12f + 0.88f * fraction
-                        if (fraction < 1f) {
-                            handler.postDelayed(this, 250L)
-                        }
+                        baseVolume = 0.12f + 0.88f * fraction
+                        runCatching { tone.volume = baseVolume * quietFactor }
+                        if (fraction < 1f) handler.postDelayed(this, 250L)
                     }
                 }
                 volumeRunnable = tick
                 handler.post(tick)
             }
         }
-        if (config.vibration) vibratePulse()
+        if (config.vibration && config.vibrationPattern != "OFF") vibrate(config.vibrationPattern)
     }
+
+    private var quietFactor = 1f
+
+    /** Quieter while you're actively doing a mission; full volume again when you stop. */
+    fun setQuiet(quiet: Boolean) {
+        quietFactor = if (quiet) 0.25f else 1f
+        if (Build.VERSION.SDK_INT >= 28) runCatching { ringtone?.volume = baseVolume * quietFactor }
+        if (quiet) runCatching { vibrator.cancel() }
+    }
+
+    fun resumeVibration(config: AlarmPersistentConfig) { if (config.vibration && config.vibrationPattern != "OFF") vibrate(config.vibrationPattern) }
 
     fun startDefaultAlarmSound() {
         startAlarmSound(AlarmPersistentConfig(0, 0, 0))
     }
 
-    private fun vibratePulse() {
+    /** Repeating patterns (the old one buzzed once and stopped). */
+    private fun vibrate(pattern: String) {
         if (!vibrator.hasVibrator()) return
-        if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 450, 250, 450), -1))
-        else @Suppress("DEPRECATION") vibrator.vibrate(longArrayOf(0, 450, 250, 450), -1)
+        val wave = when (pattern) {
+            "HEARTBEAT" -> longArrayOf(0, 120, 120, 120, 800)
+            "STRONG" -> longArrayOf(0, 900, 300)
+            else -> longArrayOf(0, 450, 250, 450, 700)
+        }
+        if (Build.VERSION.SDK_INT >= 26) vibrator.vibrate(VibrationEffect.createWaveform(wave, 0))
+        else @Suppress("DEPRECATION") vibrator.vibrate(wave, 0)
     }
 
     fun stopSound() {
@@ -75,6 +104,7 @@ class AlarmMissionRuntime(private val context: Context) {
         ringtone?.runCatching { stop() }
         ringtone = null
         if (vibrator.hasVibrator()) vibrator.cancel()
+        if (savedAlarmVolume >= 0) { runCatching { audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, savedAlarmVolume, 0) }; savedAlarmVolume = -1 }
     }
 
     fun startShake(target: Int, onProgress: (Int) -> Unit, onComplete: () -> Unit) {

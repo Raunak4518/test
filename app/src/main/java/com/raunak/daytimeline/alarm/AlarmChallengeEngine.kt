@@ -3,7 +3,18 @@ package com.raunak.daytimeline.alarm
 import kotlin.math.abs
 import kotlin.random.Random
 
-enum class AlarmMissionType { MATH, TYPING, MEMORY, SHAKE, SQUAT, WALK, PHOTO, BARCODE, MULTI }
+enum class AlarmMissionType(val title: String, val icon: String, val blurb: String) {
+    MATH("Math", "➗", "Solve problems"),
+    TYPING("Typing", "⌨️", "Type a phrase exactly"),
+    MEMORY("Memory", "🧩", "Repeat a tile pattern"),
+    SHAKE("Shake", "📳", "Shake the phone"),
+    SQUAT("Squats", "🏋️", "Do squats holding the phone"),
+    WALK("Steps", "🚶", "Walk around"),
+    TAP("Tap", "🎯", "Tap the moving target"),
+    PHOTO("Photo", "📷", "Photograph a place you registered"),
+    BARCODE("QR / Barcode", "🔳", "Scan a code you registered"),
+    MULTI("Continue", "▶️", "Just continue")
+}
 
 data class AlarmMission(
     val type: AlarmMissionType,

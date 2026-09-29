@@ -4,9 +4,10 @@ object AlarmMissionCatalog {
     val all = AlarmMissionType.entries.toList()
 
     fun default(type: AlarmMissionType, difficulty: Int = 2): AlarmMission = when (type) {
-        AlarmMissionType.MATH -> AlarmMission(type, difficulty)
-        AlarmMissionType.TYPING -> AlarmMission(type, difficulty, payload = AlarmChallengeEngine.typing(difficulty))
-        AlarmMissionType.MEMORY -> AlarmMission(type, difficulty, payload = AlarmChallengeEngine.memorySequence(difficulty).joinToString(","))
+        AlarmMissionType.MATH -> AlarmMission(type, difficulty, 3)
+        AlarmMissionType.TYPING -> AlarmMission(type, difficulty, 2, payload = AlarmChallengeEngine.typing(difficulty))
+        AlarmMissionType.MEMORY -> AlarmMission(type, difficulty, 2, payload = AlarmChallengeEngine.memorySequence(difficulty).joinToString(","))
+        AlarmMissionType.TAP -> AlarmMission(type, difficulty, 20 + difficulty * 10)
         AlarmMissionType.SHAKE -> AlarmMission(type, difficulty, AlarmChallengeEngine.shakeTarget(difficulty))
         AlarmMissionType.SQUAT -> AlarmMission(type, difficulty, AlarmChallengeEngine.squatTarget(difficulty))
         AlarmMissionType.WALK -> AlarmMission(type, difficulty, AlarmChallengeEngine.walkTarget(difficulty))

@@ -147,7 +147,7 @@ internal fun WakeTab() {
                     { save(w.copy(freeDayWake = (w.freeDayWake ?: (7 * 60 + 45)) + 15)) })
                 Text("Wake-up challenges (all must be done to stop it)", style = MaterialTheme.typography.labelLarge)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items(listOf(AlarmMissionType.WALK, AlarmMissionType.MATH, AlarmMissionType.SQUAT, AlarmMissionType.SHAKE, AlarmMissionType.TYPING, AlarmMissionType.MEMORY, AlarmMissionType.BARCODE, AlarmMissionType.PHOTO)) { t ->
+                    items(listOf(AlarmMissionType.WALK, AlarmMissionType.MATH, AlarmMissionType.SQUAT, AlarmMissionType.SHAKE, AlarmMissionType.TYPING, AlarmMissionType.MEMORY, AlarmMissionType.TAP, AlarmMissionType.BARCODE, AlarmMissionType.PHOTO)) { t ->
                         FilterChip(t.name in w.missions, {
                             save(w.copy(missions = if (t.name in w.missions) (w.missions - t.name).ifEmpty { listOf("MATH") } else w.missions + t.name))
                             if (t == AlarmMissionType.WALK && Build.VERSION.SDK_INT >= 29) stepPermission.launch(android.Manifest.permission.ACTIVITY_RECOGNITION)
