@@ -61,7 +61,7 @@ fun CompletionCenter(vm: PlannerViewModel, productivity: OfflineProductivityStor
                 2 -> StudyWorkspace(store)
                 3 -> InsightsWorkspace(tasks, habits, goals, entries, store)
                 4 -> ReviewWorkspace(store)
-                else -> ToolsWorkspace(context, tasks, store)
+                else -> ToolsWorkspace(context, vm, tasks, store)
             }
         }
     }
@@ -277,11 +277,22 @@ private fun ReviewWorkspace(store: CompletionStore) {
 }
 
 @Composable
-private fun ToolsWorkspace(context: Context, tasks: List<TaskModel>, store: CompletionStore) {
+private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<TaskModel>, store: CompletionStore) {
     var dependencies by remember { mutableStateOf(store.dependencies()) }
     var shield by remember { mutableStateOf(store.focusShield()) }
     var packageName by remember { mutableStateOf("") }
     var imported by remember { mutableStateOf<List<IcsEventSummary>>(emptyList()) }
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) runCatching {
+            val csv = buildString {
+                append("title,date,start,end,priority,completed,notes\n")
+                tasks.forEach { t ->
+                    append(csvCell(t.title)).append(",").append(t.date).append(",").append(clock(t.startMinute)).append(",").append(clock(t.endMinute)).append(",").append(t.priority).append(",").append(t.completed).append(",").append(csvCell(t.notes)).append("\n")
+                }
+            }
+            context.contentResolver.openOutputStream(uri)?.use { it.write(csv.toByteArray()) }
+        }
+    }
     val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/calendar")) { uri ->
         if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.use { it.write(IcsCodec.export(tasks).toByteArray()) } }
     }
@@ -293,8 +304,21 @@ private fun ToolsWorkspace(context: Context, tasks: List<TaskModel>, store: Comp
         item { Card { Column(Modifier.padding(12.dp)) {
             Text("Calendar interoperability", fontWeight = FontWeight.Bold)
             Row { Button(onClick = { exportLauncher.launch("chronora-" + LocalDate.now() + ".ics") }) { Text("Export ICS") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { importLauncher.launch(arrayOf("text/calendar", "text/plain")) }) { Text("Import ICS") } }
-            if (imported.isNotEmpty()) Text(imported.size.toString() + " calendar events parsed locally.")
-            Row { OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:?subject=Chronora%20plan"))) } }) { Text("Email") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "Chronora plan") }, "Share")) }) { Text("Share") } }
+            if (imported.isNotEmpty()) {
+                Text(imported.size.toString() + " calendar events parsed locally.")
+                Button(onClick = {
+                    imported.forEach { event ->
+                        val parsed = parseIcsDateTime(event.start)
+                        if (parsed != null) {
+                            vm.selectDate(parsed.first)
+                            val end = parseIcsDateTime(event.end)?.second ?: parsed.second + 30
+                            vm.addOrUpdateTask(null, event.title, parsed.second, end.coerceAtLeast(parsed.second + 5), false, "", 1, "NONE", "NONE", 10)
+                        }
+                    }
+                    imported = emptyList()
+                }) { Text("Import as tasks") }
+            }
+            Row { Button(onClick = { csvLauncher.launch("chronora-" + LocalDate.now() + ".csv") }) { Text("Export CSV") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:?subject=Chronora%20plan"))) } }) { Text("Email") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, "Chronora plan") }, "Share")) }) { Text("Share") } }
         } } }
         item { Card { Column(Modifier.padding(12.dp)) {
             Text("Dependencies", fontWeight = FontWeight.Bold)
@@ -337,3 +361,9 @@ private fun usageSummary(context: Context): String {
 }
 
 private fun clock(minute: Int) = "%02d:%02d".format((minute / 60).coerceIn(0, 23), (minute % 60).coerceIn(0, 59))
+private fun csvCell(value: String) = "\"" + value.replace("\"", "\"\"").replace("\n", " ") + "\""
+private fun parseIcsDateTime(value: String): Pair<LocalDate, Int>? = runCatching {
+    val raw = value.removeSuffix("Z")
+    val dt = LocalDateTime.parse(raw, DateTimeFormatter.ofPattern("yyyyMMdd'T'HHmmss"))
+    dt.toLocalDate() to (dt.hour * 60 + dt.minute)
+}.getOrNull()
