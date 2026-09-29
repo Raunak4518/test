@@ -30,7 +30,7 @@ fun MadeByRaunak(modifier: Modifier = Modifier) {
     val context = androidx.compose.ui.platform.LocalContext.current
     Row(
         modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(androidx.compose.ui.unit.dp(4f))
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Text("Made by", color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
