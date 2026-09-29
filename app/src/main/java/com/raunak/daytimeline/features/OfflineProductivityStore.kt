@@ -104,7 +104,7 @@ class OfflineProductivityStore(context: Context) {
     }
 
     fun updateGoal(id: Long, title: String, target: Int, deadline: LocalDate?, milestones: List<String>) = update(_goals, "goals") { list ->
-        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, target = target.coerceAtLeast(1), deadline = deadline?.toString(), milestones = milestones.filter { m -> m.isNotBlank() }, milestoneDone = it.milestoneDone.filter { index -> index < milestones.size }) else it }
+        list.map { if (it.id == id) it.copy(title = title.trim().ifBlank { it.title }, target = target.coerceAtLeast(1), deadline = deadline?.toString(), milestones = milestones.filter { m -> m.isNotBlank() }, milestoneDone = it.milestoneDone.filter { index -> index < milestones.size }.toSet()) else it }
     }
 
     fun toggleGoalMilestone(id: Long, index: Int) = update(_goals, "goals") { list ->
