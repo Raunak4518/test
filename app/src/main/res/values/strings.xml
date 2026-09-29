@@ -1,3 +1,8 @@
 <resources>
-    <string name="app_name">Day Timeline</string>
+    <string name="app_name">Chronora</string>
+    <string name="app_tagline">Plan • Focus • Build • Become</string>
+    <string name="app_name_protection">Chronora Protection</string>
+    <string name="made_by">Made by</string>
+    <string name="creator_name">Raunak</string>
+    <string name="creator_github">https://github.com/Raunak4518</string>
 </resources>
