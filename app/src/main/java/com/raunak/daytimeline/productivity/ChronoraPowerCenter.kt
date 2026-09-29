@@ -29,7 +29,7 @@ import kotlin.math.roundToInt
 
 class ChronoraDependencyStore(context: Context) {
     private val prefs = context.getSharedPreferences("chronora_dependencies", Context.MODE_PRIVATE)
-    fun dependencies(taskId: Long): Set<Long> = prefs.getStringSet("d:" + taskId, emptySet())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
+    fun dependencies(taskId: Long): Set<Long> = prefs.getStringSet("d:" + taskId, emptySet<String>())?.mapNotNull { it.toLongOrNull() }?.toSet() ?: emptySet()
     fun set(taskId: Long, ids: Set<Long>) = prefs.edit().putStringSet("d:" + taskId, ids.map { it.toString() }.toSet()).apply()
     fun blocked(taskId: Long, completed: Set<Long>): Boolean = dependencies(taskId).any { it !in completed }
 }
@@ -126,7 +126,7 @@ private fun CalendarMatrix(tasks: List<TaskModel>, onSelect: (LocalDate) -> Unit
         }
         if (!month) {
             val monday = anchor.with(DayOfWeek.MONDAY)
-            Row(Modifier.fillMaxWidth()) { (0..6).forEach { offset -> Text(monday.plusDays(offset.toLong()).format(DateTimeFormatter.ofPattern("EEE d")), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall) } }
+            Row(Modifier.fillMaxWidth()) { repeat(7) { offset -> Text(monday.plusDays(offset.toLong()).format(DateTimeFormatter.ofPattern("EEE d")), Modifier.weight(1f), style = MaterialTheme.typography.labelSmall) } }
             Row(Modifier.fillMaxSize()) {
                 (0..6).forEach { offset ->
                     val date = monday.plusDays(offset.toLong())
