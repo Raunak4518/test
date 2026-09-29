@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -27,6 +26,7 @@ import com.raunak.daytimeline.alarm.AlarmCenter
 
 class MainActivity : ComponentActivity() {
     private val notifPermissionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    private val activityRecognitionLauncher = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,7 +39,7 @@ class MainActivity : ComponentActivity() {
             Box(Modifier.fillMaxSize()) {
                 PowerHome()
                 if (!advanced && !suite && !powerTools && !alarms) Column(modifier = Modifier.padding(start = 18.dp, top = 10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    FloatingActionButton(onClick = { alarms = true }) { Icon(Icons.Default.Alarm, "Open alarms") }
+                    FloatingActionButton(onClick = { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && ContextCompat.checkSelfPermission(this@MainActivity, Manifest.permission.ACTIVITY_RECOGNITION) != PackageManager.PERMISSION_GRANTED) activityRecognitionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION); alarms = true }) { Icon(Icons.Default.Alarm, "Open alarms") }
                     FloatingActionButton(onClick = { advanced = true }) { Icon(Icons.Default.AutoAwesome, "Open productivity tools") }
                     FloatingActionButton(onClick = { powerTools = true }) { Icon(Icons.Default.Build, "Open offline power tools") }
                 }
@@ -51,12 +51,4 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    override fun onResume() {
-        super.onResume()
-        // Exact-alarm access is a user-controlled Android permission; do not silently fail when it is unavailable.
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            val manager = getSystemService(android.app.AlarmManager::class.java)
-            if (manager != null && !manager.canScheduleExactAlarms()) runCatching { startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM)) }
-        }
-    }
 }
