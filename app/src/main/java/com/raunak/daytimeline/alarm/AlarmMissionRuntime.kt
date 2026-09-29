@@ -24,6 +24,7 @@ class AlarmMissionRuntime(private val context: Context) {
     private var ringtone: Ringtone? = null
     private var volumeRunnable: Runnable? = null
     private var baselineSteps = -1
+    private var detectedSteps = 0
     private var shakes = 0
     private var squats = 0
     private var squatLow = false
@@ -103,10 +104,12 @@ class AlarmMissionRuntime(private val context: Context) {
         val sensor = sensorManager.getDefaultSensor(Sensor.TYPE_STEP_DETECTOR)
             ?: sensorManager.getDefaultSensor(Sensor.TYPE_STEP_COUNTER) ?: return
         baselineSteps = -1
+        detectedSteps = 0
         stepListener = object : SensorEventListener {
             override fun onSensorChanged(event: SensorEvent) {
                 val progress = if (sensor.type == Sensor.TYPE_STEP_DETECTOR) {
-                    (event.values.firstOrNull()?.toInt() ?: 1).coerceAtLeast(1) + if (baselineSteps < 0) { baselineSteps = 0; 0 } else baselineSteps
+                    detectedSteps++
+                    detectedSteps
                 } else {
                     val total = event.values.firstOrNull()?.toInt() ?: return
                     if (baselineSteps < 0) baselineSteps = total
