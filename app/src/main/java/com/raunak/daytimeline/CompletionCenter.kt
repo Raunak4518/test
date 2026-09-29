@@ -291,6 +291,8 @@ private fun ReviewWorkspace(store: CompletionStore) {
 
 @Composable
 private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<TaskModel>, store: CompletionStore) {
+    var assistantQuery by remember { mutableStateOf("") }
+    var assistantAnswer by remember { mutableStateOf("") }
     var dependencies by remember { mutableStateOf(store.dependencies()) }
     var shield by remember { mutableStateOf(store.focusShield()) }
     var packageName by remember { mutableStateOf("") }
@@ -314,6 +316,23 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
     }
     LazyColumn(Modifier.fillMaxSize().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item { Text("Integrations, focus and data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        item { Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Offline Smart Assistant", fontWeight = FontWeight.Bold)
+            Text("A deterministic local copilot for planning questions; it never sends your data anywhere.")
+            OutlinedTextField(assistantQuery, { assistantQuery = it }, label = { Text("Ask: what should I do next?") }, Modifier.fillMaxWidth())
+            Button(onClick = {
+                val unfinished = tasks.filterNot { it.completed }.sortedWith(compareByDescending<TaskModel> { it.priority }.thenBy { it.startMinute })
+                val snap = ProductivityAnalyticsEngine.snapshot(tasks, emptyList(), emptyList(), emptyList())
+                assistantAnswer = when {
+                    unfinished.isEmpty() -> "No unfinished tasks are currently scheduled."
+                    assistantQuery.lowercase().contains("next") || assistantQuery.lowercase().contains("do") -> "Next suggested task: " + unfinished.first().title + " at " + clock(unfinished.first().startMinute) + "."
+                    assistantQuery.lowercase().contains("overload") || assistantQuery.lowercase().contains("busy") -> "Current workload estimate: " + snap.workloadScore + "/100. Consider moving lower-priority blocks."
+                    assistantQuery.lowercase().contains("focus") -> "Start a focus session on " + unfinished.first().title + " and use the Focus Shield for the next 25 minutes."
+                    else -> "I can answer locally about next work, workload and focus. Try: what should I do next?"
+                }
+            }) { Text("Ask") }
+            if (assistantAnswer.isNotBlank()) Text(assistantAnswer)
+        } } }
         item { Card { Column(Modifier.padding(12.dp)) {
             Text("Calendar interoperability", fontWeight = FontWeight.Bold)
             Row { Button(onClick = { exportLauncher.launch("chronora-" + LocalDate.now() + ".ics") }) { Text("Export ICS") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { importLauncher.launch(arrayOf("text/calendar", "text/plain")) }) { Text("Import ICS") } }
