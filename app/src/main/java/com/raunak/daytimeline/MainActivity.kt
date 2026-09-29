@@ -24,7 +24,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.raunak.daytimeline.alarm.AlarmCenter
 
-class MainActivity : FragmentActivity() {
+class MainActivity : FragmentActivity() {\n    private val security by lazy { ChronoraSecurityStore(applicationContext) }\n    private var authenticated = false\n    private var authenticating = false\n    private val credentialLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {\n        authenticating = false\n        authenticated = it.resultCode == RESULT_OK\n        if (!authenticated) finish()\n    }
     private var unlocked = mutableStateOf(true)
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
     private val activityRecognitionPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
