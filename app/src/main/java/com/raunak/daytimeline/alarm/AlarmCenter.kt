@@ -71,7 +71,14 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                             }
                             Icon(Icons.Default.Alarm, null)
                         }
-                        Text(alarm.scheduleLabel())
+                        val next = AlarmSchedulePlanner.nextOccurrence(alarm, LocalDateTime.now())
+                if (next != Long.MAX_VALUE) {
+                    val dt = java.time.Instant.ofEpochMilli(next).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                    Text("Next: " + String.format("%1\\$tb %1\\$td · %1\\$tH:%1\\$tM", dt))
+                } else {
+                    Text("No future occurrence")
+                }
+                Text(alarm.scheduleLabel())
                         Text("Missions: ${alarm.missionChain.joinToString(" → ") { it.title() }}")
                         Text("Snooze: ${alarm.snoozeMinutes}m × ${alarm.maxSnoozes}" + if (alarm.snoozeMaxTotalMinutes > 0) " · ${alarm.snoozeMaxTotalMinutes}m total" else "")
                         if (alarm.wakeCheckMinutes > 0) Text("Wake check: ${alarm.wakeCheckMinutes}m + ${alarm.wakeCheckRetries} retries")
@@ -85,7 +92,14 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                 }
             }
             item {
-                Text("Next alarm: ${alarms.filter { it.enabled }.minByOrNull { AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }?.let { String.format("%02d:%02d", it.hour, it.minute) } ?: "None"}")
+                val nextAlarm = alarms.filter { it.enabled }
+                    .map { it to AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }
+                    .filter { it.second != Long.MAX_VALUE }
+                    .minByOrNull { it.second }
+                Text(nextAlarm?.let { (_, at) ->
+                    val dt = java.time.Instant.ofEpochMilli(at).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+                    "Next alarm: " + String.format("%1\\$tb %1\\$td · %1\\$tH:%1\\$tM", dt)
+                } ?: "Next alarm: None")
             }
         }
     }
@@ -138,7 +152,34 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (
                     FilterChip(current.scheduleMode == mode, { current = current.copy(scheduleMode = mode) }, { Text(mode.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }) })
                 }
             }
-            if (current.scheduleMode == AlarmScheduleMode.EVERY_N_DAYS) OutlinedTextField(current.intervalDays.toString(), { current = current.copy(intervalDays = it.toIntOrNull() ?: current.intervalDays) }, label = { Text("Every N days") })
+            if (current.scheduleMode == AlarmScheduleMode.WEEKLY || current.scheduleMode == AlarmScheduleMode.ODD_WEEKS || current.scheduleMode == AlarmScheduleMode.EVEN_WEEKS) {
+                Text("Days", style = MaterialTheme.typography.titleSmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    listOf(2 to "M", 3 to "T", 4 to "W", 5 to "T", 6 to "F", 7 to "S", 1 to "S").forEach { (day, label) ->
+                        FilterChip(
+                            selected = day in current.repeatDays,
+                            onClick = {
+                                val next = current.repeatDays.toMutableSet().apply {
+                                    if (!add(day)) remove(day)
+                                }
+                                current = current.copy(repeatDays = next)
+                            },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+            }
+            if (current.scheduleMode == AlarmScheduleMode.EVERY_N_DAYS) {
+                OutlinedTextField(current.intervalDays.toString(), { current = current.copy(intervalDays = it.toIntOrNull() ?: current.intervalDays) }, label = { Text("Every N days") })
+            }
+            if (current.scheduleMode == AlarmScheduleMode.ONE_SHOT) {
+                OutlinedTextField(
+                    current.anchorDate.orEmpty(),
+                    { current = current.copy(anchorDate = it.takeIf(String::isNotBlank)) },
+                    label = { Text("Date (YYYY-MM-DD)") },
+                    supportingText = { Text("One-shot alarms fire only on this date.") }
+                )
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(current.snoozeMinutes.toString(), { current = current.copy(snoozeMinutes = it.toIntOrNull() ?: current.snoozeMinutes) }, label = { Text("Snooze minutes") }, modifier = Modifier.weight(1f))
                 OutlinedTextField(current.maxSnoozes.toString(), { current = current.copy(maxSnoozes = it.toIntOrNull() ?: current.maxSnoozes) }, label = { Text("Max snoozes") }, modifier = Modifier.weight(1f))
