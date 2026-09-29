@@ -46,12 +46,12 @@ class OfflineProductivityStore(context: Context) {
 
     fun addHabit(name: String, targetPerWeek: Int = 7, preferredTime: String = "") {
         if (name.isBlank()) return
-        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
+        update(_habits, "habits") { it + OfflineHabit(id(), name.trim(), targetPerWeek.coerceIn(1, 7), preferredTime, (1..7).toSet(), emptySet()) }.also { _habits.value.lastOrNull()?.let(habitScheduler::schedule) }
     }
 
-    fun updateHabit(id: Long, name: String, targetPerWeek: Int, preferredTime: String) {
+    fun updateHabit(id: Long, name: String, targetPerWeek: Int, preferredTime: String, activeDays: Set<Int> = (1..7).toSet()) {
         habitScheduler.cancel(id)
-        update(_habits, "habits") { list -> list.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, targetPerWeek = targetPerWeek.coerceIn(1, 7), preferredTime = preferredTime) else it } }
+        update(_habits, "habits") { list -> list.map { if (it.id == id) it.copy(name = name.trim().ifBlank { it.name }, targetPerWeek = targetPerWeek.coerceIn(1, 7), preferredTime = preferredTime, activeDays = activeDays.ifEmpty { (1..7).toSet() }) else it } }
         _habits.value.firstOrNull { it.id == id }?.let(habitScheduler::schedule)
     }
 
@@ -289,7 +289,7 @@ class OfflineProductivityStore(context: Context) {
     )
 }
 
-data class OfflineHabit(val id: Long, val name: String, val targetPerWeek: Int, val preferredTime: String, val completedDates: Set<String>)
+data class OfflineHabit(val id: Long, val name: String, val targetPerWeek: Int, val preferredTime: String, val activeDays: Set<Int> = (1..7).toSet(), val completedDates: Set<String> = emptySet())
 data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean)
 data class OfflineProject(val id: Long, val name: String, val color: Long, val taskIds: List<Long>, val deadline: String?)
 data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null)
