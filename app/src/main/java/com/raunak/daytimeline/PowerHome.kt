@@ -23,6 +23,7 @@ import com.raunak.daytimeline.features.OfflineProductivityStore
 import com.raunak.daytimeline.features.streak
 import com.raunak.daytimeline.productivity.LocalProductivityAnalytics
 import com.raunak.daytimeline.productivity.SmartPlanningEngine
+import com.raunak.daytimeline.productivity.ChronoraPowerCenter
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -56,6 +57,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     var editTask by remember { mutableStateOf<TaskModel?>(null) }
     var calendarOpen by remember { mutableStateOf(false) }
     var searchOpen by remember { mutableStateOf(false) }
+    var powerCenterOpen by remember { mutableStateOf(false) }
 
     MaterialTheme(colorScheme = lightColorScheme(background = HomeBg, surface = HomeCard, primary = HomeSage, onSurface = HomeInk)) {
         Scaffold(
@@ -68,7 +70,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
                             Text((if (tab == 0) "Today" else if (tab == 1) "Focus" else "Productivity") + " · " + date, style = MaterialTheme.typography.labelSmall, color = HomeMuted)
                         }
                     },
-                    actions = { IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
+                    actions = { IconButton(onClick = { searchOpen = true }) { Icon(Icons.Default.Search, "Search") }; IconButton(onClick = { powerCenterOpen = true }) { Icon(Icons.Default.Dashboard, "Power Center") }; IconButton(onClick = { calendarOpen = true }) { Icon(Icons.Default.CalendarMonth, "Calendar") }; IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") } }
                 )
             },
             bottomBar = {
@@ -97,6 +99,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     if (editTask != null) TaskEditorDialog(vm, editTask) { editTask = null }
     if (calendarOpen) CalendarDialog(date, vm) { calendarOpen = false }
     if (searchOpen) TaskSearchDialog(allTasks, vm) { searchOpen = false }
+    if (powerCenterOpen) ChronoraPowerCenter(allTasks, productivity, { powerCenterOpen = false }) { vm.selectDate(it); powerCenterOpen = false }
     if (dialog?.startsWith("editHabit:") == true) {
         val id = dialog!!.substringAfter(":").toLongOrNull()
         val habit = habits.firstOrNull { it.id == id }
