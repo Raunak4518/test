@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.ui.window.Dialog
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
@@ -53,6 +54,7 @@ class MainActivity : FragmentActivity() {
             }
             var alarms by remember { mutableStateOf(false) }
             var completion by remember { mutableStateOf(false) }
+            var showOnboarding by remember { mutableStateOf(!com.raunak.daytimeline.features.CompletionStore(applicationContext).onboardingComplete()) }
             val app = remember { AppContainer(applicationContext) }
             val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
             val productivity = remember { OfflineProductivityStore(applicationContext) }
@@ -74,6 +76,14 @@ class MainActivity : FragmentActivity() {
             }
             if (completion) {
                 CompletionCenter(vm, productivity) { completion = false }
+            }
+            if (showOnboarding) {
+                AlertDialog(
+                    onDismissRequest = { },
+                    title = { Text("Welcome to Chronora") },
+                    text = { Text("Chronora is offline-first. Tasks, habits, notes, alarms, reviews, study cards, analytics and backup remain on this device. Use the Command Center for calendar views, dependencies, search, study, analytics, reviews, ICS/CSV and focus controls.") },
+                    confirmButton = { Button(onClick = { com.raunak.daytimeline.features.CompletionStore(applicationContext).setOnboardingComplete(); showOnboarding = false }) { Text("Start planning") } }
+                )
             }
         }
     }
