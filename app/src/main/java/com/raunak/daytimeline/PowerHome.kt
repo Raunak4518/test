@@ -46,6 +46,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
     val routines by productivity.routines.collectAsStateWithLifecycle()
     val entries by productivity.timeEntries.collectAsStateWithLifecycle()
     val journal by productivity.journal.collectAsStateWithLifecycle()
+    val notes by productivity.notes.collectAsStateWithLifecycle()
     var tab by remember { mutableIntStateOf(0) }
     var addTask by remember { mutableStateOf(false) }
     var dialog by remember { mutableStateOf<String?>(null) }
@@ -78,7 +79,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
             when (tab) {
                 0 -> TodayScreen(tasks, date, vm, settings.showCompleted)
                 1 -> FocusScreen(pomo, tasks, vm)
-                2 -> ProductivityScreen(habits, goals, routines, entries, journal, productivity) { dialog = it }
+                2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
             }
         }
     }
@@ -89,6 +90,8 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         "goal" -> GoalDialog({ title, target -> productivity.addGoal(title, target); dialog = null }, { dialog = null })
         "journal" -> JournalDialog({ mood, energy, wins, blockers, gratitude, note -> productivity.addJournal(LocalDate.now(), mood, energy, wins, blockers, gratitude, note); dialog = null }, { dialog = null })
         "tools" -> OfflinePowerTools(productivity) { dialog = null }
+        "note" -> NoteDialog({ title, body, tags -> productivity.addNote(title, body, tags); dialog = null }, { dialog = null })
+        "routine" -> RoutineDialog({ name, steps -> productivity.addRoutine(name, steps); dialog = null }, { dialog = null })
     }
 }
 
@@ -162,7 +165,7 @@ private fun FocusScreen(pomo: com.raunak.daytimeline.data.PomodoroStateEntity, t
 }
 
 @Composable
-private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.OfflineHabit>, goals: List<com.raunak.daytimeline.features.OfflineGoal>, routines: List<com.raunak.daytimeline.features.OfflineRoutine>, entries: List<com.raunak.daytimeline.features.OfflineTimeEntry>, journal: List<com.raunak.daytimeline.features.OfflineJournalEntry>, store: OfflineProductivityStore, openDialog: (String) -> Unit) {
+private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.OfflineHabit>, goals: List<com.raunak.daytimeline.features.OfflineGoal>, routines: List<com.raunak.daytimeline.features.OfflineRoutine>, entries: List<com.raunak.daytimeline.features.OfflineTimeEntry>, journal: List<com.raunak.daytimeline.features.OfflineJournalEntry>, notes: List<com.raunak.daytimeline.features.OfflineNote>, store: OfflineProductivityStore, openDialog: (String) -> Unit) {
     val today = LocalDate.now()
     val tracked = store.todayTrackedMinutes()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -173,8 +176,16 @@ private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.Offl
         }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Goals"); TextButton(onClick = { openDialog("goal") }) { Text("Add") } } }
         items(goals, key = { it.id }) { g -> Card { Column(Modifier.padding(14.dp)) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(g.title, fontWeight = FontWeight.SemiBold); Text("${g.progress}/${g.target}") }; LinearProgressIndicator(progress = { g.progress.toFloat() / g.target }, modifier = Modifier.fillMaxWidth()); Row { TextButton(onClick = { store.setGoalProgress(g.id, g.progress + 1) }) { Text("+1") }; TextButton(onClick = { store.setGoalProgress(g.id, g.progress - 1) }) { Text("-1") } } } } }
-        item { SectionTitle("Routines") }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Routines"); TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
         items(routines, key = { it.id }) { r -> Card { Column(Modifier.padding(14.dp)) { Text(r.name, fontWeight = FontWeight.SemiBold); Text("${r.steps.sumOf { it.minutes }} min · ${r.steps.size} steps", color = HomeMuted); TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") } } } }
+        item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Notes"); TextButton(onClick = { openDialog("note") }) { Text("New") } } }
+        items(notes.sortedByDescending { it.updatedAt }.take(8), key = { it.id }) { n ->
+            Card { Column(Modifier.padding(14.dp)) {
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(n.title, fontWeight = FontWeight.SemiBold); IconButton(onClick = { store.deleteNote(n.id) }) { Icon(Icons.Default.Delete, "Delete note") } }
+                if (n.tags.isNotEmpty()) Text(n.tags.joinToString(" · "), color = HomeSage, style = MaterialTheme.typography.labelSmall)
+                Text(n.body, maxLines = 5, color = HomeMuted)
+            } }
+        }
         item { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) { SectionTitle("Reflection"); TextButton(onClick = { openDialog("journal") }) { Text("Write") } } }
         item { if (journal.isEmpty()) EmptyCard("No journal yet", "Capture mood, energy, wins, blockers and gratitude.") else Card { Column(Modifier.padding(14.dp)) { val j = journal.first(); Text(j.date, fontWeight = FontWeight.Bold); Text("Mood ${j.mood}/5 · Energy ${j.energy}/5", color = HomeSage); if (j.wins.isNotBlank()) Text("Wins: ${j.wins}"); if (j.blockers.isNotBlank()) Text("Blockers: ${j.blockers}") } } }
         item { SectionTitle("Tracked time"); Text("${entries.size} local time entries · ${tracked} minutes today", color = HomeMuted) }
@@ -194,6 +205,26 @@ private fun AddTaskDialog(vm: PlannerViewModel, close: () -> Unit) {
 @Composable private fun HabitDialog(onSave: (String, Int) -> Unit, close: () -> Unit) { var name by remember { mutableStateOf("") }; var target by remember { mutableStateOf("7") }; AlertDialog(onDismissRequest = close, title = { Text("New habit") }, text = { Column { OutlinedTextField(name, { name = it }, label = { Text("Habit") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Days/week") }) } }, confirmButton = { Button(onClick = { onSave(name, target.toIntOrNull() ?: 7) }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 @Composable private fun GoalDialog(onSave: (String, Int) -> Unit, close: () -> Unit) { var title by remember { mutableStateOf("") }; var target by remember { mutableStateOf("100") }; AlertDialog(onDismissRequest = close, title = { Text("New goal") }, text = { Column { OutlinedTextField(title, { title = it }, label = { Text("Goal") }); OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }) } }, confirmButton = { Button(onClick = { onSave(title, target.toIntOrNull() ?: 100) }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
 @Composable private fun JournalDialog(onSave: (Int, Int, String, String, String, String) -> Unit, close: () -> Unit) { var mood by remember { mutableIntStateOf(3) }; var energy by remember { mutableIntStateOf(3) }; var wins by remember { mutableStateOf("") }; var blockers by remember { mutableStateOf("") }; var gratitude by remember { mutableStateOf("") }; var note by remember { mutableStateOf("") }; AlertDialog(onDismissRequest = close, title = { Text("Daily reflection") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { Text("Mood $mood/5"); Row { (1..5).forEach { TextButton(onClick = { mood = it }) { Text(it.toString()) } } }; Text("Energy $energy/5"); Row { (1..5).forEach { TextButton(onClick = { energy = it }) { Text(it.toString()) } } }; OutlinedTextField(wins, { wins = it }, label = { Text("Wins") }); OutlinedTextField(blockers, { blockers = it }, label = { Text("Blockers") }); OutlinedTextField(gratitude, { gratitude = it }, label = { Text("Gratitude") }); OutlinedTextField(note, { note = it }, label = { Text("Notes") }) } }, confirmButton = { Button(onClick = { onSave(mood, energy, wins, blockers, gratitude, note) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } }) }
+
+@Composable private fun NoteDialog(onSave: (String, String, Set<String>) -> Unit, close: () -> Unit) {
+    var title by remember { mutableStateOf("") }; var body by remember { mutableStateOf("") }; var tags by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = close, title = { Text("New note") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(title, { title = it }, label = { Text("Title") })
+        OutlinedTextField(body, { body = it }, label = { Text("Note") }, minLines = 4)
+        OutlinedTextField(tags, { tags = it }, label = { Text("Tags, comma separated") })
+    } }, confirmButton = { Button(onClick = { onSave(title, body, tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+@Composable private fun RoutineDialog(onSave: (String, List<com.raunak.daytimeline.features.OfflineRoutineStep>) -> Unit, close: () -> Unit) {
+    var name by remember { mutableStateOf("") }; var raw by remember { mutableStateOf("Hydrate|5\nPlan|10\nFocus|25") }
+    AlertDialog(onDismissRequest = close, title = { Text("New routine") }, text = { Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(name, { name = it }, label = { Text("Routine name") })
+        OutlinedTextField(raw, { raw = it }, label = { Text("Steps: title|minutes") }, minLines = 4)
+    } }, confirmButton = { Button(onClick = {
+        val steps = raw.lines().mapNotNull { row -> val p = row.split("|", limit = 2); val m = p.getOrNull(1)?.trim()?.toIntOrNull(); if (p.firstOrNull()?.isNotBlank() == true && m != null && m > 0) com.raunak.daytimeline.features.OfflineRoutineStep(p[0].trim(), m) else null }
+        if (steps.isNotEmpty()) onSave(name, steps)
+    }) { Text("Create") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
 
 private fun clock(minutes: Int) = "%02d:%02d".format((minutes / 60).coerceIn(0, 23), (minutes % 60).coerceIn(0, 59))
 private fun parseClock(value: String): Int { val p = value.trim().split(":"); return ((p.getOrNull(0)?.toIntOrNull() ?: 0) * 60 + (p.getOrNull(1)?.toIntOrNull() ?: 0)).coerceIn(0, 1439) }
