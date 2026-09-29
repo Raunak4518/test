@@ -395,7 +395,11 @@ data class OfflineSettings(
     /** Eisenhower matrix: tasks at or above this priority (0–3) are important. */
     val matrixImportantPriority: Int = 2,
     /** Eisenhower matrix: how far ahead to look, in days. */
-    val matrixHorizonDays: Int = 14
+    val matrixHorizonDays: Int = 14,
+    /** Keep a pinned "Add a task" notification with a text box. */
+    val pinnedQuickAdd: Boolean = false,
+    /** Days shown in the Upcoming view. */
+    val upcomingDays: Int = 7
 )
 data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long, val folder: String = "General", val pinned: Boolean = false)
 

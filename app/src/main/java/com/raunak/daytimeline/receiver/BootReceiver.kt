@@ -15,7 +15,9 @@ class BootReceiver : BroadcastReceiver() {
         val app=AppContainer(context)
         CoroutineScope(Dispatchers.IO).launch {
             app.repository.rescheduleAllReminders()
-            com.raunak.daytimeline.features.OfflineProductivityStore(context.applicationContext).rescheduleHabitReminders()
+            val productivity = com.raunak.daytimeline.features.OfflineProductivityStore(context.applicationContext)
+            productivity.rescheduleHabitReminders()
+            if (productivity.settings.value.pinnedQuickAdd) com.raunak.daytimeline.productivity.QuickAddNotification.show(context.applicationContext)
             val store=AlarmPersistentStore(context); val scheduler=AlarmManagerBridge(context)
             store.all().filter { it.enabled }.forEach { scheduler.schedule(it) }
             com.raunak.daytimeline.pro.LocationReminderManager(context.applicationContext).registerAll()

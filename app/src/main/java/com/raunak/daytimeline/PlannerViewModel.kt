@@ -59,12 +59,13 @@ class PlannerViewModel(
     fun onToday() { selectedDate.value = LocalDate.now() }
     fun selectDate(date: LocalDate) { selectedDate.value = date }
 
-    fun addOrUpdateTask(id: Long?, title: String, start: Int, end: Int, pomodoroEnabled: Boolean, notes: String, priority: Int, recurrenceType: String, reminderMode: String, reminderOffsetMinutes: Int, recurrenceDays: String = "", tags: String = "") {
+    fun addOrUpdateTask(id: Long?, title: String, start: Int, end: Int, pomodoroEnabled: Boolean, notes: String, priority: Int, recurrenceType: String, reminderMode: String, reminderOffsetMinutes: Int, recurrenceDays: String = "", tags: String = "", date: LocalDate? = null, colorHex: Long? = null) {
         viewModelScope.launch {
-            val candidate = TaskEntity(
-                id = id ?: 0,
+            val existing = id?.let { repository.byId(it) }
+            val base = existing ?: TaskEntity(title = title, dateEpochDay = selectedDate.value.toEpochDay(), startMinute = start, endMinute = end)
+            val candidate = base.copy(
                 title = title,
-                dateEpochDay = selectedDate.value.toEpochDay(),
+                dateEpochDay = (date ?: existing?.let { LocalDate.ofEpochDay(it.dateEpochDay) } ?: selectedDate.value).toEpochDay(),
                 startMinute = start,
                 endMinute = end,
                 pomodoroEnabled = pomodoroEnabled,
@@ -74,16 +75,20 @@ class PlannerViewModel(
                 recurrenceDays = recurrenceDays,
                 tags = tags,
                 reminderMode = reminderMode,
-                reminderOffsetMinutes = reminderOffsetMinutes
+                reminderOffsetMinutes = reminderOffsetMinutes,
+                colorHex = colorHex ?: base.colorHex
             )
-            if (id == null) repository.addTask(candidate) else repository.updateTask(candidate)
+            if (existing == null) repository.addTask(candidate) else repository.updateTask(candidate)
         }
     }
 
     fun quickAdd(input: String) = viewModelScope.launch { repository.quickAdd(input, selectedDate.value) }
     /** Quick add where relative dates ("tomorrow", "next monday") are relative to the real today. */
     fun quickAddExact(input: String) = viewModelScope.launch { repository.quickAdd(input, LocalDate.now()) }
-    fun toggleComplete(task: TaskModel, complete: Boolean) = viewModelScope.launch { repository.markComplete(task.id, complete) }
+    fun toggleComplete(task: TaskModel, complete: Boolean) = viewModelScope.launch { repository.markComplete(task.id, complete, task.date) }
+    fun reschedule(task: TaskModel, date: LocalDate) = viewModelScope.launch { repository.reschedule(task.id, date) }
+    /** Overdue (up to 60 days back) through the next 60 days, repeating tasks expanded. */
+    val agenda: StateFlow<List<TaskModel>> = repository.observeAgenda(LocalDate.now().minusDays(60), LocalDate.now().plusDays(60)).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     fun deleteTask(task: TaskModel) = viewModelScope.launch { repository.deleteTask(task.id) }
     fun duplicateTask(task: TaskModel) = viewModelScope.launch { repository.duplicateTask(task.id) }
 

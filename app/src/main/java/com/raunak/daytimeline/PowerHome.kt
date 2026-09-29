@@ -43,6 +43,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     val vm: PlannerViewModel = viewModel(factory = PlannerViewModel.Factory(app))
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val allTasks by vm.allTasks.collectAsStateWithLifecycle()
+    val agenda by vm.agenda.collectAsStateWithLifecycle()
     val date by vm.currentDate.collectAsStateWithLifecycle()
     val pomo by vm.pomodoro.collectAsStateWithLifecycle()
     val settings by vm.settings.collectAsStateWithLifecycle()
@@ -78,6 +79,13 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                             DropdownMenuItem(text = { Text("Calendar") }, leadingIcon = { Icon(Icons.Default.CalendarMonth, null) }, onClick = { menu = false; calendarOpen = true })
                             DropdownMenuItem(text = { Text("Power Center") }, leadingIcon = { Icon(Icons.Default.Dashboard, null) }, onClick = { menu = false; powerCenterOpen = true })
                             DropdownMenuItem(text = { Text("Command center") }, leadingIcon = { Icon(Icons.Default.Tune, null) }, onClick = { menu = false; onOpenCommandCenter() })
+                            val prefs by productivity.settings.collectAsStateWithLifecycle()
+                            DropdownMenuItem(text = { Text(if (prefs.pinnedQuickAdd) "Unpin quick-add notification" else "Pin quick-add notification") }, leadingIcon = { Icon(Icons.Default.PushPin, null) }, onClick = {
+                                menu = false
+                                val on = !prefs.pinnedQuickAdd
+                                productivity.updateSettings { it.copy(pinnedQuickAdd = on) }
+                                if (on) com.raunak.daytimeline.productivity.QuickAddNotification.show(context.applicationContext) else com.raunak.daytimeline.productivity.QuickAddNotification.hide(context.applicationContext)
+                            })
                         }
                     }
                 }
@@ -99,7 +107,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
                 when (tab) {
-                    0 -> TodayScreen(tasks, allTasks, date, vm, settings.showCompleted, productivity) { vm.selectDate(it.date); editTask = it }
+                    0 -> TodayScreen(tasks, agenda, date, vm, settings.showCompleted, productivity) { editTask = it }
                     1 -> com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, vm)
                     2 -> ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity) { dialog = it }
                     3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
@@ -108,9 +116,9 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         }
     }
 
-    if (addTask) TaskEditorDialog(vm, null) { addTask = false }
-    if (editTask != null) TaskEditorDialog(vm, editTask) { editTask = null }
-    if (calendarOpen) CalendarDialog(date, vm) { calendarOpen = false }
+    if (addTask) com.raunak.daytimeline.productivity.TaskEditor(vm, null, date) { addTask = false }
+    editTask?.let { t -> com.raunak.daytimeline.productivity.TaskEditor(vm, t, t.date) { editTask = null } }
+    if (calendarOpen) com.raunak.daytimeline.productivity.CalendarPage(vm, date, { editTask = it }) { calendarOpen = false }
     if (searchOpen) TaskSearchDialog(allTasks, vm) { searchOpen = false }
     if (proSuiteOpen) com.raunak.daytimeline.pro.FreeProSuite(vm) { proSuiteOpen = false }
     if (powerCenterOpen) ChronoraPowerCenter(allTasks, productivity, { powerCenterOpen = false }) { vm.selectDate(it); powerCenterOpen = false }
@@ -157,69 +165,64 @@ private fun DayClasses(date: LocalDate) {
 }
 
 @Composable
-private fun TodayScreen(tasks: List<TaskModel>, allTasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, store: OfflineProductivityStore, onEdit: (TaskModel) -> Unit) {
+private fun TodayScreen(tasks: List<TaskModel>, agenda: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, showCompleted: Boolean, store: OfflineProductivityStore, onEdit: (TaskModel) -> Unit) {
+    val today = LocalDate.now()
     val visible = if (showCompleted) tasks else tasks.filterNot { it.completed }
     val total = tasks.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
     val done = tasks.filter { it.completed }.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
     val prefs by store.settings.collectAsStateWithLifecycle()
-    var matrix by rememberSaveable { mutableStateOf(false) }
+    var view by rememberSaveable { mutableIntStateOf(0) }
+    var checklistFor by remember { mutableStateOf<TaskModel?>(null) }
+    val overdue = agenda.filter { !it.completed && it.recurrenceType == "NONE" && it.date.isBefore(today) }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                SegmentedButton(selected = !matrix, onClick = { matrix = false }, shape = SegmentedButtonDefaults.itemShape(0, 2)) { Text("Day plan") }
-                SegmentedButton(selected = matrix, onClick = { matrix = true }, shape = SegmentedButtonDefaults.itemShape(1, 2)) { Text("Priority matrix") }
-            }
-        }
-        if (matrix) {
-            item { com.raunak.daytimeline.productivity.EisenhowerMatrix(allTasks, vm, prefs, store::updateSettings, onEdit) }
-            return@LazyColumn
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                DayButton("‹", Modifier.weight(1f)) { vm.onPrevDay() }
-                DayButton("Today", Modifier.weight(2f)) { vm.onToday() }
-                DayButton("›", Modifier.weight(1f)) { vm.onNextDay() }
-            }
-        }
-        item {
-            HeroCard {
-                Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
-                    Text("${tasks.count { !it.completed }} remaining", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                    Text("${done / 60}h ${done % 60}m done · ${total / 60}h ${total % 60}m planned", color = Chronora.colors.heroMuted)
-                    LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth(), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .15f))
+                listOf("Day", "Upcoming", "Matrix").forEachIndexed { i, l ->
+                    SegmentedButton(selected = view == i, onClick = { view = i }, shape = SegmentedButtonDefaults.itemShape(i, 3)) { Text(l) }
                 }
             }
         }
-        item { Text(date.dayOfWeek.toString().lowercase().replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
-        item { DayClasses(date) }
-        items(visible.sortedBy { it.startMinute }, key = { it.id }) { task ->
-            TaskRow(task, vm, { vm.toggleComplete(task, !task.completed) }, { vm.startPomodoro(task.id) }, { onEdit(task) })
+        item { com.raunak.daytimeline.productivity.QuickAddBar(vm, if (view == 0) date else today) }
+        when (view) {
+            2 -> item { com.raunak.daytimeline.productivity.EisenhowerMatrix(agenda, vm, prefs, store::updateSettings, onEdit) }
+            1 -> {
+                item { com.raunak.daytimeline.productivity.OverdueCard(overdue, vm, onEdit, today) }
+                with(com.raunak.daytimeline.productivity.TaskViewsScope) { upcoming(agenda, prefs.upcomingDays.takeIf { it > 0 } ?: 7, vm, onEdit, { checklistFor = it }, today) }
+                item {
+                    val d = prefs.upcomingDays.takeIf { it > 0 } ?: 7
+                    Stepper("Days shown", "$d", { store.updateSettings { it.copy(upcomingDays = (d - 1).coerceAtLeast(1)) } }, { store.updateSettings { it.copy(upcomingDays = (d + 1).coerceAtMost(60)) } })
+                }
+            }
+            else -> {
+                item {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        DayButton("‹", Modifier.weight(1f)) { vm.onPrevDay() }
+                        DayButton(com.raunak.daytimeline.productivity.relativeDay(date, today), Modifier.weight(2f)) { vm.onToday() }
+                        DayButton("›", Modifier.weight(1f)) { vm.onNextDay() }
+                    }
+                }
+                item {
+                    HeroCard {
+                        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                            Text("${tasks.count { !it.completed }} remaining", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                            Text("${done / 60}h ${done % 60}m done · ${total / 60}h ${total % 60}m planned", color = Chronora.colors.heroMuted)
+                            LinearProgressIndicator(progress = { if (total == 0) 0f else done.toFloat() / total }, modifier = Modifier.fillMaxWidth(), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .15f))
+                        }
+                    }
+                }
+                if (date == today) item { com.raunak.daytimeline.productivity.OverdueCard(overdue, vm, onEdit, today) }
+                item { DayClasses(date) }
+                items(visible.sortedWith(compareBy<TaskModel> { it.completed }.thenBy { it.startMinute }), key = { it.id }) { task ->
+                    com.raunak.daytimeline.productivity.TaskCard(task, vm, { onEdit(task) }, { checklistFor = task }, today = today)
+                }
+                if (visible.isEmpty()) item { EmptyCard("Nothing planned", "Type above to add a task — dates, times, #tags, !priority and repeats are understood.") }
+            }
         }
-        if (visible.isEmpty()) item { EmptyCard("Nothing scheduled", "Use + to add a block. Your day stays local and offline.") }
     }
+    checklistFor?.let { ChecklistDialog(it, vm) { checklistFor = null } }
 }
 
 @Composable private fun DayButton(text: String, modifier: Modifier, onClick: () -> Unit) { OutlinedButton(onClick = onClick, modifier = modifier) { Text(text) } }
-
-@Composable
-private fun TaskRow(task: TaskModel, vm: PlannerViewModel, onComplete: () -> Unit, onFocus: () -> Unit, onEdit: () -> Unit) {
-    var showChecklist by remember { mutableStateOf(false) }
-    Card {
-        Row(Modifier.fillMaxWidth().padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = task.completed, onCheckedChange = { onComplete() })
-            Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
-                Text(task.title, fontWeight = FontWeight.SemiBold)
-                Text("${clock(task.startMinute)}–${clock(task.endMinute)} · ${task.endMinute - task.startMinute}m", color = HomeMuted, style = MaterialTheme.typography.bodySmall)
-                if (task.notes.isNotBlank()) Text(task.notes, color = HomeMuted, maxLines = 2)
-            }
-            IconButton(onClick = onEdit) { Icon(Icons.Default.Edit, "Edit") }
-            IconButton(onClick = { vm.deleteTask(task) }) { Icon(Icons.Default.Delete, "Delete") }
-            IconButton(onClick = { showChecklist = true }) { Icon(Icons.Default.Checklist, "Checklist") }
-            if (task.pomodoroEnabled) IconButton(onClick = onFocus) { Icon(Icons.Default.PlayArrow, "Focus") }
-        }
-    }
-    if (showChecklist) ChecklistDialog(task, vm) { showChecklist = false }
-}
 
 @Composable private fun ChecklistDialog(task: TaskModel, vm: PlannerViewModel, close: () -> Unit) {
     val items by vm.checklist(task.id).collectAsStateWithLifecycle(initialValue = emptyList())

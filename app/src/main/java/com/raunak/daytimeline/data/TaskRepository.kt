@@ -34,8 +34,13 @@ class TaskRepository(
         return id
     }
 
+    suspend fun byId(id: Long): TaskEntity? = taskDao.byId(id)
+
     suspend fun updateTask(task: TaskEntity) {
-        taskDao.update(task)
+        // Callers build a fresh entity; keep per-occurrence completions and creation time.
+        val existing = taskDao.byId(task.id)
+        val merged = if (existing == null) task else task.copy(completedDates = existing.completedDates, createdAt = existing.createdAt)
+        taskDao.update(merged)
         reminderScheduler.schedule(task)
     }
 
@@ -49,9 +54,39 @@ class TaskRepository(
         return addTask(existing.copy(id = 0, title = "${existing.title} (copy)", completed = false))
     }
 
-    suspend fun markComplete(taskId: Long, completed: Boolean) {
+    /** Repeating tasks are completed per occurrence ([date]); one-off tasks as a whole. */
+    suspend fun markComplete(taskId: Long, completed: Boolean, date: LocalDate? = null) {
         val task = taskDao.byId(taskId) ?: return
-        taskDao.update(task.copy(completed = completed))
+        if (task.recurrenceType != "NONE" && date != null) {
+            val days = task.doneDays().toMutableSet()
+            if (completed) days += date.toEpochDay() else days -= date.toEpochDay()
+            taskDao.update(task.copy(completedDates = days.sorted().takeLast(800).joinToString(",")))
+        } else taskDao.update(task.copy(completed = completed))
+    }
+
+    /** Moves a one-off task to [date], keeping its time. */
+    suspend fun reschedule(taskId: Long, date: LocalDate) {
+        val task = taskDao.byId(taskId) ?: return
+        if (task.recurrenceType != "NONE") return
+        val moved = task.copy(dateEpochDay = date.toEpochDay())
+        taskDao.update(moved)
+        reminderScheduler.schedule(moved)
+    }
+
+    /**
+     * Every task occurrence between [from] and [to]: one-off tasks on their date, repeating tasks on
+     * each day they occur from today on (past repeats are not listed as overdue).
+     */
+    fun observeAgenda(from: LocalDate, to: LocalDate, today: LocalDate = LocalDate.now()): Flow<List<TaskModel>> = taskDao.observeAll().map { all ->
+        all.flatMap { e ->
+            if (e.recurrenceType == "NONE") {
+                val d = LocalDate.ofEpochDay(e.dateEpochDay)
+                if (d.isBefore(from) || d.isAfter(to)) emptyList() else listOf(e.toModel(d))
+            } else {
+                generateSequence(maxOf(from, today)) { it.plusDays(1) }.takeWhile { !it.isAfter(to) }
+                    .filter { RecurrenceEngine.occursOn(e, it) }.map { e.toModel(it) }.toList()
+            }
+        }.sortedWith(compareBy<TaskModel> { it.date }.thenBy { it.startMinute })
     }
 
     fun checklist(taskId: Long): Flow<List<ChecklistItemEntity>> = checklistDao.observeForTask(taskId)
@@ -118,7 +153,8 @@ class TaskRepository(
                     reminderOffsetMinutes = (raw["reminderOffsetMinutes"] as? Number)?.toInt() ?: 0,
                     completed = raw["completed"] as? Boolean ?: false,
                     recurrenceType = raw["recurrenceType"] as? String ?: "NONE",
-                    recurrenceDays = raw["recurrenceDays"] as? String ?: ""
+                    recurrenceDays = raw["recurrenceDays"] as? String ?: "",
+                    completedDates = raw["completedDates"] as? String ?: ""
                 )
             )
             checklistRaw
@@ -178,7 +214,10 @@ private fun TaskEntity.toModel(date: LocalDate): TaskModel = TaskModel(
     tags = tags,
     reminderMode = reminderMode,
     reminderOffsetMinutes = reminderOffsetMinutes,
-    completed = completed,
+    completed = if (recurrenceType != "NONE") date.toEpochDay() in doneDays() else completed,
     recurrenceType = recurrenceType,
     recurrenceDays = recurrenceDays
 )
+
+@Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+private fun TaskEntity.doneDays(): Set<Long> = (completedDates ?: "").split(',').mapNotNull { it.trim().toLongOrNull() }.toSet()

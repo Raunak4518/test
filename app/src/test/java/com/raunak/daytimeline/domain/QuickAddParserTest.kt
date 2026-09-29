@@ -9,6 +9,16 @@ class QuickAddParserTest {
     private val today = LocalDate.of(2026, 1, 1)
 
     @Test
+    fun range_start_shares_the_end_meridiem() {
+        val p = QuickAddParser.parse("Revise 7-8:30pm", today)!!
+        assertThat(p.startMinute).isEqualTo(19 * 60)
+        assertThat(p.endMinute).isEqualTo(20 * 60 + 30)
+        val q = QuickAddParser.parse("Lab 11-1pm", today)!!
+        assertThat(q.startMinute).isEqualTo(11 * 60)
+        assertThat(q.endMinute).isEqualTo(13 * 60)
+    }
+
+    @Test
     fun parses_range_and_pomodoro() {
         val parsed = QuickAddParser.parse("DSA 7-9 pomodoro", today)
         assertThat(parsed).isNotNull()

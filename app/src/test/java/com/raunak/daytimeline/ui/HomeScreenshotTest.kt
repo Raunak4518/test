@@ -36,6 +36,15 @@ class HomeScreenshotTest {
         store.saveHabit(OfflineHabit(0, "Solve 2 DSA problems", 7, "08:00", (1..7).toSet(), (1L..20L).filter { it % 6 != 0L }.map { today.minusDays(it).toString() }.toSet(), color = 0xFF4E79A7, note = "Placements in 6 months"))
         store.saveHabit(OfflineHabit(0, "Gym", 4, "18:30", (1..7).toSet(), setOf(today.minusDays(1).toString(), today.minusDays(3).toString()), frequency = HabitFrequency.WEEKLY.name, color = 0xFFF28E2B))
         store.saveHabit(OfflineHabit(0, "Call home", 7, "", (1..7).toSet(), setOf(today.minusDays(2).toString()), frequency = HabitFrequency.INTERVAL.name, intervalDays = 3, color = 0xFF9C6ADE))
+        val repo = com.raunak.daytimeline.AppContainer(ApplicationProvider.getApplicationContext()).repository
+        kotlinx.coroutines.runBlocking {
+            repo.quickAdd("Revise DBMS normalisation 7-8:30pm #exam !1", today)
+            repo.quickAdd("Submit ML assignment 11pm !1 remind 1h before", today.plusDays(1))
+            repo.quickAdd("Gym 6pm daily #health", today)
+            repo.quickAdd("LeetCode contest sunday 8am #dsa !2", today)
+            repo.quickAdd("Read CN chapter 4 tomorrow 4pm", today)
+            repo.quickAdd("Pay hostel fees 10am !1", today.minusDays(2))
+        }
         var activity: MainActivity? = null
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity = it }
@@ -49,9 +58,13 @@ class HomeScreenshotTest {
         compose.onAllNodesWithText("Focus")[0].performClick(); save("home-focus")
         assertThat(compose.onAllNodesWithText("Start focus").fetchSemanticsNodes()).isNotEmpty()
         compose.onAllNodes(hasText("Today") and hasClickAction())[0].performClick()
-        compose.onAllNodesWithText("Priority matrix")[0].performClick(); save("home-matrix")
+        save("home-day")
+        compose.onAllNodesWithText("Upcoming")[0].performClick(); save("home-upcoming")
+        compose.onAllNodesWithText("Matrix")[0].performClick(); save("home-matrix")
         assertThat(compose.onAllNodesWithText("Do first").fetchSemanticsNodes()).isNotEmpty()
         compose.onAllNodesWithText("Productivity")[0].performClick(); save("home-habits")
+        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More"))[0].performClick()
+        compose.onAllNodesWithText("Calendar")[0].performClick(); save("home-calendar")
         assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
         scenario.close()
     }

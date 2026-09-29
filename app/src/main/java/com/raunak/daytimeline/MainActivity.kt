@@ -50,6 +50,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleOpen(intent)
+        if (com.raunak.daytimeline.features.OfflineProductivityStore(applicationContext).settings.value.pinnedQuickAdd) com.raunak.daytimeline.productivity.QuickAddNotification.show(applicationContext)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(

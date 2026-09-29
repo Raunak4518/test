@@ -23,7 +23,9 @@ data class TaskEntity(
     val completed: Boolean = false,
     val recurrenceType: String = "NONE",
     val recurrenceDays: String = "",
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    /** For repeating tasks: epoch days of the occurrences already done, comma separated. */
+    @androidx.room.ColumnInfo(defaultValue = "") val completedDates: String = ""
 )
 
 @Entity(

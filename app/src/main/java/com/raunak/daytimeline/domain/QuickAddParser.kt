@@ -95,8 +95,13 @@ object QuickAddParser {
         var end: Int? = null
         (take(fromTo) ?: take(range))?.let { m ->
             val g = m.groupValues
-            val s = toMinute(g[1], g[2], g[3])
+            var s = toMinute(g[1], g[2], g[3])
             var e = toMinute(g[4], g[5], g[6].ifBlank { g[3] })
+            // "7-8:30pm": the start shares the end's am/pm when that keeps it before the end
+            if (g[3].isBlank() && g[6].isNotBlank()) {
+                val shared = toMinute(g[1], g[2], g[6])
+                if (shared < e) s = shared
+            }
             if (e <= s) e += 12 * 60
             start = s; end = e
         }

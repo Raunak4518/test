@@ -14,37 +14,10 @@ import com.raunak.daytimeline.domain.TaskModel
 import com.raunak.daytimeline.features.*
 import java.time.LocalDate
 
-@OptIn(ExperimentalMaterial3Api::class)
+/** Kept for older call sites; the full editor lives in [com.raunak.daytimeline.productivity.TaskEditor]. */
 @Composable
-fun TaskEditorDialog(vm: PlannerViewModel, initial: TaskModel?, close: () -> Unit) {
-    var title by remember { mutableStateOf(initial?.title ?: "") }
-    var start by remember { mutableStateOf(initial?.startMinute?.let(::clock) ?: "09:00") }
-    var end by remember { mutableStateOf(initial?.endMinute?.let(::clock) ?: "10:00") }
-    var notes by remember { mutableStateOf(initial?.notes ?: "") }
-    var tags by remember { mutableStateOf(initial?.tags ?: "") }
-    var priority by remember { mutableIntStateOf(initial?.priority ?: 1) }
-    var pomodoro by remember { mutableStateOf(initial?.pomodoroEnabled ?: true) }
-    var recurrence by remember { mutableStateOf(initial?.recurrenceType ?: "NONE") }
-    var days by remember { mutableStateOf(initial?.recurrenceDays ?: "") }
-    var reminder by remember { mutableStateOf(initial?.reminderMode ?: "NONE") }
-    var offset by remember { mutableStateOf((initial?.reminderOffsetMinutes ?: 10).toString()) }
-    AlertDialog(onDismissRequest=close,title={Text(if(initial==null)"New task" else "Edit task")},text={
-        LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp),modifier=Modifier.heightIn(max=520.dp)){
-            item{OutlinedTextField(title,{title=it},label={Text("Title")},modifier=Modifier.fillMaxWidth())}
-            item{Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){OutlinedTextField(start,{start=it},label={Text("Start HH:mm")},modifier=Modifier.weight(1f));OutlinedTextField(end,{end=it},label={Text("End HH:mm")},modifier=Modifier.weight(1f))}}
-            item{OutlinedTextField(notes,{notes=it},label={Text("Notes")},modifier=Modifier.fillMaxWidth(),minLines=2)}
-            item{OutlinedTextField(tags,{tags=it},label={Text("Tags, comma separated")},modifier=Modifier.fillMaxWidth())}
-            item{Row{(1..3).forEach{p->FilterChip(priority==p,{priority=p},label={Text("P"+p)},modifier=Modifier.padding(end=6.dp))}}}
-            item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween){Text("Pomodoro");Switch(pomodoro,{pomodoro=it})}}
-            item{Text("Repeat",style=MaterialTheme.typography.labelLarge)}
-            item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){listOf("NONE","DAILY","WEEKDAYS","WEEKENDS","WEEKLY","CUSTOM_DAYS").forEach{r->FilterChip(recurrence==r,{recurrence=r},label={Text(r.replace("_"," "))})}}}
-            if(recurrence=="CUSTOM_DAYS") item{OutlinedTextField(days,{days=it.filter{c->c.isDigit()||c==','}},label={Text("Days 1=Mon … 7=Sun")})}
-            item{Text("Reminder",style=MaterialTheme.typography.labelLarge)}
-            item{Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.spacedBy(4.dp)){listOf("NONE","AT_START","BEFORE").forEach{r->FilterChip(reminder==r,{reminder=r},label={Text(r.replace("_"," "))})}}}
-            if(reminder=="BEFORE") item{OutlinedTextField(offset,{offset=it.filter(Char::isDigit)},label={Text("Minutes before")})}
-        }
-    },confirmButton={Button(enabled=title.isNotBlank(),onClick={val s=parseClock(start);val e=parseClock(end).coerceAtLeast(s+5);vm.addOrUpdateTask(initial?.id,title,s,e,pomodoro,notes,priority,recurrence,reminder,offset.toIntOrNull()?:10,days,tags);close()}){Text("Save")}},dismissButton={TextButton(onClick=close){Text("Cancel")}})
-}
+fun TaskEditorDialog(vm: PlannerViewModel, initial: TaskModel?, close: () -> Unit) =
+    com.raunak.daytimeline.productivity.TaskEditor(vm, initial, initial?.date ?: vm.currentDate.value, close)
 
 @Composable
 fun CalendarDialog(date: LocalDate, vm: PlannerViewModel, close: () -> Unit) {
