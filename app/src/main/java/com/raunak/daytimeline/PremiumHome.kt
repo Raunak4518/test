@@ -37,11 +37,89 @@ fun PremiumHome() {
     selected?.let { TaskSheet(it, vm) { selected = null } }
 }
 
-@Composable private fun Timeline(tasks:List<TaskModel>,date:LocalDate,vm:PlannerViewModel,onTask:(TaskModel)->Unit){val total=tasks.sumOf{(it.endMinute-it.startMinute).coerceAtLeast(0)};val done=tasks.filter{it.completed}.sumOf{(it.endMinute-it.startMinute).coerceAtLeast(0)};val pct=if(total==0)0 else done*100/total;LazyColumn(contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(13.dp)){item{Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween,Alignment.CenterVertically){Column{Text(if(date==LocalDate.now())"Good day." else "Your plan",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")),color=Muted)}Box(Modifier.size(46.dp).clip(CircleShape).background(Ink),Alignment.Center){Text("$pct%",color=Color.White,fontWeight=FontWeight.Bold)}}};item{Surface(RoundedCornerShape(28.dp),modifier=Modifier.fillMaxWidth()){Box(Modifier.background(Brush.linearGradient(listOf(Ink,Color(0xFF315046)))).padding(20.dp)){Column(verticalArrangement=Arrangement.spacedBy(9.dp)){Text("TODAY",color=Color(0xFFB9CCC2),style=MaterialTheme.typography.labelMedium);Text("${tasks.count{!it.completed}} things left",color=Color.White,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold);Text("${total/60}h ${total%60}m planned  ·  ${done/60}h ${done%60}m done",color=Color(0xFFC9D3D1));LinearProgressIndicator({pct/100f},Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),Color(0xFFA8C7B7),Color.White.copy(.12f))}}}};item{DateStrip(date,vm)};item{Text("Timeline",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};if(tasks.isEmpty())item{Surface(RoundedCornerShape(24.dp),color=Card){Column(Modifier.fillMaxWidth().padding(28.dp),horizontalAlignment=Alignment.CenterHorizontally){Icon(Icons.Default.Spa,null,tint=Sage,Modifier.size(42.dp));Text("A quiet day",fontWeight=FontWeight.SemiBold);Text("Add something when you are ready.",color=Muted)}}}else items(tasks.sortedBy{it.startMinute},key={it.id}){t->TaskCard(t,{onTask(t)},{vm.toggleComplete(t,!t.completed)})};item{Spacer(Modifier.height(70.dp))}}}
+@Composable
+private fun Timeline(tasks: List<TaskModel>, date: LocalDate, vm: PlannerViewModel, onTask: (TaskModel) -> Unit) {
+    val total = tasks.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
+    val done = tasks.filter { it.completed }.sumOf { (it.endMinute - it.startMinute).coerceAtLeast(0) }
+    val pct = if (total == 0) 0 else done * 100 / total
+    LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(13.dp)) {
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                Column {
+                    Text(if (date == LocalDate.now()) "Good day." else "Your plan", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                    Text(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")), color = Muted)
+                }
+                Box(Modifier.size(46.dp).clip(CircleShape).background(Ink), contentAlignment = Alignment.Center) { Text("$pct%", color = Color.White, fontWeight = FontWeight.Bold) }
+            }
+        }
+        item {
+            Surface(RoundedCornerShape(28.dp), modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.background(Brush.linearGradient(listOf(Ink, Color(0xFF315046)))).padding(20.dp)) {
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        Text("TODAY", color = Color(0xFFB9CCC2), style = MaterialTheme.typography.labelMedium)
+                        Text("${tasks.count { !it.completed }} things left", color = Color.White, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+                        Text("${total / 60}h ${total % 60}m planned · ${done / 60}h ${done % 60}m done", color = Color(0xFFC9D3D1))
+                        LinearProgressIndicator(progress = { pct / 100f }, modifier = Modifier.fillMaxWidth().height(7.dp).clip(CircleShape), color = Color(0xFFA8C7B7), trackColor = Color.White.copy(alpha = 0.12f))
+                    }
+                }
+            }
+        }
+        item { DateStrip(date, vm) }
+        item { Text("Timeline", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        if (tasks.isEmpty()) {
+            item {
+                Surface(RoundedCornerShape(24.dp), color = Card) {
+                    Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Default.Spa, null, tint = Sage, modifier = Modifier.size(42.dp))
+                        Text("A quiet day", fontWeight = FontWeight.SemiBold)
+                        Text("Add something when you are ready.", color = Muted)
+                    }
+                }
+            }
+        } else {
+            items(tasks.sortedBy { it.startMinute }, key = { it.id }) { task ->
+                TaskCard(task, onClick = { onTask(task) }, onComplete = { vm.toggleComplete(task, !task.completed) })
+            }
+        }
+        item { Spacer(Modifier.height(70.dp)) }
+    }
+}
 
-@Composable private fun DateStrip(date:LocalDate,vm:PlannerViewModel){Row(Modifier.horizontalScroll(rememberScrollState()),horizontalArrangement=Arrangement.spacedBy(8.dp)){(-3..3).forEach{i->val d=date.plusDays(i.toLong());val sel=i==0;Surface(RoundedCornerShape(18.dp),color=if(sel)Ink else Card,onClick={if(i<0)vm.onPrevDay();if(i>0)vm.onNextDay()}){Column(Modifier.padding(horizontal=14.dp,vertical=10.dp),horizontalAlignment=Alignment.CenterHorizontally){Text(d.format(DateTimeFormatter.ofPattern("EEE")),color=if(sel)Color.White else Muted);Text("${d.dayOfMonth}",color=if(sel)Color.White else Ink,fontWeight=FontWeight.Bold)}}}}}
+@Composable
+private fun DateStrip(date: LocalDate, vm: PlannerViewModel) {
+    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        (-3..3).forEach { offset ->
+            val day = date.plusDays(offset.toLong())
+            val selected = offset == 0
+            Surface(RoundedCornerShape(18.dp), color = if (selected) Ink else Card, onClick = { if (offset < 0) vm.onPrevDay(); if (offset > 0) vm.onNextDay() }) {
+                Column(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(day.format(DateTimeFormatter.ofPattern("EEE")), color = if (selected) Color.White else Muted)
+                    Text(day.dayOfMonth.toString(), color = if (selected) Color.White else Ink, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
 
-@Composable private fun TaskCard(t:TaskModel,onClick:()->Unit,onComplete:()->Unit){Surface(onClick=onClick,shape=RoundedCornerShape(22.dp),color=Card,shadowElevation=1.dp,modifier=Modifier.fillMaxWidth()){Row(Modifier.padding(14.dp),Alignment.CenterVertically){Box(Modifier.width(5.dp).height(64.dp).clip(CircleShape).background(Color(t.colorHex)));Column(Modifier.weight(1f).padding(start=13.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){Text(t.title,fontWeight=FontWeight.SemiBold,maxLines=1,overflow=TextOverflow.Ellipsis);Text("${tm(t.startMinute)} — ${tm(t.endMinute)}  ·  ${t.endMinute-t.startMinute} min",color=Muted,style=MaterialTheme.typography.bodySmall);Row(horizontalArrangement=Arrangement.spacedBy(6.dp)){if(t.pomodoroEnabled)Chip("Pomodoro",Icons.Default.Timer);if(t.recurrenceType!="NONE")Chip("Repeats",Icons.Default.Repeat);if(t.notes.isNotBlank())Chip("Notes",Icons.Default.Notes)}};Checkbox(t.completed){onComplete()}}}}
+@Composable
+private fun TaskCard(t: TaskModel, onClick: () -> Unit, onComplete: () -> Unit) {
+    Surface(onClick = onClick, shape = RoundedCornerShape(22.dp), color = Card, shadowElevation = 1.dp, modifier = Modifier.fillMaxWidth()) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.width(5.dp).height(64.dp).clip(CircleShape).background(Color(t.colorHex)))
+            Column(Modifier.weight(1f).padding(start = 13.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(t.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${tm(t.startMinute)} — ${tm(t.endMinute)} · ${t.endMinute - t.startMinute} min", color = Muted, style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (t.pomodoroEnabled) Chip("Pomodoro", Icons.Default.Timer)
+                    if (t.recurrenceType != "NONE") Chip("Repeats", Icons.Default.Repeat)
+                    if (t.notes.isNotBlank()) Chip("Notes", Icons.Default.Notes)
+                }
+            }
+            Checkbox(checked = t.completed, onCheckedChange = { onComplete() })
+        }
+    }
+}
+
 @Composable private fun Chip(s:String,icon:androidx.compose.ui.graphics.vector.ImageVector){Surface(RoundedCornerShape(50),color=Color(0xFFEAF0EC)){Row(Modifier.padding(horizontal=7.dp,vertical=4.dp),Alignment.CenterVertically){Icon(icon,null,tint=Sage,Modifier.size(13.dp));Spacer(Modifier.width(4.dp));Text(s,color=Sage,style=MaterialTheme.typography.labelSmall)}}}
 
 @Composable private fun Focus(p:com.raunak.daytimeline.data.PomodoroStateEntity,tasks:List<TaskModel>,vm:PlannerViewModel){Column(Modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("FOCUS",color=Sage,fontWeight=FontWeight.Bold);Spacer(Modifier.height(22.dp));Surface(CircleShape,color=Ink,modifier=Modifier.size(245.dp)){Box(Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Text("%02d:%02d".format(p.remainingSeconds/60,p.remainingSeconds%60),color=Color.White,style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Light);Text(p.phase,color=Color(0xFFB8C8C0))}}};Spacer(Modifier.height(22.dp));Text("One thing at a time.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold);Text("Focus without leaving the timeline.",color=Muted);Spacer(Modifier.height(20.dp));Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({if(p.running)vm.pausePomodoro()else vm.resumePomodoro()}){Icon(if(p.running)Icons.Default.Pause else Icons.Default.PlayArrow,null);Spacer(Modifier.width(6.dp));Text(if(p.running)"Pause" else "Resume")};OutlinedButton(vm::resetPomodoro){Text("Reset")}};Spacer(Modifier.height(15.dp));tasks.take(4).forEach{t->ListItem({Text(t.title)},{Text("${tm(t.startMinute)} · ${t.endMinute-t.startMinute} min",color=Muted)}, {Icon(Icons.Default.RadioButtonUnchecked,null)},{IconButton({vm.startPomodoro(t.id)}){Icon(Icons.Default.PlayArrow,null)}})}}
