@@ -89,7 +89,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Backup & restore", style = MaterialTheme.typography.titleMedium); Text("Export the complete secondary productivity store as versioned JSON, or restore a validated backup.")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { exporter.launch("daytimeline-backup.json") }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save JSON") }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { exporter.launch("chronora-backup.json") }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save JSON") }
                 OutlinedButton(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Share productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
