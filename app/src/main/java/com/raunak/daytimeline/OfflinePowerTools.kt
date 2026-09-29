@@ -32,7 +32,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     var timerLabel by remember { mutableStateOf("") }
     var selectedProject by remember { mutableLongStateOf(-1L) }
     var status by remember { mutableStateOf("") }
-    var challengeEditor by remember { mutableStateOf<OfflineChallenge?>(null) }
+    var challengeEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineChallenge?>(null) }
     var newChallenge by remember { mutableStateOf(false) }
     var projectEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineProject?>(null) }
     var newProjectDialog by remember { mutableStateOf(false) }
