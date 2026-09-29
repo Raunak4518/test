@@ -78,7 +78,7 @@ data class AlarmEditorModel(
             longPressMs = longPressMs,
             scheduleMode = scheduleMode.name,
             intervalDays = intervalDays,
-            anchorDate = anchorDate,
+            anchorDate = anchorDate ?: if (scheduleMode == AlarmScheduleMode.EVERY_N_DAYS) java.time.LocalDate.now().toString() else null,
             snoozeMaxTotalMinutes = snoozeMaxTotalMinutes,
             snoozeHalveEachTime = snoozeHalveEachTime,
             snoozeAllowAfterScheduled = snoozeAllowAfterScheduled,
