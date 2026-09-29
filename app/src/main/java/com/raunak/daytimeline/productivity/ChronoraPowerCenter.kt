@@ -252,12 +252,26 @@ private fun InsightsCenter(tasks: List<TaskModel>, store: OfflineProductivitySto
 
 @Composable private fun FocusShield() {
     val context = LocalContext.current
+    val security = remember(context) { ChronoraSecurityStore(context) }
+    var lock by remember { mutableStateOf(security.appLockEnabled) }
     Column(Modifier.fillMaxSize().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
         Icon(Icons.Default.DoNotDisturbOn, null, Modifier.size(64.dp))
-        Text("Focus shield", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+        Text("Focus & protection", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
         Text("Usage access lets Chronora measure app usage for focus analytics. Android does not permit an ordinary app to silently block or make other apps uninstallable.")
         Button({ context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) }) { Text("Grant usage access") }
         OutlinedButton({ context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }) { Text("Notification access") }
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text("App lock", fontWeight = FontWeight.SemiBold)
+                Text("Require the device PIN, pattern or biometric-backed credential when Chronora returns to the foreground.", style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = lock, onCheckedChange = {
+                if (!it || security.canUseDeviceCredential(context)) {
+                    security.appLockEnabled = it
+                    lock = it
+                }
+            })
+        }
         Text("For system-level app timers and blocking, use Android Digital Wellbeing.", style = MaterialTheme.typography.bodySmall)
     }
 }
