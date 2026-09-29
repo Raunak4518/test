@@ -76,34 +76,109 @@ fun TaskSearchDialog(tasks: List<TaskModel>, vm: PlannerViewModel, close: () -> 
 }
 
 @Composable
-fun NotesManagerDialog(notes: List<OfflineNote>,store: OfflineProductivityStore,close:()->Unit){
-    var q by remember{mutableStateOf("")};var editing by remember{mutableStateOf<OfflineNote?>(null)};var creating by remember{mutableStateOf(false)}
-    val list=notes.filter{q.isBlank()||it.title.contains(q,true)||it.body.contains(q,true)||it.tags.any{t->t.contains(q,true)}}
-    AlertDialog(onDismissRequest=close,title={Text("Notes")},text={Column{OutlinedTextField(q,{q=it},label={Text("Search")},modifier=Modifier.fillMaxWidth());list.take(20).forEach{n->ListItem(headlineContent={Text(n.title)},supportingContent={Text(n.body.take(70))},trailingContent={Row{IconButton(onClick={editing=n}){Icon(Icons.Default.Edit,null)};IconButton(onClick={store.deleteNote(n.id)}){Icon(Icons.Default.Delete,null)}}}};Button(onClick={creating=true},modifier=Modifier.fillMaxWidth()){Text("New note")}}},confirmButton={TextButton(onClick=close){Text("Close")}})
-    if(creating||editing!=null)NoteEditDialog(editing,store){creating=false;editing=null}
+fun NotesManagerDialog(notes: List<OfflineNote>, store: OfflineProductivityStore, close: () -> Unit) {
+    var query by remember { mutableStateOf("") }
+    var editing by remember { mutableStateOf<OfflineNote?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    val list = notes.filter { query.isBlank() || it.title.contains(query, true) || it.body.contains(query, true) || it.tags.any { tag -> tag.contains(query, true) } }
+    AlertDialog(onDismissRequest = close, title = { Text("Notes") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(query, { query = it }, label = { Text("Search") }, modifier = Modifier.fillMaxWidth())
+            list.take(20).forEach { note ->
+                ListItem(headlineContent = { Text(note.title) }, supportingContent = { Text(note.body.take(70)) }, trailingContent = { Row {
+                    IconButton(onClick = { editing = note }) { Icon(Icons.Default.Edit, null) }
+                    IconButton(onClick = { store.deleteNote(note.id) }) { Icon(Icons.Default.Delete, null) }
+                } })
+            }
+            Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("New note") }
+        }
+    }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
+    if (creating || editing != null) NoteEditDialog(editing, store) { creating = false; editing = null }
 }
 
 @Composable
-private fun NoteEditDialog(note:OfflineNote?,store:OfflineProductivityStore,close:()->Unit){
-    var title by remember{mutableStateOf(note?.title?:"")};var body by remember{mutableStateOf(note?.body?:"")};var tags by remember{mutableStateOf(note?.tags?.joinToString(", ")?:"")}
-    AlertDialog(onDismissRequest=close,title={Text(if(note==null)"New note" else "Edit note")},text={Column{OutlinedTextField(title,{title=it},label={Text("Title")});OutlinedTextField(body,{body=it},label={Text("Body")},minLines=5);OutlinedTextField(tags,{tags=it},label={Text("Tags")})}},confirmButton={Button(onClick={val ts=tags.split(",").map{it.trim()}.filter{it.isNotBlank()}.toSet();if(note==null)store.addNote(title,body,ts)else store.updateNote(note.id,title,body,ts);close()}){Text("Save")}},dismissButton={TextButton(onClick=close){Text("Cancel")}})
+private fun NoteEditDialog(note: OfflineNote?, store: OfflineProductivityStore, close: () -> Unit) {
+    var title by remember { mutableStateOf(note?.title ?: "") }
+    var body by remember { mutableStateOf(note?.body ?: "") }
+    var tags by remember { mutableStateOf(note?.tags?.joinToString(", ") ?: "") }
+    AlertDialog(onDismissRequest = close, title = { Text(if (note == null) "New note" else "Edit note") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(title, { title = it }, label = { Text("Title") })
+            OutlinedTextField(body, { body = it }, label = { Text("Body") }, minLines = 5)
+            OutlinedTextField(tags, { tags = it }, label = { Text("Tags") })
+        }
+    }, confirmButton = { Button(onClick = {
+        val ts = tags.split(",").map { it.trim() }.filter { it.isNotBlank() }.toSet()
+        if (note == null) store.addNote(title, body, ts) else store.updateNote(note.id, title, body, ts)
+        close()
+    }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
 @Composable
-fun GoalManagerDialog(goals:List<OfflineGoal>,store:OfflineProductivityStore,close:()->Unit){
-    var editing by remember{mutableStateOf<OfflineGoal?>(null)};var creating by remember{mutableStateOf(false)}
-    AlertDialog(onDismissRequest=close,title={Text("Goals & milestones")},text={Column(verticalArrangement=Arrangement.spacedBy(6.dp)){goals.forEach{g->Card{Column(Modifier.padding(10.dp)){Text(g.title);Text(g.progress.toString()+"/"+g.target+(g.deadline?.let{" · due "+it}?:""));LinearProgressIndicator(progress={g.progress.toFloat()/g.target});g.milestones.forEachIndexed{i,m->Row{Text("• "+m,Modifier.weight(1f));IconButton(onClick={store.removeGoalMilestone(g.id,i)}){Icon(Icons.Default.Close,null)}}};Row{TextButton(onClick={store.setGoalProgress(g.id,g.progress+1)}){Text("+1")};TextButton(onClick={editing=g}){Text("Edit")};TextButton(onClick={store.deleteGoal(g.id)}){Text("Delete")}}}}};Button(onClick={creating=true},modifier=Modifier.fillMaxWidth()){Text("New goal")}}},confirmButton={TextButton(onClick=close){Text("Close")}})
-    if(creating||editing!=null)GoalEditDialog(editing,store){creating=false;editing=null}
-}
-
-@Composable private fun GoalEditDialog(goal:OfflineGoal?,store:OfflineProductivityStore,close:()->Unit){
-    var title by remember{mutableStateOf(goal?.title?:"")};var target by remember{mutableStateOf((goal?.target?:100).toString())};var deadline by remember{mutableStateOf(goal?.deadline?:"")};var ms by remember{mutableStateOf(goal?.milestones?.joinToString("\n")?:"")}
-    AlertDialog(onDismissRequest=close,title={Text(if(goal==null)"New goal" else "Edit goal")},text={Column{OutlinedTextField(title,{title=it},label={Text("Goal")});OutlinedTextField(target,{target=it.filter(Char::isDigit)},label={Text("Target")});OutlinedTextField(deadline,{deadline=it},label={Text("Deadline YYYY-MM-DD")});OutlinedTextField(ms,{ms=it},label={Text("Milestones, one per line")},minLines=3)}},confirmButton={Button(onClick={val d=runCatching{LocalDate.parse(deadline)}.getOrNull();val list=ms.lines().map(String::trim).filter(String::isNotBlank);if(goal==null)store.addGoal(title,target.toIntOrNull()?:1,d)else store.updateGoal(goal.id,title,target.toIntOrNull()?:goal.target,d,list);close()}){Text("Save")}},dismissButton={TextButton(onClick=close){Text("Cancel")}})
+fun GoalManagerDialog(goals: List<OfflineGoal>, store: OfflineProductivityStore, close: () -> Unit) {
+    var editing by remember { mutableStateOf<OfflineGoal?>(null) }
+    var creating by remember { mutableStateOf(false) }
+    AlertDialog(onDismissRequest = close, title = { Text("Goals & milestones") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            goals.forEach { goal ->
+                Card { Column(Modifier.padding(10.dp)) {
+                    Text(goal.title)
+                    Text(goal.progress.toString() + "/" + goal.target + (goal.deadline?.let { " · due " + it } ?: ""))
+                    LinearProgressIndicator(progress = { goal.progress.toFloat() / goal.target })
+                    goal.milestones.forEachIndexed { index, milestone -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("• " + milestone, Modifier.weight(1f))
+                        IconButton(onClick = { store.removeGoalMilestone(goal.id, index) }) { Icon(Icons.Default.Close, null) }
+                    } }
+                    Row {
+                        TextButton(onClick = { store.setGoalProgress(goal.id, goal.progress + 1) }) { Text("+1") }
+                        TextButton(onClick = { editing = goal }) { Text("Edit") }
+                        TextButton(onClick = { store.deleteGoal(goal.id) }) { Text("Delete") }
+                    }
+                } }
+            }
+            Button(onClick = { creating = true }, modifier = Modifier.fillMaxWidth()) { Text("New goal") }
+        }
+    }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
+    if (creating || editing != null) GoalEditDialog(editing, store) { creating = false; editing = null }
 }
 
 @Composable
-fun JournalHistoryDialog(journal:List<OfflineJournalEntry>,close:()->Unit){
-    AlertDialog(onDismissRequest=close,title={Text("Journal history")},text={LazyColumn(modifier=Modifier.heightIn(max=500.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){items(journal.sortedByDescending{it.date}.take(90)){j->Card{Column(Modifier.padding(10.dp)){Text(j.date);Text("Mood "+j.mood+"/5 · Energy "+j.energy+"/5");if(j.wins.isNotBlank())Text("Wins: "+j.wins);if(j.blockers.isNotBlank())Text("Blockers: "+j.blockers);if(j.gratitude.isNotBlank())Text("Gratitude: "+j.gratitude);if(j.note.isNotBlank())Text(j.note)}}}},},confirmButton={TextButton(onClick=close){Text("Close")}})
+private fun GoalEditDialog(goal: OfflineGoal?, store: OfflineProductivityStore, close: () -> Unit) {
+    var title by remember { mutableStateOf(goal?.title ?: "") }
+    var target by remember { mutableStateOf((goal?.target ?: 100).toString()) }
+    var deadline by remember { mutableStateOf(goal?.deadline ?: "") }
+    var milestones by remember { mutableStateOf(goal?.milestones?.joinToString("\n") ?: "") }
+    AlertDialog(onDismissRequest = close, title = { Text(if (goal == null) "New goal" else "Edit goal") }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            OutlinedTextField(title, { title = it }, label = { Text("Goal") })
+            OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") })
+            OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD") })
+            OutlinedTextField(milestones, { milestones = it }, label = { Text("Milestones, one per line") }, minLines = 3)
+        }
+    }, confirmButton = { Button(onClick = {
+        val d = runCatching { LocalDate.parse(deadline) }.getOrNull()
+        val ms = milestones.lines().map { it.trim() }.filter { it.isNotBlank() }
+        if (goal == null) store.addGoal(title, target.toIntOrNull() ?: 1, d) else store.updateGoal(goal.id, title, target.toIntOrNull() ?: goal.target, d, ms)
+        close()
+    }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+@Composable
+fun JournalHistoryDialog(journal: List<OfflineJournalEntry>, close: () -> Unit) {
+    AlertDialog(onDismissRequest = close, title = { Text("Journal history") }, text = {
+        LazyColumn(modifier = Modifier.heightIn(max = 500.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(journal.sortedByDescending { it.date }.take(90)) { entry ->
+                Card { Column(Modifier.padding(10.dp)) {
+                    Text(entry.date)
+                    Text("Mood " + entry.mood + "/5 · Energy " + entry.energy + "/5")
+                    if (entry.wins.isNotBlank()) Text("Wins: " + entry.wins)
+                    if (entry.blockers.isNotBlank()) Text("Blockers: " + entry.blockers)
+                    if (entry.gratitude.isNotBlank()) Text("Gratitude: " + entry.gratitude)
+                    if (entry.note.isNotBlank()) Text(entry.note)
+                } }
+            }
+        }
+    }, confirmButton = { TextButton(onClick = close) { Text("Close") } })
 }
 
 private fun clock(m:Int)="%02d:%02d".format((m/60).coerceIn(0,23),(m%60).coerceIn(0,59))
