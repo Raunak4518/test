@@ -122,7 +122,42 @@ private fun TaskCard(t: TaskModel, onClick: () -> Unit, onComplete: () -> Unit) 
 
 @Composable private fun Chip(s:String,icon:androidx.compose.ui.graphics.vector.ImageVector){Surface(RoundedCornerShape(50),color=Color(0xFFEAF0EC)){Row(Modifier.padding(horizontal=7.dp,vertical=4.dp),Alignment.CenterVertically){Icon(icon,null,tint=Sage,Modifier.size(13.dp));Spacer(Modifier.width(4.dp));Text(s,color=Sage,style=MaterialTheme.typography.labelSmall)}}}
 
-@Composable private fun Focus(p:com.raunak.daytimeline.data.PomodoroStateEntity,tasks:List<TaskModel>,vm:PlannerViewModel){Column(Modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("FOCUS",color=Sage,fontWeight=FontWeight.Bold);Spacer(Modifier.height(22.dp));Surface(CircleShape,color=Ink,modifier=Modifier.size(245.dp)){Box(Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Text("%02d:%02d".format(p.remainingSeconds/60,p.remainingSeconds%60),color=Color.White,style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Light);Text(p.phase,color=Color(0xFFB8C8C0))}}};Spacer(Modifier.height(22.dp));Text("One thing at a time.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold);Text("Focus without leaving the timeline.",color=Muted);Spacer(Modifier.height(20.dp));Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({if(p.running)vm.pausePomodoro()else vm.resumePomodoro()}){Icon(if(p.running)Icons.Default.Pause else Icons.Default.PlayArrow,null);Spacer(Modifier.width(6.dp));Text(if(p.running)"Pause" else "Resume")};OutlinedButton(vm::resetPomodoro){Text("Reset")}};Spacer(Modifier.height(15.dp));tasks.take(4).forEach{t->ListItem({Text(t.title)},{Text("${tm(t.startMinute)} · ${t.endMinute-t.startMinute} min",color=Muted)}, {Icon(Icons.Default.RadioButtonUnchecked,null)},{IconButton({vm.startPomodoro(t.id)}){Icon(Icons.Default.PlayArrow,null)}})}}
+@Composable
+private fun Focus(p: com.raunak.daytimeline.data.PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel) {
+    Column(Modifier.fillMaxSize().padding(22.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        Text("FOCUS", color = Sage, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(22.dp))
+        Surface(CircleShape, color = Ink, modifier = Modifier.size(245.dp)) {
+            Box(contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("%02d:%02d".format(p.remainingSeconds / 60, p.remainingSeconds % 60), color = Color.White, style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Light)
+                    Text(p.phase, color = Color(0xFFB8C8C0))
+                }
+            }
+        }
+        Spacer(Modifier.height(22.dp))
+        Text("One thing at a time.", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.SemiBold)
+        Text("Focus without leaving the timeline.", color = Muted)
+        Spacer(Modifier.height(20.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Button(onClick = { if (p.running) vm.pausePomodoro() else vm.resumePomodoro() }) {
+                Icon(if (p.running) Icons.Default.Pause else Icons.Default.PlayArrow, null)
+                Spacer(Modifier.width(6.dp))
+                Text(if (p.running) "Pause" else "Resume")
+            }
+            OutlinedButton(onClick = vm::resetPomodoro) { Text("Reset") }
+        }
+        Spacer(Modifier.height(15.dp))
+        tasks.take(4).forEach { task ->
+            ListItem(
+                headlineContent = { Text(task.title) },
+                supportingContent = { Text("${tm(task.startMinute)} · ${task.endMinute - task.startMinute} min", color = Muted) },
+                leadingContent = { Icon(Icons.Default.RadioButtonUnchecked, null) },
+                trailingContent = { IconButton(onClick = { vm.startPomodoro(task.id) }) { Icon(Icons.Default.PlayArrow, null) } }
+            )
+        }
+    }
+}
 
 @Composable
 private fun Insights(tasks: List<TaskModel>) {
