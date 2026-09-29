@@ -106,7 +106,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}) {
         if (habit != null) HabitDialog({ name, target, time, days -> productivity.updateHabit(habit.id, name, target, time, days); dialog = null }, { dialog = null }, habit.name, habit.targetPerWeek, habit.preferredTime, habit.activeDays)
     }
     when (dialog) {
-        "habit" -> HabitDialog({ name, target, time, days -> productivity.addHabit(name, target, time); if (days.isNotEmpty()) productivity.updateHabit(productivity.habits.value.lastOrNull()?.id ?: -1L, name, target, time, days); dialog = null }, { dialog = null })
+        "habit" -> HabitDialog({ name, target, time, days -> productivity.addHabit(name, target, time, days); dialog = null }, { dialog = null })
         "goal" -> GoalDialog({ title, target, deadline -> productivity.addGoal(title, target, deadline); dialog = null }, { dialog = null })
         "journal" -> JournalDialog({ mood, energy, wins, blockers, gratitude, note -> productivity.addJournal(LocalDate.now(), mood, energy, wins, blockers, gratitude, note); dialog = null }, { dialog = null })
         "tools" -> OfflinePowerTools(productivity) { dialog = null }
