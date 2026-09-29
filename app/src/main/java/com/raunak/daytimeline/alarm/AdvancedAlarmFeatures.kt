@@ -111,8 +111,8 @@ object AlarmRepeatPlanner {
             AlarmScheduleMode.WEEKLY -> r.weekdays.contains(dateTime.dayOfWeek)
             AlarmScheduleMode.ODD_WEEKS -> r.weekdays.contains(dateTime.dayOfWeek) && dateTime.toLocalDate().get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()) % 2 == 1
             AlarmScheduleMode.EVEN_WEEKS -> r.weekdays.contains(dateTime.dayOfWeek) && dateTime.toLocalDate().get(java.time.temporal.WeekFields.ISO.weekOfWeekBasedYear()) % 2 == 0
-            AlarmScheduleMode.EVERY_N_DAYS -> r.anchorDate != null && ChronoUnit.DAYS.between(r.anchorDate, dateTime.toLocalDate()) >= 0 && ChronoUnit.DAYS.between(r.anchorDate, dateTime.toLocalDate()) % r.intervalDays == 0
-            AlarmScheduleMode.ONE_SHOT -> dateTime.toLocalDate() == now.toLocalDate()
+            AlarmScheduleMode.EVERY_N_DAYS -> r.anchorDate != null && ChronoUnit.DAYS.between(r.anchorDate, dateTime.toLocalDate()) >= 0 && ChronoUnit.DAYS.between(r.anchorDate, dateTime.toLocalDate()) % r.intervalDays.toLong() == 0
+            AlarmScheduleMode.ONE_SHOT -> true
             AlarmScheduleMode.NAP, AlarmScheduleMode.POWER_NAP -> false
         }
     }
