@@ -72,6 +72,8 @@ class PlannerViewModel(
     fun deleteTask(task: TaskModel) = viewModelScope.launch { repository.deleteTask(task.id) }
     fun duplicateTask(task: TaskModel) = viewModelScope.launch { repository.duplicateTask(task.id) }
 
+    fun checklist(taskId: Long) = repository.checklist(taskId)
+
     fun addChecklistItem(taskId: Long, text: String) = viewModelScope.launch {
         repository.upsertChecklistItem(ChecklistItemEntity(taskId = taskId, text = text, position = 0))
     }
