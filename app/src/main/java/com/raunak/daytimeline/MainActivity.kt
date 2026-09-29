@@ -5,7 +5,7 @@ import android.app.AlarmManager
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
+import androidx.fragment.app.FragmentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -20,7 +20,8 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import com.raunak.daytimeline.alarm.AlarmCenter
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
+    private var unlocked = mutableStateOf(true)
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
     private val activityRecognitionPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) {}
 
@@ -31,7 +32,25 @@ class MainActivity : ComponentActivity() {
         ) {
             notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
+        val lockEnabled = com.raunak.daytimeline.features.CompletionStore(this).appLockEnabled()
+        unlocked.value = !lockEnabled
+        if (lockEnabled) {
+            val executor = ContextCompat.getMainExecutor(this)
+            val prompt = androidx.biometric.BiometricPrompt(this, executor, object : androidx.biometric.BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationSucceeded(result: androidx.biometric.BiometricPrompt.AuthenticationResult) { unlocked.value = true }
+            })
+            val info = androidx.biometric.BiometricPrompt.PromptInfo.Builder()
+                .setTitle("Unlock Chronora")
+                .setSubtitle("Authenticate to access your private productivity data")
+                .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG or androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL)
+                .build()
+            prompt.authenticate(info)
+        }
         setContent {
+            if (!unlocked.value) {
+                Surface(Modifier.fillMaxSize()) { Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { Text("Chronora is locked") } }
+                return@setContent
+            }
             var alarms by remember { mutableStateOf(false) }
             var completion by remember { mutableStateOf(false) }
             val app = remember { AppContainer(applicationContext) }
