@@ -83,7 +83,11 @@ class PlannerViewModel(
         repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = safeStart, endMinute = (safeStart + duration).coerceAtMost(24 * 60), category = task.category, colorHex = task.colorHex, priority = task.priority, notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
     }
 
-    fun autoSchedule(dayStartMinute: Int, dayEndMinute: Int) = viewModelScope.launch {\n        repository.autoSchedule(selectedDate.value, dayStartMinute, dayEndMinute)\n    }\n\n    fun resizeTask(task: TaskModel, newEnd: Int) = viewModelScope.launch {
+    fun autoSchedule(dayStartMinute: Int, dayEndMinute: Int) = viewModelScope.launch {
+        repository.autoSchedule(selectedDate.value, dayStartMinute, dayEndMinute)
+    }
+
+    fun resizeTask(task: TaskModel, newEnd: Int) = viewModelScope.launch {
         val end = newEnd.coerceIn(task.startMinute + 5, 24 * 60)
         repository.updateTask(TaskEntity(id = task.id, title = task.title, dateEpochDay = task.date.toEpochDay(), startMinute = task.startMinute, endMinute = end, category = task.category, colorHex = task.colorHex, priority = task.priority, notes = task.notes, pomodoroEnabled = task.pomodoroEnabled, tags = task.tags, reminderMode = task.reminderMode, reminderOffsetMinutes = task.reminderOffsetMinutes, completed = task.completed, recurrenceType = task.recurrenceType, recurrenceDays = task.recurrenceDays))
     }
