@@ -39,7 +39,7 @@ class OfflineProductivityStore(context: Context) {
     val journal: StateFlow<List<OfflineJournalEntry>> = _journal.asStateFlow()
     private val _challenges = MutableStateFlow(read("challenges", defaultChallenges()))
     val challenges: StateFlow<List<OfflineChallenge>> = _challenges.asStateFlow()
-    private val _settings = MutableStateFlow(read("settings", OfflineSettings()))
+    private val _settings = MutableStateFlow(read("settings", OfflineSettings()).normalized())
     val settings: StateFlow<OfflineSettings> = _settings.asStateFlow()
     private val _notes = MutableStateFlow(read("notes", emptyList<OfflineNote>()))
     val notes: StateFlow<List<OfflineNote>> = _notes.asStateFlow()
@@ -131,6 +131,19 @@ class OfflineProductivityStore(context: Context) {
 
     fun deleteNote(id: Long) = update(_notes, "notes") { it.filterNot { n -> n.id == id } }
 
+    /** Adds or replaces a note with all fields (colour, archive, pin…). */
+    fun saveNote(note: OfflineNote) {
+        if (note.title.isBlank() && note.body.isBlank()) return
+        val now = System.currentTimeMillis()
+        val clean = note.copy(id = if (note.id == 0L) id() else note.id, title = note.title.trim().ifBlank { note.body.lineSequence().firstOrNull { it.isNotBlank() }?.removePrefix("[ ] ")?.removePrefix("[x] ")?.take(40) ?: "Untitled" }, updatedAt = now, createdAt = if (note.createdAt == 0L) now else note.createdAt)
+        update(_notes, "notes") { list -> if (list.any { it.id == clean.id }) list.map { if (it.id == clean.id) clean else it } else list + clean }
+    }
+
+    /** Ticks or unticks the [line]-th line of a checklist note. */
+    fun toggleNoteLine(id: Long, line: Int) = update(_notes, "notes") { list ->
+        list.map { n -> if (n.id != id) n else n.copy(body = NoteEngine.toggleLine(n.body, line), updatedAt = System.currentTimeMillis()) }
+    }
+
     fun addGoal(title: String, target: Int, deadline: LocalDate? = null) {
         if (title.isBlank()) return
         update(_goals, "goals") { it + OfflineGoal(id(), title.trim(), 0, target.coerceAtLeast(1), deadline?.toString(), emptyList(), false) }
@@ -159,6 +172,24 @@ class OfflineProductivityStore(context: Context) {
     }
 
     fun deleteGoal(id: Long) = update(_goals, "goals") { it.filterNot { g -> g.id == id } }
+
+    /** Adds or replaces a goal with all fields. */
+    fun saveGoal(goal: OfflineGoal) {
+        if (goal.title.isBlank()) return
+        val clean = goal.copy(id = if (goal.id == 0L) id() else goal.id, title = goal.title.trim(), target = goal.target.coerceAtLeast(1), createdDate = goal.createdDate ?: LocalDate.now().toString())
+        update(_goals, "goals") { list -> if (list.any { it.id == clean.id }) list.map { if (it.id == clean.id) clean else it } else list + clean }
+    }
+
+    /** Adds [amount] (may be negative) to a goal and records it in the log. */
+    fun logGoal(id: Long, amount: Int, date: LocalDate = LocalDate.now()) = update(_goals, "goals") { list ->
+        list.map { g ->
+            if (g.id != id) g else {
+                val next = (g.progress + amount).coerceIn(0, g.target)
+                val log = (GoalEngine.log(g) + GoalLog(date.toString(), next - g.progress)).takeLast(1000)
+                g.copy(progress = next, completed = next >= g.target, log = log)
+            }
+        }
+    }
 
     fun setGoalProgress(id: Long, progress: Int) = update(_goals, "goals") { list ->
         list.map { if (it.id == id) it.copy(progress = progress.coerceIn(0, it.target), completed = progress >= it.target) else it }
@@ -237,6 +268,38 @@ class OfflineProductivityStore(context: Context) {
         }
     }
 
+    fun saveJournal(entry: OfflineJournalEntry) = update(_journal, "journal") { list ->
+        (list.filterNot { it.date == entry.date } + entry.copy(mood = entry.mood.coerceIn(1, 5), energy = entry.energy.coerceIn(1, 5))).sortedByDescending { it.date }.take(3650)
+    }
+
+    fun deleteJournal(date: String) = update(_journal, "journal") { it.filterNot { e -> e.date == date } }
+
+    fun saveProject(project: OfflineProject) {
+        if (project.name.isBlank()) return
+        val clean = project.copy(id = if (project.id == 0L) id() else project.id, name = project.name.trim())
+        update(_projects, "projects") { list -> if (list.any { it.id == clean.id }) list.map { if (it.id == clean.id) clean else it } else list + clean }
+    }
+
+    /** Starts a timer, stopping any running one first (one timer at a time, like Toggl). */
+    fun startTimer(label: String, projectId: Long?, tags: Set<String>): OfflineTimeEntry {
+        val now = System.currentTimeMillis()
+        val entry = OfflineTimeEntry(id(), label.trim().ifBlank { "Untitled" }, projectId, now, null, "", tags)
+        update(_timeEntries, "timeEntries") { list -> list.map { if (it.endEpochMillis == null) it.copy(endEpochMillis = now) else it } + entry }
+        return entry
+    }
+
+    fun saveTimeEntry(entry: OfflineTimeEntry) = update(_timeEntries, "timeEntries") { list ->
+        if (list.any { it.id == entry.id }) list.map { if (it.id == entry.id) entry else it } else list + entry.copy(id = id())
+    }
+
+    fun deleteTimeEntry(id: Long) = update(_timeEntries, "timeEntries") { it.filterNot { e -> e.id == id } }
+
+    fun saveRoutine(routine: OfflineRoutine) {
+        if (routine.name.isBlank() || routine.steps.isEmpty()) return
+        val clean = routine.copy(id = if (routine.id == 0L) id() else routine.id, name = routine.name.trim())
+        update(_routines, "routines") { list -> if (list.any { it.id == clean.id }) list.map { if (it.id == clean.id) clean else it } else list + clean }
+    }
+
     fun addChallenge(title: String, description: String, target: Int) {
         if (title.isBlank() || target <= 0) return
         update(_challenges, "challenges") { it + OfflineChallenge(id(), title.trim(), description.trim(), target, 0) }
@@ -255,7 +318,7 @@ class OfflineProductivityStore(context: Context) {
     }
 
     fun updateSettings(transform: (OfflineSettings) -> OfflineSettings) {
-        val next = transform(_settings.value)
+        val next = transform(_settings.value).normalized()
         _settings.value = next
         prefs.edit().putString("settings", gson.toJson(next)).apply()
     }
@@ -287,7 +350,7 @@ class OfflineProductivityStore(context: Context) {
         val achievements = backup.achievements ?: emptyList()
         val journal = backup.journal ?: emptyList()
         val challenges = backup.challenges ?: defaultChallenges()
-        val settings = backup.settings ?: OfflineSettings()
+        val settings = (backup.settings ?: OfflineSettings()).normalized()
         val notes = backup.notes ?: emptyList()
         prefs.edit()
             .putString("habits", gson.toJson(habits))
@@ -370,13 +433,31 @@ data class OfflineHabit(
     /** Why this habit matters, shown under its name. */
     val note: String = ""
 )
-data class OfflineGoal(val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean, val milestoneDone: Set<Int> = emptySet())
+data class OfflineGoal(
+    val id: Long, val title: String, val progress: Int, val target: Int, val deadline: String?, val milestones: List<String>, val completed: Boolean, val milestoneDone: Set<Int> = emptySet(),
+    /** TARGET (reach a number) or PROJECT (finish milestones). */
+    val kind: String = "TARGET",
+    val unit: String = "",
+    val createdDate: String? = null,
+    /** Every change to progress, for pace and history. */
+    val log: List<GoalLog> = emptyList(),
+    val color: Long = 0xFF55786A,
+    val why: String = ""
+)
+data class GoalLog(val date: String, val amount: Int)
 data class OfflineProject(val id: Long, val name: String, val color: Long, val taskIds: List<Long>, val deadline: String?)
 data class OfflineRoutine(val id: Long, val name: String, val steps: List<OfflineRoutineStep>, val archived: Boolean, val lastCompletedDate: String? = null, val completionDates: Set<String> = emptySet(), val completedSteps: Set<String> = emptySet())
-data class OfflineRoutineStep(val title: String, val minutes: Int)
-data class OfflineTimeEntry(val id: Long, val label: String, val projectId: Long?, val startEpochMillis: Long, val endEpochMillis: Long?, val note: String, val tags: Set<String>)
+data class OfflineRoutineStep(val title: String, val minutes: Int, val note: String = "")
+data class OfflineTimeEntry(val id: Long, val label: String, val projectId: Long?, val startEpochMillis: Long, val endEpochMillis: Long?, val note: String, val tags: Set<String>, val billable: Boolean = false)
 data class OfflineAchievement(val key: String, val title: String, val description: String, val unlockedAt: Long)
-data class OfflineJournalEntry(val date: String, val mood: Int, val energy: Int, val wins: String, val blockers: String, val gratitude: String, val note: String)
+data class OfflineJournalEntry(
+    val date: String, val mood: Int, val energy: Int, val wins: String, val blockers: String, val gratitude: String, val note: String,
+    /** Things done that day (Daylio-style), from the editable activity list. */
+    val activities: List<String> = emptyList(),
+    val prompt: String = "",
+    val answer: String = "",
+    val sleepHours: Double = 0.0
+)
 data class OfflineChallenge(val id: Long, val title: String, val description: String, val target: Int, val progress: Int)
 data class OfflineSettings(
     val theme: String = "SYSTEM",
@@ -399,9 +480,42 @@ data class OfflineSettings(
     /** Keep a pinned "Add a task" notification with a text box. */
     val pinnedQuickAdd: Boolean = false,
     /** Days shown in the Upcoming view. */
-    val upcomingDays: Int = 7
+    val upcomingDays: Int = 7,
+    val journalActivities: List<String> = listOf("Classes", "Study", "DSA", "Gym", "Sports", "Friends", "Family call", "Reading", "Movie", "Gaming", "Social media", "Good sleep", "Healthy food", "Junk food", "Walk", "Meditation"),
+    val journalPrompts: List<String> = listOf(
+        "What is one thing you learned today?",
+        "What drained your energy, and what gave it back?",
+        "What would make tomorrow a great day?",
+        "What are you avoiding, and why?",
+        "Who helped you today, and how?",
+        "What did you do today that your future self will thank you for?",
+        "Where did your time actually go today?"
+    ),
+    /** Labels for mood 1..5. */
+    val moodLabels: List<String> = listOf("Awful", "Bad", "Meh", "Good", "Rad")
+) {
+    /** Fills fields missing from settings saved by older versions (Gson leaves them null/0). */
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun normalized(): OfflineSettings {
+        val d = OfflineSettings()
+        return copy(
+            theme = theme ?: d.theme,
+            matrixImportantPriority = if (matrixImportantPriority in 1..3) matrixImportantPriority else d.matrixImportantPriority,
+            matrixHorizonDays = if (matrixHorizonDays > 0) matrixHorizonDays else d.matrixHorizonDays,
+            upcomingDays = if (upcomingDays > 0) upcomingDays else d.upcomingDays,
+            journalActivities = journalActivities ?: d.journalActivities,
+            journalPrompts = journalPrompts ?: d.journalPrompts,
+            moodLabels = (moodLabels ?: d.moodLabels).let { if (it.size < 5) (it + d.moodLabels.drop(it.size)).take(5) else it }
+        )
+    }
+}
+data class OfflineNote(
+    val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long, val folder: String = "General", val pinned: Boolean = false,
+    /** 0 = default card colour. */
+    val color: Long = 0,
+    val archived: Boolean = false,
+    val createdAt: Long = 0
 )
-data class OfflineNote(val id: Long, val title: String, val body: String, val tags: Set<String>, val updatedAt: Long, val folder: String = "General", val pinned: Boolean = false)
 
 data class OfflineBackup(
     val schema: Int,

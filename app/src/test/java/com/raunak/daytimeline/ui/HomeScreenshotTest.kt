@@ -12,7 +12,7 @@ import com.google.common.truth.Truth.assertThat
 import com.raunak.daytimeline.MainActivity
 import com.raunak.daytimeline.features.HabitFrequency
 import com.raunak.daytimeline.features.OfflineHabit
-import com.raunak.daytimeline.features.OfflineProductivityStore
+import com.raunak.daytimeline.features.*
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -45,6 +45,15 @@ class HomeScreenshotTest {
             repo.quickAdd("Read CN chapter 4 tomorrow 4pm", today)
             repo.quickAdd("Pay hostel fees 10am !1", today.minusDays(2))
         }
+        store.saveGoal(OfflineGoal(0, "Solve 300 LeetCode problems", 120, 300, today.plusDays(90).toString(), emptyList(), false, unit = "problems", createdDate = today.minusDays(40).toString(),
+            log = (0L..20L).map { GoalLog(today.minusDays(it).toString(), 3) }, why = "Placement season"))
+        store.saveGoal(OfflineGoal(0, "Final-year project", 0, 4, today.plusDays(60).toString(), listOf("Literature survey", "Dataset", "Model", "Report"), false, milestoneDone = setOf(0), kind = "PROJECT", color = 0xFF9C6ADE))
+        store.saveNote(OfflineNote(0, "Groceries", "[ ] Milk\n[x] Eggs\n[ ] Maggi\n[ ] Coffee", emptySet(), 0, color = 0xFFFBBC04))
+        store.saveNote(OfflineNote(0, "OS viva", "Deadlock: mutual exclusion, hold and wait, no preemption, circular wait. See [[Scheduling]].", setOf("exam"), 0, folder = "College", pinned = true))
+        store.saveNote(OfflineNote(0, "Scheduling", "FCFS, SJF, RR (quantum), priority. Convoy effect.", setOf("exam"), 0, folder = "College", color = 0xFFAECBFA))
+        (0L..12L).forEach { store.saveJournal(OfflineJournalEntry(today.minusDays(it).toString(), listOf(4, 3, 5, 2, 4)[(it % 5).toInt()], 3, "", "", "", "", activities = listOf("Study", "Gym", "Friends").take((it % 3 + 1).toInt()))) }
+        val proj = OfflineProject(0, "Placements", 0xFF5A6CF3, emptyList(), null); store.saveProject(proj)
+        store.startTimer("Graphs revision", store.projects.value.firstOrNull()?.id, setOf("dsa"))
         var activity: MainActivity? = null
         val scenario = ActivityScenario.launch(MainActivity::class.java)
         scenario.onActivity { activity = it }
@@ -63,9 +72,10 @@ class HomeScreenshotTest {
         compose.onAllNodesWithText("Matrix")[0].performClick(); save("home-matrix")
         assertThat(compose.onAllNodesWithText("Do first").fetchSemanticsNodes()).isNotEmpty()
         compose.onAllNodesWithText("Productivity")[0].performClick(); save("home-habits")
+        assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
+        listOf("Goals", "Notes", "Journal", "Time").forEach { t -> compose.onAllNodesWithText(t)[0].performClick(); save("home-" + t.lowercase()) }
         compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More"))[0].performClick()
         compose.onAllNodesWithText("Calendar")[0].performClick(); save("home-calendar")
-        assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
         scenario.close()
     }
 }

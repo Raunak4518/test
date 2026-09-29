@@ -102,7 +102,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                 }
             },
             floatingActionButton = {
-                if (tab != 3) FloatingActionButton(onClick = { if (tab == 2) dialog = "habit" else addTask = true }) { Icon(Icons.Default.Add, "Add") }
+                if (tab == 0 || tab == 1) FloatingActionButton(onClick = { addTask = true }) { Icon(Icons.Default.Add, "Add task") }
             }
         ) { padding ->
             Box(Modifier.fillMaxSize().padding(padding)) {
@@ -236,58 +236,28 @@ private fun TodayScreen(tasks: List<TaskModel>, agenda: List<TaskModel>, date: L
 @Composable
 private fun ProductivityScreen(habits: List<com.raunak.daytimeline.features.OfflineHabit>, goals: List<com.raunak.daytimeline.features.OfflineGoal>, routines: List<com.raunak.daytimeline.features.OfflineRoutine>, entries: List<com.raunak.daytimeline.features.OfflineTimeEntry>, journal: List<com.raunak.daytimeline.features.OfflineJournalEntry>, notes: List<com.raunak.daytimeline.features.OfflineNote>, store: OfflineProductivityStore, openDialog: (String) -> Unit) {
     val today = LocalDate.now()
-    val tracked = store.todayTrackedMinutes()
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { StatCard("Habits", habits.count { it.completedDates.contains(today.toString()) }.toString(), Modifier.weight(1f)); StatCard("Tracked", "${tracked}m", Modifier.weight(1f)); StatCard("Journal", journal.size.toString(), Modifier.weight(1f)) } }
-        item { com.raunak.daytimeline.productivity.HabitTodayHero(habits, today) }
-        item { SectionHeader("Habits") { Row { TextButton(onClick = { openDialog("habit") }) { Text("Add") }; TextButton(onClick = { openDialog("tools") }) { Text("Power tools") } } } }
-        item { com.raunak.daytimeline.productivity.HabitList(habits, store, { openDialog("editHabit:${it.id}") }, today) }
-        item { SectionHeader("Goals") { Row { TextButton(onClick = { openDialog("goals") }) { Text("Manage") }; TextButton(onClick = { openDialog("goal") }) { Text("Add") } } } }
-        items(goals, key = { it.id }) { g -> Card { Column(Modifier.padding(14.dp)) { Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Text(g.title, fontWeight = FontWeight.SemiBold); Text("${g.progress}/${g.target}") }; LinearProgressIndicator(progress = { g.progress.toFloat() / g.target }, modifier = Modifier.fillMaxWidth()); Row { TextButton(onClick = { store.setGoalProgress(g.id, g.progress + 1) }) { Text("+1") }; TextButton(onClick = { store.setGoalProgress(g.id, g.progress - 1) }) { Text("-1") } } } } }
-        item { SectionHeader("Routines") { TextButton(onClick = { openDialog("routine") }) { Text("Create") } } }
-        items(routines, key = { it.id }) { r ->
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(r.name, fontWeight = FontWeight.SemiBold)
-                Text(r.steps.sumOf { it.minutes }.toString() + " min · " + r.steps.size + " steps", color = HomeMuted)
-                r.steps.forEachIndexed { index, step ->
-                    val done = r.completedSteps.contains(today.toString() + ":" + index)
-                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(done, { store.toggleRoutineStep(r.id, index, today) })
-                        Text(step.title + " · " + step.minutes + "m", modifier = Modifier.weight(1f))
-                    }
-                }
-                if (r.completionDates.isNotEmpty()) Text("History: " + r.completionDates.sortedDescending().take(5).joinToString(" · "), style = MaterialTheme.typography.labelSmall, color = HomeMuted)
-                Row {
-                    TextButton(onClick = { store.setRoutineCompleted(r.id) }) { Text(if (r.lastCompletedDate == today.toString()) "Completed today" else "Mark complete") }
-                    TextButton(onClick = { store.deleteRoutine(r.id) }) { Text("Delete") }
-                }
-            } }
+    val prefs by store.settings.collectAsStateWithLifecycle()
+    val projects by store.projects.collectAsStateWithLifecycle()
+    var section by rememberSaveable { mutableIntStateOf(0) }
+    val labels = listOf("Habits", "Goals", "Routines", "Notes", "Journal", "Time")
+    Column(Modifier.fillMaxSize()) {
+        ScrollableTabRow(selectedTabIndex = section, edgePadding = 12.dp, containerColor = Color.Transparent) {
+            labels.forEachIndexed { i, l -> Tab(section == i, { section = i }, text = { Text(l) }) }
         }
-        item { SectionHeader("Notes") { Row { TextButton(onClick = { openDialog("notes") }) { Text("Manage") }; TextButton(onClick = { openDialog("note") }) { Text("New") } } } }
-        items(notes.sortedWith(compareByDescending<com.raunak.daytimeline.features.OfflineNote> { it.pinned }.thenByDescending { it.updatedAt }).take(8), key = { it.id }) { n ->
-            var backlinksOpen by remember(n.id) { mutableStateOf(false) }
-            Card { Column(Modifier.padding(14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(n.title, fontWeight = FontWeight.SemiBold)
-                        if (n.pinned) Text("  PINNED", color = HomeSage, style = MaterialTheme.typography.labelSmall)
-                    }
-                    Row {
-                        IconButton(onClick = { store.toggleNotePinned(n.id) }) { Icon(Icons.Default.PushPin, if (n.pinned) "Unpin note" else "Pin note") }
-                        TextButton(onClick = { backlinksOpen = true }) { Text("Backlinks") }
-                        IconButton(onClick = { store.deleteNote(n.id) }) { Icon(Icons.Default.Delete, "Delete note") }
-                    }
+        LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            when (section) {
+                0 -> {
+                    item { com.raunak.daytimeline.productivity.HabitTodayHero(habits, today) }
+                    item { SectionHeader("Habits") { Row { TextButton(onClick = { openDialog("habit") }) { Text("Add") }; TextButton(onClick = { openDialog("tools") }) { Text("Power tools") } } } }
+                    item { com.raunak.daytimeline.productivity.HabitList(habits, store, { openDialog("editHabit:${it.id}") }, today) }
                 }
-                Text("Folder: " + n.folder, color = HomeSage, style = MaterialTheme.typography.labelSmall)
-                if (n.tags.isNotEmpty()) Text(n.tags.joinToString(" · "), color = HomeSage, style = MaterialTheme.typography.labelSmall)
-                Text(n.body, maxLines = 5, color = HomeMuted)
-            }
-            if (backlinksOpen) NoteBacklinksDialog(n, store) { backlinksOpen = false }
+                1 -> item { com.raunak.daytimeline.productivity.GoalsSection(goals, store) }
+                2 -> item { com.raunak.daytimeline.productivity.RoutinesSection(routines, store) }
+                3 -> item { com.raunak.daytimeline.productivity.NotesSection(notes, store) }
+                4 -> item { com.raunak.daytimeline.productivity.JournalSection(journal, prefs, store) }
+                else -> item { com.raunak.daytimeline.productivity.TimeSection(entries, projects, store) }
             }
         }
-        item { SectionHeader("Reflection") { Row { TextButton(onClick = { openDialog("journalHistory") }) { Text("History") }; TextButton(onClick = { openDialog("journal") }) { Text("Write") } } } }
-        item { if (journal.isEmpty()) EmptyCard("No journal yet", "Capture mood, energy, wins, blockers and gratitude.") else Card { Column(Modifier.padding(14.dp)) { val j = journal.first(); Text(j.date, fontWeight = FontWeight.Bold); Text("Mood ${j.mood}/5 · Energy ${j.energy}/5", color = HomeSage); if (j.wins.isNotBlank()) Text("Wins: ${j.wins}"); if (j.blockers.isNotBlank()) Text("Blockers: ${j.blockers}") } } }
-        item { SectionTitle("Tracked time"); Text("${entries.size} local time entries · ${tracked} minutes today", color = HomeMuted) }
     }
 }
 
