@@ -11,7 +11,7 @@ class ChronoraPlanningStore(context: Context) {
     private val prefs = context.getSharedPreferences("chronora_planning", Context.MODE_PRIVATE)
     private val gson = Gson()
     private val templateType = object : TypeToken<List<ChronoraTemplate>>() {}.type
-    private val dependencyType = object : TypeToken<Map<String, Set<Long>>>() {}.type
+    private val dependencyType = object : TypeToken<Map<String, List<Long>>>() {}.type
 
     fun templates(): List<ChronoraTemplate> {
         val raw = prefs.getString("templates", null) ?: return defaults()
@@ -25,8 +25,8 @@ class ChronoraPlanningStore(context: Context) {
 
     fun dependencies(): Map<Long, Set<Long>> {
         val raw = prefs.getString("dependencies", null) ?: return emptyMap()
-        val map: Map<String, Set<Long>> = runCatching { gson.fromJson(raw, dependencyType) ?: emptyMap() }.getOrDefault(emptyMap())
-        return map.mapKeys { it.key.toLongOrNull() ?: -1L }.filterKeys { it >= 0 }
+        val map: Map<String, List<Long>> = runCatching { gson.fromJson<Map<String, List<Long>>>(raw, dependencyType) }.getOrNull() ?: emptyMap()
+        return map.mapNotNull { (key, value) -> key.toLongOrNull()?.let { it to value.toSet() } }.toMap()
     }
     fun setDependencies(taskId: Long, ids: Set<Long>) {
         val next = dependencies().toMutableMap()
