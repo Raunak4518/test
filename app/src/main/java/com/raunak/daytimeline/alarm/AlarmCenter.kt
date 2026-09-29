@@ -2,20 +2,19 @@ package com.raunak.daytimeline.alarm
 
 import android.app.TimePickerDialog
 import android.content.Context
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Alarm
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import java.time.LocalDate
 import java.time.LocalDateTime
 
 private fun AlarmMission.title() = when (type) {
@@ -27,7 +26,7 @@ private fun AlarmMission.title() = when (type) {
     AlarmMissionType.WALK -> "Walk"
     AlarmMissionType.PHOTO -> "Photo"
     AlarmMissionType.BARCODE -> "Barcode"
-    AlarmMissionType.MULTI -> "Mission chain"
+    AlarmMissionType.MULTI -> "Continue"
 }
 
 @Composable
@@ -36,37 +35,138 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
     val scheduler = remember { AlarmManagerBridge(context) }
     var alarms by remember { mutableStateOf(store.all()) }
     var editing by remember { mutableStateOf<AlarmEditorModel?>(null) }
-    if (editing != null) { AlarmEditor(editing!!, { editing = null }, { model -> val saved = model.toPersistent(); store.save(saved); scheduler.schedule(saved); alarms = store.all(); editing = null }); return }
-    Scaffold(topBar = { TopAppBar(title = { Text("Alarm center") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) }, floatingActionButton = { FloatingActionButton(onClick = { editing = AlarmEditorModel() }) { Icon(Icons.Default.Add, "New alarm") } }) { padding ->
+    if (editing != null) {
+        AlarmEditor(editing!!, { editing = null }, { model ->
+            val saved = model.toPersistent(); store.save(saved); scheduler.schedule(saved); alarms = store.all(); editing = null
+        })
+        return
+    }
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Alarm center") }, navigationIcon = { TextButton(onClick = onClose) { Text("Close") } }) },
+        floatingActionButton = { FloatingActionButton(onClick = { editing = AlarmEditorModel() }) { Icon(Icons.Default.Add, "New alarm") } }
+    ) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("Offline alarms", style = MaterialTheme.typography.headlineMedium); Text("Missions, snooze limits and backup scheduling stay on this device.") }
-            items(alarms, key = { it.id }) { alarm -> Card(Modifier.fillMaxWidth()) { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { Column { Text(String.format("%02d:%02d", alarm.hour, alarm.minute), style = MaterialTheme.typography.displaySmall); Text(alarm.label) }; Icon(Icons.Default.Alarm, null) }
-                Text(if (alarm.repeatDays.isEmpty()) "One-time" else "Repeats ${alarm.repeatDays.sorted().joinToString(",")}")
-                Text("Missions: ${alarm.missionChain.joinToString(" → ") { it.title() }}")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedButton(onClick = { scheduler.schedule(alarm) }) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Schedule") }; IconButton(onClick = { editing = alarm.toEditor() }) { Icon(Icons.Default.Edit, "Edit") }; IconButton(onClick = { scheduler.cancel(alarm.id); store.delete(alarm.id); alarms = store.all() }) { Icon(Icons.Default.Delete, "Delete") } }
-            } } }
-            item { Text("Next alarm: ${alarms.filter { it.enabled }.minByOrNull { AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }?.let { String.format("%02d:%02d", it.hour, it.minute) } ?: "None"}") }
+            item {
+                Text("Offline alarms", style = MaterialTheme.typography.headlineMedium)
+                Text("Exact scheduling, advanced repeats, mission verification, snooze policies and wake checks stay on this device.")
+            }
+            item {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(onClick = { editing = AlarmPresets.heavySleeper() }) { Text("Heavy sleeper") }
+                    OutlinedButton(onClick = { editing = AlarmPresets.examDay() }) { Text("Exam") }
+                }
+            }
+            items(alarms, key = { it.id }) { alarm ->
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text(String.format("%02d:%02d", alarm.hour, alarm.minute), style = MaterialTheme.typography.displaySmall)
+                                Text(alarm.label)
+                            }
+                            Icon(Icons.Default.Alarm, null)
+                        }
+                        Text(alarm.scheduleLabel())
+                        Text("Missions: ${alarm.missionChain.joinToString(" → ") { it.title() }}")
+                        Text("Snooze: ${alarm.snoozeMinutes}m × ${alarm.maxSnoozes}" + if (alarm.snoozeMaxTotalMinutes > 0) " · ${alarm.snoozeMaxTotalMinutes}m total" else "")
+                        if (alarm.wakeCheckMinutes > 0) Text("Wake check: ${alarm.wakeCheckMinutes}m + ${alarm.wakeCheckRetries} retries")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { scheduler.schedule(alarm) }) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Schedule") }
+                            OutlinedButton(onClick = { scheduler.skipNext(alarm); alarms = store.all() }) { Text("Skip next") }
+                            IconButton(onClick = { editing = AlarmEditorModel.fromPersistent(alarm) }) { Icon(Icons.Default.Edit, "Edit") }
+                            IconButton(onClick = { scheduler.cancel(alarm.id); store.delete(alarm.id); AlarmReferenceStore(context).clear(alarm.id); alarms = store.all() }) { Icon(Icons.Default.Delete, "Delete") }
+                        }
+                    }
+                }
+            }
+            item {
+                Text("Next alarm: ${alarms.filter { it.enabled }.minByOrNull { AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }?.let { String.format("%02d:%02d", it.hour, it.minute) } ?: "None"}")
+            }
         }
     }
 }
 
-@Composable private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (AlarmEditorModel) -> Unit) {
-    val context = LocalContext.current; var current by remember(model.id) { mutableStateOf(model) }; var error by remember { mutableStateOf("") }; var picker by remember { mutableStateOf(false) }
-    Scaffold(topBar = { TopAppBar(title = { Text("Edit alarm") }, navigationIcon = { TextButton(onClick = onCancel) { Text("Cancel") } }, actions = { TextButton(onClick = { val e=current.validate(); if(e.isEmpty()) onSave(current) else error=e.joinToString("\n") }) { Text("Save") } }) }) { p ->
+@Composable
+private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (AlarmEditorModel) -> Unit) {
+    val context = LocalContext.current
+    val references = remember { AlarmReferenceStore(context) }
+    var current by remember(model.id) { mutableStateOf(model) }
+    var error by remember { mutableStateOf("") }
+    var picker by remember { mutableStateOf(false) }
+    var registering by remember { mutableStateOf<Pair<Int, AlarmMissionType>?>(null) }
+
+    val camera = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        val pending = registering
+        registering = null
+        if (bitmap == null || pending == null) return@rememberLauncherForActivityResult
+        val (index, type) = pending
+        if (type == AlarmMissionType.PHOTO) {
+            references.savePhoto(current.id, bitmap)
+            current = current.copy(missions = current.missions.toMutableList().also { it[index] = it[index].copy(payload = "registered_photo") })
+        } else if (type == AlarmMissionType.BARCODE) {
+            AlarmCameraVerifier.scan(bitmap) { value ->
+                if (!value.isNullOrBlank()) {
+                    references.saveBarcode(current.id, value)
+                    current = current.copy(missions = current.missions.toMutableList().also { it[index] = it[index].copy(payload = value) })
+                }
+            }
+        }
+    }
+
+    Scaffold(topBar = {
+        TopAppBar(title = { Text("Edit alarm") }, navigationIcon = { TextButton(onClick = onCancel) { Text("Cancel") } }, actions = {
+            TextButton(onClick = { val e = current.validate(); if (e.isEmpty()) onSave(current) else error = e.joinToString("\n") }) { Text("Save") }
+        })
+    }) { p ->
         Column(Modifier.fillMaxSize().padding(p).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            OutlinedButton(onClick = { TimePickerDialog(context,{_,h,m->current=current.copy(hour=h,minute=m)},current.hour,current.minute,true).show() }) { Text(String.format("Alarm time  %02d:%02d",current.hour,current.minute)) }
-            OutlinedTextField(current.label,{current=current.copy(label=it)},label={Text("Name")},modifier=Modifier.fillMaxWidth())
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){ OutlinedButton(onClick={current=current.copy(repeatDays=if(current.repeatDays.isEmpty())setOf(2,3,4,5,6) else emptySet())}){Text(if(current.repeatDays.isEmpty())"One-time" else "Weekdays")}; FilterChip(current.vibration,{current=current.copy(vibration=!current.vibration)},{Text("Vibrate")}) }
-            OutlinedTextField(current.snoozeMinutes.toString(),{current=current.copy(snoozeMinutes=it.toIntOrNull()?:current.snoozeMinutes)},label={Text("Snooze minutes")})
-            OutlinedTextField(current.maxSnoozes.toString(),{current=current.copy(maxSnoozes=it.toIntOrNull()?:current.maxSnoozes)},label={Text("Maximum snoozes")})
-            Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){FilterChip(current.backupEnabled,{current=current.copy(backupEnabled=!current.backupEnabled)},{Text("Backup")});FilterChip(current.fullscreen,{current=current.copy(fullscreen=!current.fullscreen)},{Text("Fullscreen")})}
-            OutlinedButton(onClick={picker=true}){Text("Add mission (${current.missions.size}/10)")}
-            current.missions.forEachIndexed{index,m->AssistChip(onClick={current=current.copy(missions=AlarmMissionBuilder.remove(current.missions,index))},label={Text("${index+1}. ${m.title()} ×")})}
-            if(error.isNotEmpty())Text(error,color=MaterialTheme.colorScheme.error)
+            OutlinedButton(onClick = { TimePickerDialog(context, { _, h, m -> current = current.copy(hour = h, minute = m) }, current.hour, current.minute, true).show() }) { Text(String.format("Alarm time  %02d:%02d", current.hour, current.minute)) }
+            OutlinedTextField(current.label, { current = current.copy(label = it) }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(current.vibration, { current = current.copy(vibration = !current.vibration) }, { Text("Vibrate") })
+                FilterChip(current.fullscreen, { current = current.copy(fullscreen = !current.fullscreen) }, { Text("Fullscreen") })
+                FilterChip(current.deleteAfterRinging, { current = current.copy(deleteAfterRinging = !current.deleteAfterRinging) }, { Text("Delete after") })
+            }
+            Text("Repeat mode", style = MaterialTheme.typography.titleMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                AlarmScheduleMode.entries.filter { it != AlarmScheduleMode.NAP && it != AlarmScheduleMode.POWER_NAP }.forEach { mode ->
+                    FilterChip(current.scheduleMode == mode, { current = current.copy(scheduleMode = mode) }, { Text(mode.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }) })
+                }
+            }
+            if (current.scheduleMode == AlarmScheduleMode.EVERY_N_DAYS) OutlinedTextField(current.intervalDays.toString(), { current = current.copy(intervalDays = it.toIntOrNull() ?: current.intervalDays) }, label = { Text("Every N days") })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(current.snoozeMinutes.toString(), { current = current.copy(snoozeMinutes = it.toIntOrNull() ?: current.snoozeMinutes) }, label = { Text("Snooze minutes") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(current.maxSnoozes.toString(), { current = current.copy(maxSnoozes = it.toIntOrNull() ?: current.maxSnoozes) }, label = { Text("Max snoozes") }, modifier = Modifier.weight(1f))
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(current.snoozeMaxTotalMinutes.toString(), { current = current.copy(snoozeMaxTotalMinutes = it.toIntOrNull() ?: current.snoozeMaxTotalMinutes) }, label = { Text("Max total snooze") }, modifier = Modifier.weight(1f))
+                FilterChip(current.snoozeHalveEachTime, { current = current.copy(snoozeHalveEachTime = !current.snoozeHalveEachTime) }, { Text("Halve snooze") })
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(current.backupEnabled, { current = current.copy(backupEnabled = !current.backupEnabled) }, { Text("Backup") })
+                FilterChip(current.wakeCheckMinutes > 0, { current = current.copy(wakeCheckMinutes = if (current.wakeCheckMinutes > 0) 0 else 10) }, { Text("Wake check") })
+            }
+            if (current.wakeCheckMinutes > 0) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(current.wakeCheckMinutes.toString(), { current = current.copy(wakeCheckMinutes = it.toIntOrNull() ?: current.wakeCheckMinutes) }, label = { Text("First check min") }, modifier = Modifier.weight(1f))
+                OutlinedTextField(current.wakeCheckRetries.toString(), { current = current.copy(wakeCheckRetries = it.toIntOrNull() ?: current.wakeCheckRetries) }, label = { Text("Retries") }, modifier = Modifier.weight(1f))
+            }
+            OutlinedTextField(current.gentleVolumeSeconds.toString(), { current = current.copy(gentleVolumeSeconds = it.toIntOrNull() ?: current.gentleVolumeSeconds) }, label = { Text("Gentle volume ramp (sec)") })
+            OutlinedTextField(current.timeoutMinutes.toString(), { current = current.copy(timeoutMinutes = it.toIntOrNull() ?: current.timeoutMinutes) }, label = { Text("Timeout (min)") })
+            Text("Mission chain (${current.missions.size}/10)", style = MaterialTheme.typography.titleMedium)
+            current.missions.forEachIndexed { index, mission ->
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AssistChip(onClick = { current = current.copy(missions = AlarmMissionBuilder.remove(current.missions, index)) }, label = { Text("${index + 1}. ${mission.title()} ×") })
+                    if (mission.type == AlarmMissionType.PHOTO || mission.type == AlarmMissionType.BARCODE) Button(onClick = { registering = index to mission.type; camera.launch(null) }) { Text(if (mission.type == AlarmMissionType.PHOTO) "Register photo" else "Register code") }
+                }
+            }
+            Button(onClick = { picker = true }, enabled = current.missions.size < 10) { Text("Add mission") }
+            if (error.isNotEmpty()) Text(error, color = MaterialTheme.colorScheme.error)
         }
     }
-    if(picker)AlertDialog(onDismissRequest={picker=false},title={Text("Choose mission")},text={Column{listOf(AlarmMissionType.MATH,AlarmMissionType.TYPING,AlarmMissionType.MEMORY,AlarmMissionType.SHAKE,AlarmMissionType.WALK,AlarmMissionType.SQUAT,AlarmMissionType.PHOTO,AlarmMissionType.BARCODE).forEach{t->TextButton(onClick={current=current.copy(missions=AlarmMissionBuilder.add(current.missions,t));picker=false}){Text(t.name)}}}},confirmButton={TextButton(onClick={picker=false}){Text("Close")}})
+    if (picker) AlertDialog(onDismissRequest = { picker = false }, title = { Text("Choose mission") }, text = {
+        Column {
+            AlarmMissionType.entries.filter { it != AlarmMissionType.MULTI }.forEach { type ->
+                TextButton(onClick = { current = current.copy(missions = AlarmMissionBuilder.add(current.missions, type)); picker = false }) { Text(type.name) }
+            }
+        }
+    }, confirmButton = { TextButton(onClick = { picker = false }) { Text("Close") } })
 }
-
-private fun AlarmPersistentConfig.toEditor()=AlarmEditorModel(id,hour,minute,label,enabled,repeatDays,vibration,fullscreen,snoozeMinutes,maxSnoozes,backupAlarmEnabled,backupDelayMinutes,wakeCheckMinutes,bedtimeReminderMinutes,timeoutMinutes,gentleVolumeSeconds,longPressMs,missionChain)
