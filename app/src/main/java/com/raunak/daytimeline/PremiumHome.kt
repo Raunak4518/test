@@ -124,12 +124,91 @@ private fun TaskCard(t: TaskModel, onClick: () -> Unit, onComplete: () -> Unit) 
 
 @Composable private fun Focus(p:com.raunak.daytimeline.data.PomodoroStateEntity,tasks:List<TaskModel>,vm:PlannerViewModel){Column(Modifier.fillMaxSize().padding(22.dp),horizontalAlignment=Alignment.CenterHorizontally){Text("FOCUS",color=Sage,fontWeight=FontWeight.Bold);Spacer(Modifier.height(22.dp));Surface(CircleShape,color=Ink,modifier=Modifier.size(245.dp)){Box(Alignment.Center){Column(horizontalAlignment=Alignment.CenterHorizontally){Text("%02d:%02d".format(p.remainingSeconds/60,p.remainingSeconds%60),color=Color.White,style=MaterialTheme.typography.displayMedium,fontWeight=FontWeight.Light);Text(p.phase,color=Color(0xFFB8C8C0))}}};Spacer(Modifier.height(22.dp));Text("One thing at a time.",style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.SemiBold);Text("Focus without leaving the timeline.",color=Muted);Spacer(Modifier.height(20.dp));Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({if(p.running)vm.pausePomodoro()else vm.resumePomodoro()}){Icon(if(p.running)Icons.Default.Pause else Icons.Default.PlayArrow,null);Spacer(Modifier.width(6.dp));Text(if(p.running)"Pause" else "Resume")};OutlinedButton(vm::resetPomodoro){Text("Reset")}};Spacer(Modifier.height(15.dp));tasks.take(4).forEach{t->ListItem({Text(t.title)},{Text("${tm(t.startMinute)} · ${t.endMinute-t.startMinute} min",color=Muted)}, {Icon(Icons.Default.RadioButtonUnchecked,null)},{IconButton({vm.startPomodoro(t.id)}){Icon(Icons.Default.PlayArrow,null)}})}}
 
-@Composable private fun Insights(tasks:List<TaskModel>){val total=tasks.size;val done=tasks.count{it.completed};val focus=tasks.count{it.pomodoroEnabled};LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){item{Text("Insights",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("Your day, without noise.",color=Muted)};item{Stat("Completion","$done / $total",if(total==0)0f else done.toFloat()/total,Icons.Default.CheckCircle)};item{Stat("Focus blocks","$focus",if(total==0)0f else focus.toFloat()/total,Icons.Default.Timer)};item{Stat("Planned time","${tasks.sumOf{it.endMinute-it.startMinute}/60}h ${tasks.sumOf{it.endMinute-it.startMinute}%60}m",1f,Icons.Default.Schedule)};item{Text("Categories",style=MaterialTheme.typography.titleLarge,fontWeight=FontWeight.Bold)};tasks.groupBy{it.category.ifBlank{"Other"}}.forEach{(c,l)->ListItem({Text(c)},{Text("${l.size} blocks · ${l.sumOf{it.endMinute-it.startMinute}} min",color=Muted)},{Box(Modifier.size(12.dp).clip(CircleShape).background(Color(l.first().colorHex)))})}}}
-@Composable private fun Stat(t:String,v:String,p:Float,icon:androidx.compose.ui.graphics.vector.ImageVector){Surface(RoundedCornerShape(24.dp),color=Card){Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){Row(Modifier.fillMaxWidth(),Arrangement.SpaceBetween){Text(t,color=Muted);Icon(icon,null,tint=Sage)};Text(v,style=MaterialTheme.typography.headlineSmall,fontWeight=FontWeight.Bold);LinearProgressIndicator({p.coerceIn(0f,1f)},Modifier.fillMaxWidth().height(7.dp).clip(CircleShape),Sage,Color(0xFFE7E5DF))}}}
+@Composable
+private fun Insights(tasks: List<TaskModel>) {
+    val total = tasks.size
+    val done = tasks.count { it.completed }
+    val focus = tasks.count { it.pomodoroEnabled }
+    val planned = tasks.sumOf { it.endMinute - it.startMinute }
+    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("Insights", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text("Your day, without noise.", color = Muted)
+        }
+        item { Stat("Completion", "$done / $total", if (total == 0) 0f else done.toFloat() / total, Icons.Default.CheckCircle) }
+        item { Stat("Focus blocks", "$focus", if (total == 0) 0f else focus.toFloat() / total, Icons.Default.Timer) }
+        item { Stat("Planned time", "${planned / 60}h ${planned % 60}m", 1f, Icons.Default.Schedule) }
+        item { Text("Categories", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
+        items(tasks.groupBy { it.category.ifBlank { "Other" } }.toList()) { entry ->
+            val category = entry.first
+            val list = entry.second
+            ListItem(
+                headlineContent = { Text(category) },
+                supportingContent = { Text("${list.size} blocks · ${list.sumOf { it.endMinute - it.startMinute }} min", color = Muted) },
+                leadingContent = { Box(Modifier.size(12.dp).clip(CircleShape).background(Color(list.first().colorHex))) }
+            )
+        }
+    }
+}
 
-@Composable private fun Settings(vm:PlannerViewModel){val s by vm.settings.collectAsStateWithLifecycle();LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){item{Text("Settings",style=MaterialTheme.typography.headlineMedium,fontWeight=FontWeight.Bold);Text("Quiet controls for your day.",color=Muted)};item{Toggle("Auto-scroll to now","Open today at the current time",s.autoScrollNow){vm.updateSettings{copy(autoScrollNow=it)}}};item{Toggle("Show completed","Keep finished blocks visible",s.showCompleted){vm.updateSettings{copy(showCompleted=it)}}};item{Setting("Day starts",tm(s.dayStartMinute),Icons.Default.WbSunny)};item{Setting("Day ends",tm(s.dayEndMinute),Icons.Default.NightsStay)};item{Setting("Storage","On-device · offline",Icons.Default.Lock)};item{Surface(RoundedCornerShape(22.dp),color=Color(0xFFE9F0EA)){Row(Modifier.padding(16.dp),Alignment.CenterVertically){Icon(Icons.Default.WifiOff,null,tint=Sage);Spacer(Modifier.width(12.dp));Column{Text("Private by default",fontWeight=FontWeight.SemiBold);Text("No server is required for your core day.",color=Color(0xFF5C6B63))}}}}}}
-@Composable private fun Toggle(t:String,sub:String,c:Boolean,f:(Boolean)->Unit){Surface(RoundedCornerShape(22.dp),color=Card){Row(Modifier.fillMaxWidth().padding(16.dp),Alignment.CenterVertically){Column(Modifier.weight(1f)){Text(t,fontWeight=FontWeight.SemiBold);Text(sub,color=Muted,style=MaterialTheme.typography.bodySmall)};Switch(c,f)}}}
-@Composable private fun Setting(t:String,v:String,icon:androidx.compose.ui.graphics.vector.ImageVector){Surface(RoundedCornerShape(22.dp),color=Card){ListItem({Text(t)},{Text(v,color=Muted)},{Icon(icon,null,tint=Sage)},{Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight,null,tint=Muted)})}}
+@Composable
+private fun Stat(t: String, v: String, p: Float, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Surface(RoundedCornerShape(24.dp), color = Card) {
+        Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(9.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(t, color = Muted)
+                Icon(icon, null, tint = Sage)
+            }
+            Text(v, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            LinearProgressIndicator(progress = { p.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(7.dp).clip(CircleShape), color = Sage, trackColor = Color(0xFFE7E5DF))
+        }
+    }
+}
+
+@Composable
+private fun Settings(vm: PlannerViewModel) {
+    val settings by vm.settings.collectAsStateWithLifecycle()
+    LazyColumn(contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        item { Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold); Text("Quiet controls for your day.", color = Muted) }
+        item { Toggle("Auto-scroll to now", "Open today at the current time", settings.autoScrollNow) { vm.updateSettings { copy(autoScrollNow = it) } } }
+        item { Toggle("Show completed", "Keep finished blocks visible", settings.showCompleted) { vm.updateSettings { copy(showCompleted = it) } } }
+        item { Setting("Day starts", tm(settings.dayStartMinute), Icons.Default.WbSunny) }
+        item { Setting("Day ends", tm(settings.dayEndMinute), Icons.Default.NightsStay) }
+        item { Setting("Storage", "On-device · offline", Icons.Default.Lock) }
+        item {
+            Surface(RoundedCornerShape(22.dp), color = Color(0xFFE9F0EA)) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.WifiOff, null, tint = Sage)
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Private by default", fontWeight = FontWeight.SemiBold)
+                        Text("No server is required for your core day.", color = Color(0xFF5C6B63))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Toggle(t: String, sub: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Surface(RoundedCornerShape(22.dp), color = Card) {
+        Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(t, fontWeight = FontWeight.SemiBold)
+                Text(sub, color = Muted, style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = checked, onCheckedChange = onChange)
+        }
+    }
+}
+
+@Composable
+private fun Setting(t: String, v: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Surface(RoundedCornerShape(22.dp), color = Card) {
+        ListItem(headlineContent = { Text(t) }, supportingContent = { Text(v, color = Muted) }, leadingContent = { Icon(icon, null, tint = Sage) }, trailingContent = { Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, null, tint = Muted) })
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
