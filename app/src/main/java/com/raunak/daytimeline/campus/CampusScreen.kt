@@ -38,7 +38,7 @@ import java.time.format.DateTimeFormatter
 @Composable
 fun CampusScreen(modifier: Modifier = Modifier) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Today", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline")
+    val tabs = listOf("Today", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline", "Settings")
     Column(modifier.fillMaxSize()) {
         ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
             tabs.forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) }
@@ -54,6 +54,7 @@ fun CampusScreen(modifier: Modifier = Modifier) {
             7 -> CgpaTab()
             8 -> PlacementTab()
             9 -> DisciplineGate()
+            10 -> CampusSettingsTab()
         }
     }
 }
@@ -133,8 +134,8 @@ internal fun openUrl(context: android.content.Context, url: String) {
     runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }
 
-internal fun percentColor(p: Double, required: Int): Color = when {
-    p >= required + 5 -> Color(0xFF2E7D32)
+internal fun percentColor(p: Double, required: Int, margin: Int = 5): Color = when {
+    p >= required + margin -> Color(0xFF2E7D32)
     p >= required -> Color(0xFFB7791F)
     else -> Color(0xFFC62828)
 }
@@ -166,7 +167,8 @@ private fun TodayTab(goTo: (Int) -> Unit) {
     val target = dsaSheets.sumOf { it.dailyTarget }.coerceAtLeast(if (sheets.isEmpty()) 0 else 2)
     val wakeLog = data.wakeLogs.lastOrNull { it.date == today.toString() }
     val parts = DailyScore.compute(
-        wakeOnTime = wakeLog?.dismissedAt?.let { it <= wakeLog.target + 10 * 60_000L },
+        settings = data.settings,
+        wakeOnTime = wakeLog?.dismissedAt?.let { it <= wakeLog.target + data.settings.onTimeToleranceMinutes * 60_000L },
         classesAttended = classes.count { data.marks[it.key]?.attended == true },
         classesTotal = classes.count { data.marks[it.key]?.counts != false && it.end <= minute },
         studyMinutes = maxOf(gardenMinutes, libraryMinutes),
@@ -193,7 +195,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                             Text("Today's score", color = Color(0xFFB9CCC2), style = MaterialTheme.typography.labelMedium)
                             Text("$score / 100", color = Color.White, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                         }
-                        Text(DailyScore.grade(score), color = Color(0xFFA8C7B7), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
+                        Text(data.settings.grade(score), color = Color(0xFFA8C7B7), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
                     }
                     parts.forEach { p ->
                         Row { Text(p.label, color = Color(0xFFD5E0DA), modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall); Text("${p.detail}  ${p.earned.toInt()}/${p.max}", color = Color.White, style = MaterialTheme.typography.bodySmall) }
@@ -228,7 +230,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(enabled = windows.isNotEmpty(), onClick = {
                         val topics = studyTopics(data, sheets, today)
-                        val blocks = LibraryPlanner.planBlocks(windows, topics)
+                        val blocks = LibraryPlanner.planBlocks(windows, topics, data.settings.focusBlockMinutes, data.settings.breakMinutes)
                         scope.launch(Dispatchers.IO) {
                             val repo = AppContainer(context).repository
                             blocks.forEach { b -> repo.addTask(TaskEntity(title = "Library · ${b.title}", dateEpochDay = today.toEpochDay(), startMinute = b.start, endMinute = b.end, category = "Study", pomodoroEnabled = true, tags = "library,deep")) }
@@ -249,7 +251,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) { Text("Next: ${item.title}", fontWeight = FontWeight.SemiBold); Text("${item.section} · ${item.difficulty?.label ?: ""}", style = MaterialTheme.typography.bodySmall) }
                         if (item.url.isNotBlank()) TextButton(onClick = { openUrl(context, item.url) }) { Text("Open") }
-                        TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.setStatus(it, ItemStatus.SOLVED, today) } }) { Text("Solved") }
+                        TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.setStatus(it, ItemStatus.SOLVED, today, store.gaps) } }) { Text("Solved") }
                     }
                 }
                 if (sheets.isEmpty()) TextButton(onClick = { goTo(3) }) { Text("Add the DSA sheet") }
@@ -263,7 +265,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                         Checkbox(false, { store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = true) else it }) } })
                         Column(Modifier.weight(1f)) {
                             Text(d.title, fontWeight = FontWeight.SemiBold)
-                            Text("${d.kind.label} · ${dueLabel(d, today)}" + (d.subjectId?.let { " · " + (subjectOf[it]?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall)
+                            Text("${d.label} · ${dueLabel(d, today)}" + (d.subjectId?.let { " · " + (subjectOf[it]?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
@@ -274,7 +276,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
             SectionCard("Wake-up", plan?.let { "Alarm ${if (it.at.toLocalDate() == today) "today" else it.at.dayOfWeek.name.lowercase().replaceFirstChar { c -> c.uppercase() }} ${it.at.toLocalTime().withSecond(0)} · ${it.label}" } ?: "No wake alarm set") {
                 val logs = data.wakeLogs.takeLast(14)
                 if (logs.isNotEmpty()) {
-                    val onTime = logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + 10 * 60_000L }
+                    val onTime = logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + data.settings.onTimeToleranceMinutes * 60_000L }
                     Text("On time $onTime of the last ${logs.size} mornings", style = MaterialTheme.typography.bodySmall)
                 }
                 TextButton(onClick = { goTo(5) }) { Text("Wake-up settings & readiness") }
@@ -283,8 +285,8 @@ private fun TodayTab(goTo: (Int) -> Unit) {
         item {
             SectionCard("Lock in", "Block distracting apps right now") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(60, 120, 180).forEach { m ->
-                        OutlinedButton(onClick = { FocusGuardStore(context).update { it.copy(sessionUntil = System.currentTimeMillis() + m * 60_000L) } }) { Text("${m / 60}h") }
+                    data.settings.lockInMinutes.forEach { m ->
+                        OutlinedButton(onClick = { FocusGuardStore(context).update { it.copy(sessionUntil = System.currentTimeMillis() + m * 60_000L) } }) { Text(hm(m)) }
                     }
                 }
                 Text("Uses the blocked-apps list from Free Pro Suite → Focus Guard.", style = MaterialTheme.typography.bodySmall)
@@ -305,7 +307,7 @@ internal fun studyTopics(data: CampusData, sheets: List<StudySheet>, today: Loca
     val out = mutableListOf<String>()
     if (sheets.any { it.kind == SheetKind.DSA }) out += "DSA practice"
     data.deadlines.filter { !it.done && (daysUntil(it.date, today) ?: 99) in 0..10 }.sortedBy { it.date }.forEach { d ->
-        out += (d.subjectId?.let { id -> data.subjects.firstOrNull { it.id == id }?.name } ?: d.title) + " · ${d.kind.label}"
+        out += (d.subjectId?.let { id -> data.subjects.firstOrNull { it.id == id }?.name } ?: d.title) + " · ${d.label}"
     }
     if (SheetEngine.reviewQueue(sheets, today).isNotEmpty()) out += "Revision queue"
     sheets.filter { it.kind == SheetKind.SUBJECT }.forEach { out += it.name }

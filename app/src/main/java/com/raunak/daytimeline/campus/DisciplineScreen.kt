@@ -139,7 +139,8 @@ private fun DisciplineTab() {
         }
         item {
             SectionCard("Settings") {
-                SwitchRow("Daily 22:30 check-in (notification says only \"Daily check-in\")", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
+                SwitchRow("Daily ${clock(s.settings.checkInMinute)} check-in (notification says only \"Daily check-in\")", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
+                DisciplineSettingsEditor(s.settings) { next -> store.update { it.copy(settings = next) }; CampusScheduler.rescheduleAll(context) }
                 Text("This section is protected by your phone lock, stored separately and never included in backups.", style = MaterialTheme.typography.bodySmall)
             }
         }
@@ -195,7 +196,7 @@ private fun ProtectionCard(s: DisciplineState, store: DisciplineStore) {
     val guard = remember(tick) { guardStore.config }
     val filterOn = filter.enabled && WebFilterVpnService.running && FilterCategory.ADULT in filter.categories
     val strong = filter.keywordBlocking && filter.safeSearch && filter.blockBypass && filter.upstream.name.contains("FAMILY")
-    val locked = filter.lockDelayMinutes >= 120
+    val locked = filter.lockDelayMinutes >= s.settings.protectionLockMinutes
     val schedule = guard.schedules.firstOrNull { it.id == GUARD_SCHEDULE_ID }
     val strict = WellbeingStore(context).config.strictMode
 
@@ -206,24 +207,25 @@ private fun ProtectionCard(s: DisciplineState, store: DisciplineStore) {
             categories = old.categories + FilterCategory.ADULT,
             keywordBlocking = true, safeSearch = true, youtubeRestricted = true, blockBypass = true,
             upstream = if (old.upstream.name.contains("FAMILY")) old.upstream else UpstreamDns.CLOUDFLARE_FAMILY,
-            lockDelayMinutes = maxOf(old.lockDelayMinutes, 1440)
+            lockDelayMinutes = maxOf(old.lockDelayMinutes, s.settings.protectionLockMinutes)
         )
         // Only ever tightens, so it is allowed even while locked.
         if (!FilterLock.isLoosening(old, next)) filterStore.config = next
         WebFilterVpnService.start(context, reload = true)
-        msg = "Web protection on and locked for 24h changes"
+        msg = "Web protection on · changes locked for ${hm(s.settings.protectionLockMinutes)}"
     }
     val vpn = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { if (it.resultCode == Activity.RESULT_OK) applyFilter() }
 
     SectionCard("Protection", "Make the easy path hard") {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text((if (filterOn && strong && locked) "✓ " else "✗ ") + "Web filter: adult sites, keywords, SafeSearch, bypass blocking, family DNS, 24h lock", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            Text((if (filterOn && strong && locked) "✓ " else "✗ ") + "Web filter: adult sites, keywords, SafeSearch, bypass blocking, family DNS, ${hm(s.settings.protectionLockMinutes)} lock", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
             if (!(filterOn && strong && locked)) TextButton(onClick = { val i = VpnService.prepare(context); if (i != null) vpn.launch(i) else applyFilter() }) { Text("Turn on") }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text((if (schedule != null) "✓ " else "✗ ") + "Risk hours ${clock(s.riskStart)}–${clock(s.riskEnd)}: block browsers & social apps", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
             TextButton(onClick = {
-                val pkgs = browsersAndSocial(context)
+                val pkgs = s.settings.guardedApps.ifEmpty { browsersAndSocial(context) }
+                if (s.settings.guardedApps.isEmpty()) store.update { it.copy(settings = it.settings.copy(guardedApps = pkgs)) }
                 guardStore.update { g ->
                     g.copy(
                         blockedPackages = g.blockedPackages + pkgs,
@@ -264,7 +266,7 @@ private fun ResetDialog(store: DisciplineStore, close: () -> Unit) {
     AlertDialog(onDismissRequest = close, title = { Text("Reset — and learn from it") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("No shame. What led to it?", style = MaterialTheme.typography.bodySmall)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(DisciplineEngine.triggers) { t -> FilterChip(trigger == t, { trigger = t }, label = { Text(t) }) } }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(store.state.value.settings.triggers) { t -> FilterChip(trigger == t, { trigger = t }, label = { Text(t) }) } }
             OutlinedTextField(lesson, { lesson = it }, label = { Text("What will you do differently?") }, minLines = 2)
         }
     }, confirmButton = {
@@ -280,7 +282,7 @@ private fun ResetDialog(store: DisciplineStore, close: () -> Unit) {
 @Composable
 private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Unit) {
     val ins = DisciplineEngine.insights(s, System.currentTimeMillis())
-    var seconds by remember { mutableIntStateOf(10 * 60) }
+    var seconds by remember { mutableIntStateOf(s.settings.urgeTimerMinutes * 60) }
     var done by remember { mutableStateOf(setOf<Int>()) }
     var intensity by remember { mutableFloatStateOf(3f) }
     var trigger by remember { mutableStateOf("") }
@@ -302,7 +304,7 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
                         }
                     }
                 }
-                item { Text("Urges rise, peak and fade — usually within 10–15 minutes. Ride it out; you don't have to act on it.", color = Color(0xFFB9CCC2), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
+                item { Text("Urges rise, peak and fade — usually within ${s.settings.urgeTimerMinutes}–15 minutes. Ride it out; you don't have to act on it.", color = Color(0xFFB9CCC2), textAlign = TextAlign.Center, style = MaterialTheme.typography.bodySmall) }
                 if (s.reasons.isNotEmpty()) item {
                     Card(colors = CardDefaults.cardColors(containerColor = Color(0xFF1E2B26))) {
                         Column(Modifier.padding(14.dp).fillMaxWidth()) {
@@ -312,10 +314,10 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
                     }
                 }
                 item { Text("Do one now:", color = Color(0xFFA8C7B7), style = MaterialTheme.typography.labelLarge) }
-                items(DisciplineEngine.copingActions.indices.toList()) { i ->
+                items(s.settings.actions.indices.toList()) { i ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(i in done, { done = if (i in done) done - i else done + i })
-                        Text(DisciplineEngine.copingActions[i], color = Color.White)
+                        Text(s.settings.actions[i], color = Color.White)
                     }
                 }
                 item {
@@ -325,7 +327,7 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
                     } else Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text("How strong was it? ${intensity.toInt()}/5", color = Color.White)
                         Slider(intensity, { intensity = it }, valueRange = 1f..5f, steps = 3)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(DisciplineEngine.triggers) { t -> FilterChip(trigger == t, { trigger = t }, label = { Text(t) }) } }
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(s.settings.triggers) { t -> FilterChip(trigger == t, { trigger = t }, label = { Text(t) }) } }
                         Button(onClick = {
                             store.update { it.copy(urges = (it.urges + UrgeLog(System.currentTimeMillis(), intensity.toInt(), trigger, true)).takeLast(1000)) }
                             close()
@@ -334,5 +336,36 @@ private fun UrgeSos(s: DisciplineState, store: DisciplineStore, close: () -> Uni
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DisciplineSettingsEditor(st: DisciplineSettings, save: (DisciplineSettings) -> Unit) {
+    val context = LocalContext.current
+    var picking by remember { mutableStateOf(false) }
+    Stepper("Check-in time", clock(st.checkInMinute), { save(st.copy(checkInMinute = ((st.checkInMinute - 15) + 1440) % 1440)) }, { save(st.copy(checkInMinute = (st.checkInMinute + 15) % 1440)) })
+    Stepper("Urge timer", "${st.urgeTimerMinutes}m", { save(st.copy(urgeTimerMinutes = (st.urgeTimerMinutes - 1).coerceAtLeast(1))) }, { save(st.copy(urgeTimerMinutes = st.urgeTimerMinutes + 1)) })
+    Stepper("Protection lock", hm(st.protectionLockMinutes), { save(st.copy(protectionLockMinutes = (st.protectionLockMinutes - 60).coerceAtLeast(5))) }, { save(st.copy(protectionLockMinutes = st.protectionLockMinutes + 60)) })
+    ListEditor("Milestones (days)", st.milestones.map { it.toString() }, numeric = true) { save(st.copy(milestones = it.mapNotNull(String::toIntOrNull).filter { n -> n > 0 }.distinct().sorted())) }
+    ListEditor("Triggers", st.triggers) { save(st.copy(triggers = it)) }
+    ListEditor("Actions during an urge", st.actions) { save(st.copy(actions = it)) }
+    TextButton(onClick = { picking = !picking }) { Text("Apps blocked in risk hours (${st.guardedApps.size})") }
+    if (picking) {
+        val apps = remember {
+            val pm = context.packageManager
+            pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo.applicationInfo }
+                .distinctBy { it.packageName }.filter { it.packageName != context.packageName }
+                .map { it.packageName to pm.getApplicationLabel(it).toString() }.sortedBy { it.second.lowercase() }
+        }
+        Column(Modifier.heightIn(max = 280.dp)) {
+            LazyColumn { items(apps, key = { it.first }) { (pkg, label) ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(pkg in st.guardedApps, { on -> save(st.copy(guardedApps = if (on) st.guardedApps + pkg else st.guardedApps - pkg)) })
+                    Text(label)
+                }
+            } }
+        }
+        TextButton(onClick = { save(st.copy(guardedApps = browsersAndSocial(context))) }) { Text("Suggest browsers & social apps") }
+        Text("Tap Update under Protection to apply the new list.", style = MaterialTheme.typography.labelSmall)
     }
 }

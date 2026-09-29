@@ -16,7 +16,7 @@ class CampusStore private constructor(context: Context) {
     private val prefs = app.getSharedPreferences("chronora_campus", Context.MODE_PRIVATE)
     private val gson = Gson()
 
-    private val _data = MutableStateFlow(read("data") ?: CampusData())
+    private val _data = MutableStateFlow((read<CampusData>("data") ?: CampusData()).normalized())
     val data: StateFlow<CampusData> = _data
     private val _sheets = MutableStateFlow(read<List<StudySheet>>("sheets") ?: emptyList())
     val sheets: StateFlow<List<StudySheet>> = _sheets
@@ -26,7 +26,7 @@ class CampusStore private constructor(context: Context) {
     val companies: StateFlow<List<Company>> = _companies
 
     fun update(transform: (CampusData) -> CampusData) {
-        val next = transform(_data.value)
+        val next = transform(_data.value).normalized()
         _data.value = next
         write("data", next)
         CampusScheduler.rescheduleAll(app)
@@ -38,6 +38,8 @@ class CampusStore private constructor(context: Context) {
         updateSheet(sheetId) { s -> s.copy(items = s.items.map { if (it.id == itemId) transform(it) else it }) }
     fun updateSemesters(transform: (List<SemesterResult>) -> List<SemesterResult>) { _semesters.value = transform(_semesters.value); write("cgpa", _semesters.value) }
     fun updateCompanies(transform: (List<Company>) -> List<Company>) { _companies.value = transform(_companies.value); write("companies", _companies.value); CampusScheduler.rescheduleAll(app) }
+
+    val gaps: List<Int> get() = _data.value.settings.reviewGaps
 
     fun mark(key: String, mark: Mark?) = update { d -> d.copy(marks = if (mark == null) d.marks - key else d.marks + (key to mark)) }
 
@@ -76,12 +78,12 @@ class DisciplineStore private constructor(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("chronora_d", Context.MODE_PRIVATE)
     private val gson = Gson()
     private val _state = MutableStateFlow(
-        try { prefs.getString("s", null)?.let { gson.fromJson(it, DisciplineState::class.java) } } catch (_: Exception) { null } ?: DisciplineState()
+        (try { prefs.getString("s", null)?.let { gson.fromJson(it, DisciplineState::class.java) } } catch (_: Exception) { null } ?: DisciplineState()).normalized()
     )
     val state: StateFlow<DisciplineState> = _state
 
     fun update(transform: (DisciplineState) -> DisciplineState) {
-        _state.value = transform(_state.value)
+        _state.value = transform(_state.value).normalized()
         prefs.edit().putString("s", gson.toJson(_state.value)).apply()
     }
 

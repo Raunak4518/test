@@ -38,7 +38,10 @@ class DomainFilter(
     private val keywordBlocking: Boolean = true,
     private val safeSearch: Boolean = true,
     private val youtubeRestricted: Boolean = true,
-    private val blockBypass: Boolean = true
+    private val blockBypass: Boolean = true,
+    /** Keyword list in use (defaults plus your additions, minus removals). */
+    private val keywords: List<String> = defaultAdultWords,
+    private val bypassSet: Set<String> = bypass
 ) {
     fun decide(rawName: String): FilterVerdict {
         val name = rawName.trim().trimEnd('.').lowercase()
@@ -46,10 +49,10 @@ class DomainFilter(
         if (matches(name, allow)) return FilterVerdict.Allow
 
         if (safeSearch || youtubeRestricted) rewriteFor(name)?.let { return it }
-        if (blockBypass && matches(name, bypass)) return FilterVerdict.Block("DNS/VPN bypass")
+        if (blockBypass && matches(name, bypassSet)) return FilterVerdict.Block("DNS/VPN bypass")
         if (matches(name, custom)) return FilterVerdict.Block("Custom blocklist")
         for ((category, set) in categories) if (matches(name, set)) return FilterVerdict.Block(category.label)
-        if (keywordBlocking && FilterCategory.ADULT in categories && adultKeyword(name)) return FilterVerdict.Block("Adult keyword")
+        if (keywordBlocking && FilterCategory.ADULT in categories && adultKeyword(name, keywords)) return FilterVerdict.Block("Adult keyword")
         return FilterVerdict.Allow
     }
 
@@ -98,16 +101,17 @@ class DomainFilter(
             "protonvpn.com", "windscribe.com", "hotspotshield.com", "tunnelbear.com", "psiphon.ca", "psiphon3.com", "ultrasurf.us", "torproject.org"
         )
 
-        private val adultWords = listOf("porn", "xxx", "xvideo", "xnxx", "hentai", "nsfw", "camgirl", "camwhore", "sexcam", "livesex", "sexchat", "nude", "nudes", "milf", "bdsm", "fetish", "escort", "onlyfan", "erotic", "boobs", "blowjob", "pussy", "cumshot", "gangbang", "threesome", "stripchat", "chaturbat", "brazzers", "redtube", "youporn", "spankbang", "rule34", "jav")
+        val defaultAdultWords = listOf("porn", "xxx", "xvideo", "xnxx", "hentai", "nsfw", "camgirl", "camwhore", "sexcam", "livesex", "sexchat", "nude", "nudes", "milf", "bdsm", "fetish", "escort", "onlyfan", "erotic", "boobs", "blowjob", "pussy", "cumshot", "gangbang", "threesome", "stripchat", "chaturbat", "brazzers", "redtube", "youporn", "spankbang", "rule34", "jav")
         private val adultTokenExact = setOf("sex", "sexy", "xxx", "porno", "jav", "nsfw", "18plus")
         private val safeContaining = listOf("essex", "sussex", "middlesex", "wessex", "sexton", "sextant", "unisex", "javascript", "java", "javelin", "javier", "escortcar", "adultedu", "adulteducation", "scunthorpe", "therapist", "analytics", "cocktail", "shitake", "document")
 
         /** Heuristic for adult domains missing from lists, avoiding common false positives. */
-        fun adultKeyword(name: String): Boolean {
+        fun adultKeyword(name: String, words: List<String> = defaultAdultWords): Boolean {
             val labels = name.split('.')
             val host = labels.dropLast(1).joinToString(".") // ignore the TLD
             val cleaned = safeContaining.fold(host) { acc, safe -> acc.replace(safe, "") }
-            if (adultWords.any { w -> w.length >= 4 && cleaned.contains(w) }) return true
+            if (words.any { w -> w.length >= 4 && cleaned.contains(w) }) return true
+            if (words.any { w -> w.length < 4 && cleaned.split('.', '-', '_').any { it == w } }) return true
             val tokens = cleaned.split('.', '-', '_').filter { it.isNotBlank() }
             if (tokens.any { it in adultTokenExact }) return true
             val tld = labels.last()

@@ -92,9 +92,9 @@ object CampusScheduler {
             backupDelayMinutes = w.backupMinutes.coerceAtLeast(1),
             wakeCheckMinutes = w.wakeCheckMinutes,
             bedtimeReminderMinutes = (w.sleepHours * 60).coerceIn(0, 720),
-            maxSnoozes = 1,
-            longPressMs = 5000,
-            snoozeMinutes = 5,
+            maxSnoozes = data.settings.wakeSnoozes,
+            longPressMs = data.settings.wakeHoldToDismissSeconds * 1000L,
+            snoozeMinutes = data.settings.wakeSnoozeMinutes,
             fullscreen = true,
             deleteAfterRinging = false
         )
@@ -107,7 +107,7 @@ object CampusScheduler {
             val dismissed = AlarmRuntimeStore(context).dismissedAt(WAKE_ALARM_ID)
             if (config.wakeCheckMinutes > 0 && System.currentTimeMillis() - dismissed < 60 * 60_000L) bridge.scheduleWakeChecksAfterDismissal(config, dismissed)
         }
-        DirectBootWake.save(context, at, plan.label)
+        DirectBootWake.save(context, at, plan.label, data.settings.missedAlarmRecoveryHours)
     }
 
     /**
@@ -151,7 +151,8 @@ object CampusScheduler {
         val target = prefs.getLong("wake_at", 0)
         val now = System.currentTimeMillis()
         val dismissed = AlarmRuntimeStore(context).dismissedAt(WAKE_ALARM_ID)
-        if (target in 1 until now && now - target < 3 * 3_600_000L && dismissed < target && DirectBootWake.dismissedAt(context) < target) {
+        val recovery = CampusStore.get(context).data.value.settings.missedAlarmRecoveryHours * 3_600_000L
+        if (target in 1 until now && now - target < recovery && dismissed < target && DirectBootWake.dismissedAt(context) < target) {
             AlarmPersistentStore(context).find(WAKE_ALARM_ID)?.let {
                 AlarmNotificationHelper.showAlarm(context, it.copy(label = "Missed while your phone was off! " + it.label))
             }
@@ -196,26 +197,26 @@ object CampusScheduler {
         }
         data.deadlines.filter { !it.done }.forEach { d ->
             val due = runCatching { LocalDate.parse(d.date).atStartOfDay().plusMinutes(d.minute.toLong()) }.getOrNull() ?: return@forEach
-            set(due.minusHours(24), ACTION_DEADLINE, "${d.id}|24")
-            set(due.minusHours(3), ACTION_DEADLINE, "${d.id}|3")
+            data.settings.deadlineReminderHours.forEach { h -> set(due.minusHours(h.toLong()), ACTION_DEADLINE, "${d.id}|$h") }
         }
         store.companies.value.forEach { c ->
             val at = c.nextDate?.let { runCatching { LocalDate.parse(it).atStartOfDay().plusMinutes(c.nextMinute.toLong()) }.getOrNull() } ?: return@forEach
-            set(at.toLocalDate().minusDays(1).atTime(20, 0), ACTION_COMPANY, "${c.id}|eve")
-            set(at.minusHours(2), ACTION_COMPANY, "${c.id}|2h")
+            data.settings.companyReminderHours.forEach { h -> set(at.minusHours(h.toLong()), ACTION_COMPANY, "${c.id}|$h") }
         }
         if (data.librarySessions.lastOrNull()?.end == null && data.librarySessions.isNotEmpty()) {
-            LibraryPlanner.openWindow(data.library, now.toLocalDate())?.let { set(now.toLocalDate().atStartOfDay().plusMinutes(it.end - 30L), ACTION_LIBRARY, now.toLocalDate().toString()) }
+            LibraryPlanner.openWindow(data.library, now.toLocalDate())?.let { set(now.toLocalDate().atStartOfDay().plusMinutes(it.end - data.settings.libraryCloseReminderMinutes.toLong()), ACTION_LIBRARY, now.toLocalDate().toString()) }
         }
-        // Night battery guard: every 30 min from the sleep reminder until the alarm.
+        // Night battery guard: from the sleep reminder until the alarm, at the configured interval.
         nextWake(data, now)?.let { plan ->
             val from = plan.at.minusHours(w.sleepHours.toLong()).minusMinutes(60)
             var t = if (from.isAfter(now)) from else now.plusMinutes(1)
             var n = 0
-            while (t.isBefore(plan.at) && n < 24) { set(t, ACTION_BATTERY, "b$n"); t = t.plusMinutes(30); n++ }
+            val every = data.settings.batteryCheckEveryMinutes.coerceAtLeast(5).toLong()
+            while (t.isBefore(plan.at) && n < 48) { set(t, ACTION_BATTERY, "b$n"); t = t.plusMinutes(every); n++ }
         }
         val disc = DisciplineStore.get(context).state.value
-        if (disc.started > 0 && disc.dailyCheckIn) set(now.toLocalDate().atTime(22, 30).let { if (it.isAfter(now)) it else it.plusDays(1) }, ACTION_CHECKIN, "daily")
+        val checkIn = disc.settings.checkInMinute
+        if (disc.started > 0 && disc.dailyCheckIn) set(now.toLocalDate().atStartOfDay().plusMinutes(checkIn.toLong()).let { if (it.isAfter(now)) it else it.plusDays(1) }, ACTION_CHECKIN, "daily")
         // Recompute daily so tomorrow's classes and alarm are always armed.
         set(now.toLocalDate().plusDays(1).atTime(0, 5), ACTION_RECOMPUTE, "midnight")
         set(now.toLocalDate().atTime(20, 0).let { if (it.isAfter(now)) it else it.plusDays(1) }, ACTION_RECOMPUTE, "evening")
@@ -263,16 +264,18 @@ class CampusReceiver : BroadcastReceiver() {
             CampusScheduler.ACTION_DEADLINE -> {
                 val (id, lead) = key.split('|').let { it[0].toLongOrNull() to it.getOrNull(1) }
                 data.deadlines.firstOrNull { it.id == id && !it.done }?.let { d ->
-                    notify(context, CH_DEADLINE, key.hashCode(), "${d.kind.label} due ${if (lead == "3") "in 3 hours" else "tomorrow"}: ${d.title}", "${d.date} ${clock(d.minute)}" + (d.subjectId?.let { sid -> " · " + (data.subjects.firstOrNull { it.id == sid }?.name ?: "") } ?: ""))
+                    val hours = lead?.toIntOrNull() ?: 0
+                    notify(context, CH_DEADLINE, key.hashCode(), "${d.label} due in ${if (hours >= 24 && hours % 24 == 0) "${hours / 24} day(s)" else "$hours hour(s)"}: ${d.title}", "${d.date} ${clock(d.minute)}" + (d.subjectId?.let { sid -> " · " + (data.subjects.firstOrNull { it.id == sid }?.name ?: "") } ?: ""))
                 }
             }
             CampusScheduler.ACTION_COMPANY -> {
                 val id = key.substringBefore('|').toLongOrNull()
                 store.companies.value.firstOrNull { it.id == id }?.let { c ->
-                    notify(context, CH_DEADLINE, key.hashCode(), "${c.name}: ${c.nextEvent.ifBlank { c.stage.label }} ${if (key.endsWith("eve")) "tomorrow" else "in 2 hours"}", "${c.nextDate} ${clock(c.nextMinute)} · ${c.role}")
+                    val hours = key.substringAfter('|').toIntOrNull() ?: 0
+                    notify(context, CH_DEADLINE, key.hashCode(), "${c.name}: ${c.nextEvent.ifBlank { c.stageName }} in $hours hour(s)", "${c.nextDate} ${clock(c.nextMinute)} · ${c.role}")
                 }
             }
-            CampusScheduler.ACTION_LIBRARY -> notify(context, CH_CLASS, 7710, "Library closes in 30 minutes", "Wrap up and note where to resume tomorrow.")
+            CampusScheduler.ACTION_LIBRARY -> notify(context, CH_CLASS, 7710, "Library closes in ${data.settings.libraryCloseReminderMinutes} minutes", "Wrap up and note where to resume tomorrow.")
             CampusScheduler.ACTION_BATTERY -> batteryCheck(context)
             CampusScheduler.ACTION_CHECKIN -> {
                 val b = builder(context, CH_CHECKIN, "Daily check-in", "How did today go?")

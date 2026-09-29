@@ -120,7 +120,7 @@ object AttendanceEngine {
      * "Mon 09:00-10:00 DSA L 203", "tue 2-4pm ML Lab LAB-2", "Wed 11:10-12:05 CN T".
      * Unknown subjects are created. Returns the new subjects and slots.
      */
-    fun parseTimetable(text: String, existing: List<Subject>, idStart: Long): Pair<List<Subject>, List<TimetableSlot>> {
+    fun parseTimetable(text: String, existing: List<Subject>, idStart: Long, afternoonBeforeHour: Int = 8): Pair<List<Subject>, List<TimetableSlot>> {
         val subjects = existing.toMutableList()
         val slots = mutableListOf<TimetableSlot>()
         var id = idStart
@@ -135,9 +135,10 @@ object AttendanceEngine {
             var start = toMinute(g[1], g[2], g[3].ifBlank { g[6] })
             var end = toMinute(g[4], g[5], g[6])
             if (g[3].isBlank() && g[6].isBlank()) {
-                // College hours: 1–7 without am/pm means afternoon.
-                if (start < 8 * 60) start += 12 * 60
-                if (end < 8 * 60 || end <= start) end += 12 * 60
+                // College hours: times before the configured hour without am/pm mean afternoon.
+                val cut = afternoonBeforeHour.coerceIn(1, 12) * 60
+                if (start < cut) start += 12 * 60
+                if (end < cut || end <= start) end += 12 * 60
             }
             if (end <= start) end += 12 * 60
             val rest = line.substring(m.range.last + 1).trim().split(Regex("\\s+")).filter { it.isNotBlank() }

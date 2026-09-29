@@ -159,11 +159,62 @@ class CampusEnginesTest {
 
     @Test
     fun daily_score() {
-        val parts = DailyScore.compute(true, 3, 4, 150, 300, 3, 3, 120, 180, true)
+        val parts = DailyScore.compute(CampusSettings(), true, 3, 4, 150, 300, 3, 3, 120, 180, true)
         assertThat(DailyScore.total(parts)).isEqualTo(82) // 15+15+12.5+15+10+15 of 100
         assertThat(DailyScore.grade(82)).isEqualTo("A")
         // Parts that can't be measured are left out rather than counted as zero
-        assertThat(DailyScore.total(DailyScore.compute(null, 0, 0, 300, 300, 0, 0, null, 180, null))).isEqualTo(100)
+        assertThat(DailyScore.total(DailyScore.compute(CampusSettings(), null, 0, 0, 300, 300, 0, 0, null, 180, null))).isEqualTo(100)
+        // Custom weights: a zero weight drops that part entirely
+        val custom = CampusSettings(scoreWake = 0, scoreStudy = 50)
+        val p2 = DailyScore.compute(custom, false, 0, 0, 300, 300, 0, 0, null, 180, null)
+        assertThat(p2.map { it.label }).containsExactly("Deep study")
+        assertThat(custom.grade(95)).isEqualTo("S")
+        assertThat(CampusSettings(gradeBands = listOf(GradeBand(70, "Beast"), GradeBand(0, "Try again"))).grade(71)).isEqualTo("Beast")
+    }
+
+    @Test
+    fun editable_settings_drive_the_engines() {
+        // Custom revision gaps
+        val gaps = listOf(1, 2, 4)
+        val today = LocalDate.of(2026, 1, 10)
+        val item = SheetEngine.setStatus(SheetItem(1, "S", "T"), ItemStatus.SOLVED, today, gaps)
+        assertThat(item.nextReview).isEqualTo("2026-01-11")
+        assertThat(SheetEngine.markRevised(item, today, gaps).nextReview).isEqualTo("2026-01-12")
+        // Custom grade scale (e.g. O/A+/A) with a max of 10
+        val scale = listOf(GradePoint("O", 10.0), GradePoint("A+", 9.0), GradePoint("A", 8.0))
+        assertThat(Cgpa.sgpa(listOf(Course("X", 3, "O"), Course("Y", 3, "a+")), scale)).isWithin(1e-9).of(9.5)
+        assertThat(Cgpa.pointsFor("AA", scale)).isNull()
+        // Library planner buffers and minimum window come from settings
+        val tight = base.copy(settings = CampusSettings(walkBufferMinutes = 0, minFreeWindowMinutes = 300))
+        assertThat(LibraryPlanner.freeWindows(tight, mon)).containsExactly(Window(16 * 60, 22 * 60))
+        // Afternoon cut-off for pasted times
+        val (_, slots) = AttendanceEngine.parseTimetable("Mon 9-10 DSA", emptyList(), 1, afternoonBeforeHour = 10)
+        assertThat(slots.single().start).isEqualTo(21 * 60)
+        // Placement stages are free text
+        val companies = listOf(Company(1, "A", stageLabel = "Shortlisted"), Company(2, "B"))
+        val funnel = PlacementStats.funnel(companies, listOf("Wishlist", "Shortlisted"))
+        assertThat(funnel["Shortlisted"]).isEqualTo(1)
+        assertThat(funnel["Wishlist"]).isEqualTo(1)
+    }
+
+    @Test
+    fun data_saved_by_older_versions_gets_defaults() {
+        val gson = com.google.gson.Gson()
+        val old = gson.fromJson("{\"studyGoalMinutes\":240,\"subjects\":[],\"slots\":[],\"exceptions\":[],\"marks\":{},\"deadlines\":[],\"librarySessions\":[],\"wakeLogs\":[]}", CampusData::class.java).normalized()
+        assertThat(old.studyGoalMinutes).isEqualTo(240)
+        assertThat(old.settings.reviewGaps).containsExactly(3, 7, 15, 30, 60).inOrder()
+        assertThat(old.settings.batteryCheckEveryMinutes).isEqualTo(30)
+        val partial = gson.fromJson("{\"settings\":{\"focusBlockMinutes\":45}}", CampusData::class.java).normalized()
+        assertThat(partial.settings.focusBlockMinutes).isEqualTo(45)
+        assertThat(partial.settings.deadlineKinds).isNotEmpty()
+        assertThat(partial.settings.missedAlarmRecoveryHours).isEqualTo(3)
+        val disc = gson.fromJson("{\"started\":5,\"streakStart\":5}", DisciplineState::class.java).normalized()
+        assertThat(disc.settings.triggers).isNotEmpty()
+        assertThat(disc.settings.urgeTimerMinutes).isEqualTo(10)
+        assertThat(disc.urges).isEmpty()
+        val deadline = Deadline(1, "x", DeadlineKind.MIDSEM, "2026-01-01")
+        assertThat(deadline.label).isEqualTo("Mid-sem")
+        assertThat(deadline.copy(kindLabel = "Viva").label).isEqualTo("Viva")
     }
 
     @Test

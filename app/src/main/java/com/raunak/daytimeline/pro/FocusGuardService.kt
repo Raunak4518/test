@@ -175,7 +175,7 @@ class FocusGuardService : AccessibilityService() {
         if (nowMillis - lastShortCheck < 600) return
         lastShortCheck = nowMillis
         val root = rootInActiveWindow ?: return
-        val hit = blocked.firstOrNull { sf -> sf.viewIds.any { id -> runCatching { root.findAccessibilityNodeInfosByViewId("$pkg:id/$id") }.getOrNull()?.any { it.isVisibleToUser } == true } }
+        val hit = blocked.firstOrNull { sf -> wellbeing.config.idsFor(sf).any { id -> runCatching { root.findAccessibilityNodeInfosByViewId("$pkg:id/$id") }.getOrNull()?.any { it.isVisibleToUser } == true } }
             ?: return
         performGlobalAction(GLOBAL_ACTION_BACK)
         toast("${hit.label} is blocked")

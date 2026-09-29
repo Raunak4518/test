@@ -54,8 +54,24 @@ data class WellbeingConfig(
     /** Minutes of the day when the digest is delivered. */
     val digestTimes: List<Int> = listOf(12 * 60 + 30, 18 * 60, 21 * 60),
     val dailyReport: Boolean = true,
-    val reportMinute: Int = 21 * 60 + 30
-)
+    val reportMinute: Int = 21 * 60 + 30,
+    /** Your own screen ids per short-video surface (ShortForm name → ids); replaces the built-in ones. */
+    val shortFormIds: Map<String, List<String>> = emptyMap()
+) {
+    fun idsFor(sf: ShortForm): List<String> = shortFormIds[sf.name]?.takeIf { it.isNotEmpty() } ?: sf.viewIds
+
+    /** Fills fields missing from settings saved by an older version. */
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun normalized(): WellbeingConfig {
+        val d = WellbeingConfig()
+        return copy(
+            weekendLimits = weekendLimits ?: emptyMap(), groupLimits = groupLimits ?: emptyList(), openLimits = openLimits ?: emptyMap(),
+            sessionLimits = sessionLimits ?: emptyMap(), blockedShortForm = blockedShortForm ?: emptySet(), bedtime = bedtime ?: d.bedtime,
+            quietApps = quietApps ?: emptySet(), digestTimes = digestTimes ?: d.digestTimes, shortFormIds = shortFormIds ?: emptyMap(),
+            reportMinute = if (reportMinute in 1 until 24 * 60) reportMinute else d.reportMinute
+        )
+    }
+}
 
 /** What the blocker knows about current usage when it decides. */
 data class UsageSnapshot(

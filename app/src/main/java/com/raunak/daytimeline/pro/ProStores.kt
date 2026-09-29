@@ -12,7 +12,7 @@ class FocusGuardStore(context: Context) {
     private val gson = Gson()
 
     var config: FocusGuardConfig
-        get() = read("config") ?: FocusGuardConfig()
+        get() = (read<FocusGuardConfig>("config") ?: FocusGuardConfig()).normalized()
         set(value) { write("config", value); state.value = value }
 
     var runtime: FocusGuardRuntime

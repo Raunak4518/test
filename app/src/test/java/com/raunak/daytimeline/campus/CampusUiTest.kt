@@ -56,6 +56,8 @@ class CampusUiTest {
             compose.waitForIdle()
         }
         compose.onNodeWithText("Start").assertExists() // Discipline setup (no device lock in tests)
+        compose.onAllNodesWithText("Settings")[0].performScrollTo().performClick()
+        compose.onNodeWithText("Revision gaps (days) — first after solving, then after each revision").assertExists()
     }
 
     @Test

@@ -97,6 +97,10 @@ Built for a college student: every screen below comes from one weekly timetable.
 | Daily score (0–100): wake-up, classes, deep study, problems solved, screen time, discipline | 🆕 |
 | Discipline: private streak tracker behind the phone lock, urge SOS (breathing, reasons, actions), trigger and hour patterns, daily check-in, one-tap protection (web filter lock, risk-hour app blocking, strict mode); excluded from backups | 🆕 |
 
+### Everything is editable
+
+Campus → Settings holds every number and list the Campus features use: revision gaps, study-block and break lengths, walking buffer, minimum free slot, library reminders, deadline and interview reminder times, deadline/exam types, placement stages, daily-score weights and grade letters, on-time tolerance, attendance warning margin, afternoon cut-off for pasted timetables and lock-in durations. Also editable: the CGPA grade scale, wake-up snoozes, hold-to-dismiss time, battery-check interval and missed-alarm window (Wake-up tab), the Discipline milestones, triggers, actions, check-in time, urge timer, lock length and guarded apps, every web-filter category list, the adult keywords, the anti-bypass list and download sources, digest and report times, Shorts/Reels screen ids, and Focus Guard pause, unlock and session lengths. Settings saved by older versions are upgraded with defaults.
+
 ## Digital wellbeing (Free Pro Suite → Wellbeing)
 
 Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one sec, AppBlock, Lock Me Out and YourHour offer, including their paid tiers.

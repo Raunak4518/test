@@ -14,7 +14,7 @@ object LibraryPlanner {
     }
 
     /** Free library windows of at least [minMinutes], leaving [buffer] minutes around classes for walking. */
-    fun freeWindows(data: CampusData, date: LocalDate, fromMinute: Int = 0, buffer: Int = 10, minMinutes: Int = 40): List<Window> {
+    fun freeWindows(data: CampusData, date: LocalDate, fromMinute: Int = 0, buffer: Int = data.settings.walkBufferMinutes, minMinutes: Int = data.settings.minFreeWindowMinutes): List<Window> {
         val holiday = data.exceptions.any { it.kind == ExceptionKind.HOLIDAY && it.date == date.toString() }
         val open = openWindow(data.library, date, holiday) ?: return emptyList()
         val busy = AttendanceEngine.occurrences(data, date).map { Window(it.start - buffer, it.end + buffer) }.sortedBy { it.start }
@@ -73,6 +73,7 @@ data class ScorePart(val label: String, val earned: Double, val max: Int, val de
 
 object DailyScore {
     fun compute(
+        settings: CampusSettings,
         wakeOnTime: Boolean?,
         classesAttended: Int,
         classesTotal: Int,
@@ -84,30 +85,24 @@ object DailyScore {
         screenGoal: Int,
         disciplineKept: Boolean?
     ): List<ScorePart> = buildList {
-        if (wakeOnTime != null) add(ScorePart("Woke on time", if (wakeOnTime) 15.0 else 0.0, 15, if (wakeOnTime) "✓" else "late"))
-        if (classesTotal > 0) add(ScorePart("Classes", 20.0 * classesAttended / classesTotal, 20, "$classesAttended/$classesTotal"))
-        add(ScorePart("Deep study", 25.0 * (studyMinutes.toDouble() / studyGoal.coerceAtLeast(1)).coerceAtMost(1.0), 25, "${hm(studyMinutes)}/${hm(studyGoal)}"))
-        if (problemTarget > 0) add(ScorePart("Problems", 15.0 * (problemsSolved.toDouble() / problemTarget).coerceAtMost(1.0), 15, "$problemsSolved/$problemTarget"))
+        val s = settings
+        if (wakeOnTime != null) add(ScorePart("Woke on time", if (wakeOnTime) s.scoreWake.toDouble() else 0.0, s.scoreWake, if (wakeOnTime) "✓" else "late"))
+        if (classesTotal > 0) add(ScorePart("Classes", s.scoreClasses.toDouble() * classesAttended / classesTotal, s.scoreClasses, "$classesAttended/$classesTotal"))
+        add(ScorePart("Deep study", s.scoreStudy * (studyMinutes.toDouble() / studyGoal.coerceAtLeast(1)).coerceAtMost(1.0), s.scoreStudy, "${hm(studyMinutes)}/${hm(studyGoal)}"))
+        if (problemTarget > 0) add(ScorePart("Problems", s.scoreProblems * (problemsSolved.toDouble() / problemTarget).coerceAtMost(1.0), s.scoreProblems, "$problemsSolved/$problemTarget"))
         if (screenMinutes != null) {
-            val ratio = if (screenMinutes <= screenGoal) 1.0 else (1.0 - (screenMinutes - screenGoal).toDouble() / screenGoal).coerceAtLeast(0.0)
-            add(ScorePart("Screen time", 10.0 * ratio, 10, hm(screenMinutes)))
+            val ratio = if (screenMinutes <= screenGoal) 1.0 else (1.0 - (screenMinutes - screenGoal).toDouble() / screenGoal.coerceAtLeast(1)).coerceAtLeast(0.0)
+            add(ScorePart("Screen time", s.scoreScreen * ratio, s.scoreScreen, hm(screenMinutes)))
         }
-        if (disciplineKept != null) add(ScorePart("Discipline", if (disciplineKept) 15.0 else 0.0, 15, if (disciplineKept) "✓" else "reset"))
-    }
+        if (disciplineKept != null) add(ScorePart("Discipline", if (disciplineKept) s.scoreDiscipline.toDouble() else 0.0, s.scoreDiscipline, if (disciplineKept) "✓" else "reset"))
+    }.filter { it.max > 0 }
 
     fun total(parts: List<ScorePart>): Int {
         val max = parts.sumOf { it.max }
         return if (max == 0) 0 else (100.0 * parts.sumOf { it.earned } / max).toInt()
     }
 
-    fun grade(score: Int) = when {
-        score >= 90 -> "S"
-        score >= 80 -> "A"
-        score >= 65 -> "B"
-        score >= 50 -> "C"
-        score >= 35 -> "D"
-        else -> "F"
-    }
+    fun grade(score: Int, settings: CampusSettings = CampusSettings()) = settings.grade(score)
 }
 
 // ---------------------------------------------------------------- CGPA
@@ -116,32 +111,35 @@ data class Course(val name: String, val credits: Int, val grade: String?)
 data class SemesterResult(val number: Int, val courses: List<Course>)
 
 object Cgpa {
-    /** NIT-style 10-point letter grades; numeric strings like "8" are also accepted. */
-    val points = linkedMapOf("AA" to 10, "AB" to 9, "BB" to 8, "BC" to 7, "CC" to 6, "CD" to 5, "DD" to 4, "FF" to 0)
+    /** Default NIT-style 10-point scale; the one in use is editable in CGPA → Grade scale. */
+    val defaultScale = CampusSettings().gradeScale
 
-    fun pointsFor(grade: String?): Double? {
-        val g = grade?.trim()?.uppercase() ?: return null
+    fun max(scale: List<GradePoint>) = scale.maxOfOrNull { it.points } ?: 10.0
+
+    /** Letter from the scale, or a plain number like "8.5" within the scale's range. */
+    fun pointsFor(grade: String?, scale: List<GradePoint> = defaultScale): Double? {
+        val g = grade?.trim() ?: return null
         if (g.isEmpty()) return null
-        return points[g]?.toDouble() ?: g.toDoubleOrNull()?.takeIf { it in 0.0..10.0 }
+        return scale.firstOrNull { it.letter.equals(g, true) }?.points ?: g.toDoubleOrNull()?.takeIf { it in 0.0..max(scale) }
     }
 
-    fun sgpa(courses: List<Course>): Double? {
-        val graded = courses.mapNotNull { c -> pointsFor(c.grade)?.let { c.credits to it } }
+    fun sgpa(courses: List<Course>, scale: List<GradePoint> = defaultScale): Double? {
+        val graded = courses.mapNotNull { c -> pointsFor(c.grade, scale)?.let { c.credits to it } }
         val credits = graded.sumOf { it.first }
         return if (credits == 0) null else graded.sumOf { it.first * it.second } / credits
     }
 
-    fun cgpa(semesters: List<SemesterResult>): Double? = sgpa(semesters.flatMap { it.courses })
+    fun cgpa(semesters: List<SemesterResult>, scale: List<GradePoint> = defaultScale): Double? = sgpa(semesters.flatMap { it.courses }, scale)
 
-    fun earnedCredits(semesters: List<SemesterResult>) = semesters.flatMap { it.courses }.filter { pointsFor(it.grade) != null }.sumOf { it.credits }
+    fun earnedCredits(semesters: List<SemesterResult>, scale: List<GradePoint> = defaultScale) = semesters.flatMap { it.courses }.filter { pointsFor(it.grade, scale) != null }.sumOf { it.credits }
 
-    /** SGPA needed over [remainingCredits] to finish at [target]; null if impossible (>10). */
-    fun requiredAverage(semesters: List<SemesterResult>, target: Double, remainingCredits: Int): Double? {
+    /** SGPA needed over [remainingCredits] to finish at [target]; null if above the scale's top grade. */
+    fun requiredAverage(semesters: List<SemesterResult>, target: Double, remainingCredits: Int, scale: List<GradePoint> = defaultScale): Double? {
         if (remainingCredits <= 0) return null
-        val done = earnedCredits(semesters)
-        val current = cgpa(semesters) ?: 0.0
+        val done = earnedCredits(semesters, scale)
+        val current = cgpa(semesters, scale) ?: 0.0
         val need = (target * (done + remainingCredits) - current * done) / remainingCredits
-        return if (need > 10.0) null else need.coerceAtLeast(0.0)
+        return if (need > max(scale) + 1e-9) null else need.coerceAtLeast(0.0)
     }
 }
 
@@ -159,11 +157,15 @@ data class Company(
     val nextMinute: Int = 10 * 60,
     val nextEvent: String = "",
     val link: String = "",
-    val notes: String = ""
-)
+    val notes: String = "",
+    /** Editable stage name (Settings → placement stages); older entries fall back to [stage]. */
+    val stageLabel: String? = null
+) {
+    val stageName: String get() = stageLabel ?: stage.label
+}
 
 object PlacementStats {
-    fun funnel(companies: List<Company>) = PlacementStage.values().associateWith { st -> companies.count { it.stage == st } }
+    fun funnel(companies: List<Company>, stages: List<String>) = (stages + companies.map { it.stageName }).distinct().associateWith { st -> companies.count { it.stageName.equals(st, true) } }
     fun upcoming(companies: List<Company>, today: LocalDate) = companies.filter { c ->
         c.nextDate?.let { runCatching { !LocalDate.parse(it).isBefore(today) }.getOrDefault(false) } == true
     }.sortedBy { it.nextDate }

@@ -38,7 +38,8 @@ import kotlinx.coroutines.delay
 object DirectBootWake {
     private fun prefs(context: Context) = context.createDeviceProtectedStorageContext().getSharedPreferences("wake_fallback", Context.MODE_PRIVATE)
 
-    fun save(context: Context, at: Long, label: String) = prefs(context).edit().putLong("at", at).putString("label", label).apply()
+    fun save(context: Context, at: Long, label: String, recoveryHours: Int = 3) =
+        prefs(context).edit().putLong("at", at).putString("label", label).putInt("recovery", recoveryHours).apply()
     fun target(context: Context) = prefs(context).getLong("at", 0) to (prefs(context).getString("label", "") ?: "")
     fun markDismissed(context: Context) = prefs(context).edit().putLong("dismissed", System.currentTimeMillis()).apply()
     fun dismissedAt(context: Context) = prefs(context).getLong("dismissed", 0)
@@ -56,7 +57,7 @@ object DirectBootWake {
             at > now -> runCatching {
                 am.setAlarmClock(AlarmManager.AlarmClockInfo(at, null), pending(context))
             }.onFailure { am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pending(context)) }
-            now - at < 3 * 3_600_000L && dismissedAt(context) < at -> ring(context)
+            now - at < prefs(context).getInt("recovery", 3) * 3_600_000L && dismissedAt(context) < at -> ring(context)
         }
     }
 

@@ -262,6 +262,7 @@ private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
             TextButton(onClick = { save(c.copy(pickupGoal = c.pickupGoal + 10)) }) { Text("+") }
         }
         SwitchLine("Daily report at ${clock(c.reportMinute)} (weekly comparison on Sundays)", c.dailyReport) { save(c.copy(dailyReport = it)) }
+        MinutesStepper("Report time", c.reportMinute, step = 15, min = 15, max = 24 * 60 - 15) { save(c.copy(reportMinute = it)) }
     } }
 }
 
@@ -363,9 +364,13 @@ private fun ShortFormCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text("Block short videos", fontWeight = FontWeight.Bold)
         Text("Backs out of the short-video feed while messages, search and the rest of the app keep working. Apps change their screens often, so this is best-effort.", style = MaterialTheme.typography.bodySmall)
+        var advanced by remember { mutableStateOf(false) }
         ShortForm.values().forEach { sf ->
             SwitchLine(sf.label, sf in c.blockedShortForm) { on -> save(c.copy(blockedShortForm = if (on) c.blockedShortForm + sf else c.blockedShortForm - sf)) }
+            if (advanced) com.raunak.daytimeline.campus.ListEditor("Screen ids for ${sf.label} (${sf.packageName})", c.idsFor(sf)) { ids -> save(c.copy(shortFormIds = c.shortFormIds + (sf.name to ids))) }
         }
+        TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide screen ids" else "Edit screen ids (if an app update breaks detection)") }
+        if (advanced) TextButton(onClick = { save(c.copy(shortFormIds = emptyMap())) }) { Text("Restore built-in ids") }
     } }
 }
 
@@ -397,7 +402,9 @@ private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (
             }
         }
         SwitchLine("Only during focus and bedtime", c.quietOnlyDuringFocus) { save(c.copy(quietOnlyDuringFocus = it)) }
-        Text("Digest at " + c.digestTimes.sorted().joinToString { clock(it) }, style = MaterialTheme.typography.bodySmall)
+        com.raunak.daytimeline.campus.ListEditor("Digest times (HH:MM)", c.digestTimes.sorted().map { clock(it) }) { v ->
+            save(c.copy(digestTimes = v.mapNotNull { com.raunak.daytimeline.campus.parseClock(it) }.distinct().sorted()))
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             listOf(listOf(12 * 60 + 30, 18 * 60, 21 * 60), listOf(9 * 60, 13 * 60, 17 * 60, 21 * 60), listOf(20 * 60)).forEach { times ->
                 FilterChip(c.digestTimes.sorted() == times, { save(c.copy(digestTimes = times)) }, label = { Text("${times.size}×/day") })

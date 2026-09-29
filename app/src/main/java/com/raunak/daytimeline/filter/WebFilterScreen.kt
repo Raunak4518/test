@@ -30,15 +30,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-private data class ListSource(val label: String, val url: String)
-
-private val onlineLists = listOf(
-    ListSource("Adult sites (StevenBlack porn-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts"),
-    ListSource("Gambling (StevenBlack gambling-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"),
-    ListSource("Social media (StevenBlack social-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/social-only/hosts"),
-    ListSource("Ads + malware (StevenBlack unified)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts")
-)
-
 private const val MAX_IMPORT = 400_000
 
 /** Web filter & firewall: DNS filtering VPN, categories, SafeSearch, per-app rules and a commitment lock. */
@@ -154,7 +145,7 @@ fun WebFilterScreen() {
                 Text("Bigger blocklists", fontWeight = FontWeight.Bold)
                 Text("Imported: ${store.importedCount()} domains" + if (config.importedSources.isNotEmpty()) " from ${config.importedSources.size} source(s)" else "", style = MaterialTheme.typography.bodySmall)
                 Text("Download once (needs internet), then filtering stays fully offline. Hosts files, plain lists and AdBlock ||domain^ rules are supported.", style = MaterialTheme.typography.bodySmall)
-                onlineLists.forEach { src ->
+                config.listSources.forEach { src ->
                     OutlinedButton(enabled = !busy, onClick = {
                         busy = true; message = "Downloading ${src.label}…"
                         scope.launch {
@@ -181,6 +172,7 @@ fun WebFilterScreen() {
                 }
             } }
         }
+        item { ListOverridesCard(config, store) { commit(it) } }
         item { AppFirewallCard(config) { rules -> commit(config.copy(appRules = rules)) } }
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -320,4 +312,91 @@ private fun AppRuleRow(label: String, rule: AppRule, onRule: (AppRule) -> Unit) 
             }
         }
     }
+}
+
+/** Lets every bundled list be changed: category domains, adult keywords, bypass list and download sources. */
+@Composable
+private fun ListOverridesCard(config: WebFilterConfig, store: WebFilterStore, commit: (WebFilterConfig) -> Unit) {
+    var editing by remember { mutableStateOf<String?>(null) }
+    Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("Edit the built-in lists", fontWeight = FontWeight.Bold)
+        Text("Add or remove sites from any category, change the adult keywords, the anti-bypass list and the download sources. Removing entries counts as loosening, so the lock applies.", style = MaterialTheme.typography.bodySmall)
+        FilterCategory.values().forEach { c ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("${c.label} · ${store.effectiveCategory(c, config).size} sites", Modifier.weight(1f))
+                TextButton(onClick = { editing = c.name }) { Text("Edit") }
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Adult keywords · ${store.effectiveKeywords(config).size}", Modifier.weight(1f)); TextButton(onClick = { editing = "keywords" }) { Text("Edit") } }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Bypass services · ${store.effectiveBypass(config).size}", Modifier.weight(1f)); TextButton(onClick = { editing = "bypass" }) { Text("Edit") } }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Download sources · ${config.listSources.size}", Modifier.weight(1f)); TextButton(onClick = { editing = "sources" }) { Text("Edit") } }
+    } }
+    when (val e = editing) {
+        null -> Unit
+        "keywords" -> OverrideDialog("Adult keywords", DomainFilter.defaultAdultWords.toSet(), config.keywordsAdded, config.keywordsRemoved, isValid = { it.length >= 3 && it.all(Char::isLetterOrDigit) },
+            onSave = { add, remove -> commit(config.copy(keywordsAdded = add, keywordsRemoved = remove)) }) { editing = null }
+        "bypass" -> OverrideDialog("Bypass services", DomainFilter.bypass, config.bypassAdded, config.bypassRemoved, isValid = { it.contains('.') },
+            onSave = { add, remove -> commit(config.copy(bypassAdded = add, bypassRemoved = remove)) }) { editing = null }
+        "sources" -> SourcesDialog(config.listSources, onSave = { commit(config.copy(listSources = it)) }) { editing = null }
+        else -> {
+            val c = FilterCategory.valueOf(e)
+            val bundled = remember(e) { store.categorySet(c) }
+            OverrideDialog(c.label, bundled, config.categoryAdded[e] ?: emptySet(), config.categoryRemoved[e] ?: emptySet(), isValid = { it.contains('.') },
+                onSave = { add, remove -> commit(config.copy(categoryAdded = config.categoryAdded + (e to add), categoryRemoved = config.categoryRemoved + (e to remove))) }) { editing = null }
+        }
+    }
+}
+
+@Composable
+private fun OverrideDialog(title: String, bundled: Set<String>, added: Set<String>, removed: Set<String>, isValid: (String) -> Boolean, onSave: (Set<String>, Set<String>) -> Unit, close: () -> Unit) {
+    var add by remember { mutableStateOf(added) }
+    var remove by remember { mutableStateOf(removed) }
+    var input by remember { mutableStateOf("") }
+    var query by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = close, title = { Text(title) }, text = {
+        LazyColumn(Modifier.heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(input, { input = it.trim().lowercase() }, label = { Text("Add") }, singleLine = true, modifier = Modifier.weight(1f))
+                    IconButton(onClick = {
+                        val v = input.removePrefix("https://").removePrefix("http://").removePrefix("www.").substringBefore('/')
+                        if (isValid(v)) { if (v in bundled) remove = remove - v else add = add + v; input = "" }
+                    }) { Icon(Icons.Default.Add, "Add") }
+                }
+            }
+            if (add.isNotEmpty()) item { Text("Added by you", style = MaterialTheme.typography.labelLarge) }
+            items(add.sorted()) { v -> Row(verticalAlignment = Alignment.CenterVertically) { Text(v, Modifier.weight(1f)); IconButton(onClick = { add = add - v }) { Icon(Icons.Default.Close, "Remove") } } }
+            item {
+                Text("Built-in (${bundled.size}) — untick to remove", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(query, { query = it.trim().lowercase() }, label = { Text("Search") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+            items(bundled.filter { query.isBlank() || it.contains(query) }.sorted().take(300)) { v ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(v !in remove, { on -> remove = if (on) remove - v else remove + v })
+                    Text(v)
+                }
+            }
+        }
+    }, confirmButton = { Button(onClick = { onSave(add, remove); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+}
+
+@Composable
+private fun SourcesDialog(sources: List<ListSourceCfg>, onSave: (List<ListSourceCfg>) -> Unit, close: () -> Unit) {
+    var list by remember { mutableStateOf(sources) }
+    var label by remember { mutableStateOf("") }
+    var url by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = close, title = { Text("Download sources") }, text = {
+        LazyColumn(Modifier.heightIn(max = 480.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            items(list) { s -> Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) { Text(s.label); Text(s.url, style = MaterialTheme.typography.labelSmall, maxLines = 1) }
+                IconButton(onClick = { list = list - s }) { Icon(Icons.Default.Close, "Remove") }
+            } }
+            item {
+                OutlinedTextField(label, { label = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(url, { url = it.trim() }, label = { Text("URL of a hosts or domain list") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                TextButton(onClick = { if (url.startsWith("https://") && label.isNotBlank()) { list = list + ListSourceCfg(label.trim(), url); label = ""; url = "" } }) { Text("Add source") }
+                TextButton(onClick = { list = defaultListSources }) { Text("Restore defaults") }
+            }
+        }
+    }, confirmButton = { Button(onClick = { onSave(list); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }

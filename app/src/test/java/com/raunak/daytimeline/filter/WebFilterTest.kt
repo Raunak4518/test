@@ -111,3 +111,27 @@ class WebFilterTest {
         assertThat(FilterLock.appBlocked(AppRule.BLOCK_MOBILE, onWifi = true)).isFalse()
     }
 }
+
+class WebFilterOverridesTest {
+    @Test
+    fun custom_keywords_and_bypass_lists_apply() {
+        val f = DomainFilter(
+            categories = mapOf(FilterCategory.ADULT to emptySet()),
+            keywords = listOf("gamblez"),
+            bypassSet = setOf("myproxy.example")
+        )
+        assertThat(f.decide("best-gamblez.net")).isEqualTo(FilterVerdict.Block("Adult keyword"))
+        assertThat(f.decide("free-porn-videos.net")).isEqualTo(FilterVerdict.Allow) // default keyword removed
+        assertThat(f.decide("myproxy.example")).isEqualTo(FilterVerdict.Block("DNS/VPN bypass"))
+        assertThat(f.decide("dns.google")).isEqualTo(FilterVerdict.Allow)
+    }
+
+    @Test
+    fun removing_built_in_entries_counts_as_loosening() {
+        val old = WebFilterConfig(enabled = true)
+        assertThat(FilterLock.isLoosening(old, old.copy(categoryRemoved = mapOf("ADULT" to setOf("x.com"))))).isTrue()
+        assertThat(FilterLock.isLoosening(old, old.copy(categoryAdded = mapOf("ADULT" to setOf("x.com"))))).isFalse()
+        assertThat(FilterLock.isLoosening(old, old.copy(keywordsRemoved = setOf("porn")))).isTrue()
+        assertThat(FilterLock.isLoosening(old.copy(bypassAdded = setOf("a.b")), old)).isTrue()
+    }
+}

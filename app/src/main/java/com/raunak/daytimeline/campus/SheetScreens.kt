@@ -190,7 +190,7 @@ private fun ItemRow(sheet: StudySheet, item: SheetItem, store: CampusStore, onEd
     val today = LocalDate.now()
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth().clickable { onEdit() }, verticalAlignment = Alignment.CenterVertically) {
-        Checkbox(item.status.done, { on -> store.updateItem(sheet.id, item.id) { SheetEngine.setStatus(it, if (on) ItemStatus.SOLVED else ItemStatus.TODO, today) } })
+        Checkbox(item.status.done, { on -> store.updateItem(sheet.id, item.id) { SheetEngine.setStatus(it, if (on) ItemStatus.SOLVED else ItemStatus.TODO, today, store.gaps) } })
         Column(Modifier.weight(1f)) {
             Text(item.title, textDecoration = if (item.status.done) TextDecoration.LineThrough else null, style = MaterialTheme.typography.bodyMedium)
             val meta = listOfNotNull(
@@ -207,8 +207,8 @@ private fun ItemRow(sheet: StudySheet, item: SheetItem, store: CampusStore, onEd
         Box {
             TextButton(onClick = { menu = true }) { Text("⋯") }
             DropdownMenu(menu, { menu = false }) {
-                ItemStatus.values().forEach { s -> DropdownMenuItem(text = { Text(s.label) }, onClick = { store.updateItem(sheet.id, item.id) { SheetEngine.setStatus(it, s, today) }; menu = false }) }
-                if (item.status.done) DropdownMenuItem(text = { Text("Revised today") }, onClick = { store.updateItem(sheet.id, item.id) { SheetEngine.markRevised(it, today) }; menu = false })
+                ItemStatus.values().forEach { s -> DropdownMenuItem(text = { Text(s.label) }, onClick = { store.updateItem(sheet.id, item.id) { SheetEngine.setStatus(it, s, today, store.gaps) }; menu = false }) }
+                if (item.status.done) DropdownMenuItem(text = { Text("Revised today") }, onClick = { store.updateItem(sheet.id, item.id) { SheetEngine.markRevised(it, today, store.gaps) }; menu = false })
             }
         }
     }
@@ -261,7 +261,7 @@ private fun ReviewQueue(sheets: List<StudySheet>, store: CampusStore, back: () -
                 IconButton(onClick = back) { Icon(Icons.Default.ArrowBack, "Back") }
                 Text("Revision · ${queue.size} due", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             }
-            Text("Re-solve from memory. Gaps grow 3 → 7 → 15 → 30 → 60 days each time you get it right.", style = MaterialTheme.typography.bodySmall)
+            Text("Re-solve from memory. Gaps grow " + store.gaps.joinToString(" → ") + " days each time you get it right (change in Campus → Settings).", style = MaterialTheme.typography.bodySmall)
         }
         items(queue, key = { "${it.first.id}-${it.second.id}" }) { (s, item) ->
             Card { Column(Modifier.padding(12.dp)) {
@@ -269,7 +269,7 @@ private fun ReviewQueue(sheets: List<StudySheet>, store: CampusStore, back: () -
                 Text("${s.name} · ${item.section}" + if (item.notes.isNotBlank()) "\n${item.notes}" else "", style = MaterialTheme.typography.bodySmall)
                 Row {
                     if (item.url.isNotBlank()) TextButton(onClick = { openUrl(context, item.url) }) { Text("Open") }
-                    TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.markRevised(it, today) } }) { Text("Got it") }
+                    TextButton(onClick = { store.updateItem(s.id, item.id) { SheetEngine.markRevised(it, today, store.gaps) } }) { Text("Got it") }
                     TextButton(onClick = { store.updateItem(s.id, item.id) { it.copy(status = ItemStatus.REVISE, nextReview = today.plusDays(1).toString()) } }) { Text("Struggled — tomorrow") }
                 }
             } }

@@ -48,15 +48,16 @@ object SheetEngine {
     /** Spaced-repetition gaps (days) after solving, then after each revision. */
     val reviewGaps = listOf(3, 7, 15, 30, 60)
 
-    fun setStatus(item: SheetItem, status: ItemStatus, today: LocalDate): SheetItem = when {
-        status == ItemStatus.SOLVED && !item.status.done -> item.copy(status = status, doneDate = today.toString(), nextReview = today.plusDays(reviewGaps[0].toLong()).toString())
+    fun setStatus(item: SheetItem, status: ItemStatus, today: LocalDate, gaps: List<Int> = reviewGaps): SheetItem = when {
+        status == ItemStatus.SOLVED && !item.status.done -> item.copy(status = status, doneDate = today.toString(), nextReview = today.plusDays((gaps.firstOrNull() ?: 3).toLong()).toString())
         !status.done -> item.copy(status = status, nextReview = if (status == ItemStatus.REVISE) today.toString() else item.nextReview)
         else -> item.copy(status = status)
     }
 
-    fun markRevised(item: SheetItem, today: LocalDate): SheetItem {
+    fun markRevised(item: SheetItem, today: LocalDate, gaps: List<Int> = reviewGaps): SheetItem {
         val n = item.revisions + 1
-        val gap = reviewGaps.getOrElse(n) { reviewGaps.last() }
+        val g = gaps.ifEmpty { reviewGaps }
+        val gap = g.getOrElse(n) { g.last() }
         return item.copy(status = ItemStatus.SOLVED, revisions = n, nextReview = today.plusDays(gap.toLong()).toString(), doneDate = item.doneDate ?: today.toString())
     }
 

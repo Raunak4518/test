@@ -64,10 +64,10 @@ internal fun AttendanceTab() {
                             Text(s.name, fontWeight = FontWeight.Bold)
                             if (s.code.isNotBlank() || s.faculty.isNotBlank()) Text(listOf(s.code, s.faculty).filter { it.isNotBlank() }.joinToString(" · "), style = MaterialTheme.typography.bodySmall)
                         }
-                        Text("${"%.1f".format(st.percent)}%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = percentColor(st.percent, s.requiredPercent))
+                        Text("${"%.1f".format(st.percent)}%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = percentColor(st.percent, s.requiredPercent, data.settings.attendanceMargin))
                         IconButton(onClick = { editing = s }) { Icon(Icons.Default.Edit, "Edit subject") }
                     }
-                    LinearProgressIndicator(progress = { (st.percent / 100).toFloat() }, modifier = Modifier.fillMaxWidth(), color = percentColor(st.percent, s.requiredPercent))
+                    LinearProgressIndicator(progress = { (st.percent / 100).toFloat() }, modifier = Modifier.fillMaxWidth(), color = percentColor(st.percent, s.requiredPercent, data.settings.attendanceMargin))
                     Text("${st.attended}/${st.conducted} attended · need ${s.requiredPercent}% · ${st.status}", style = MaterialTheme.typography.bodySmall)
                     Text("${st.remaining} classes left · can miss ${st.skippableOfRemaining} of them · ${"%.1f".format(st.projectedIfAllAttended)}% if you attend all" + if (st.unmarked > 0) " · ${st.unmarked} unmarked" else "", style = MaterialTheme.typography.bodySmall)
                     if (st.conducted > 0) Text("Skipping the next class → ${"%.1f".format(AttendanceEngine.afterSkipping(st))}%", style = MaterialTheme.typography.labelSmall)
@@ -221,7 +221,7 @@ private fun describe(ex: ScheduleException, data: CampusData): String {
 private fun PasteTimetableDialog(store: CampusStore, close: () -> Unit) {
     var text by remember { mutableStateOf("") }
     val data = store.data.value
-    val preview = remember(text) { AttendanceEngine.parseTimetable(text, data.subjects, 1) }
+    val preview = remember(text) { AttendanceEngine.parseTimetable(text, data.subjects, 1, data.settings.afternoonBeforeHour) }
     AlertDialog(onDismissRequest = close, title = { Text("Paste weekly timetable") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("One class per line: day, time, subject, type (L/P/T or Lab), room.", style = MaterialTheme.typography.bodySmall)
@@ -230,7 +230,7 @@ private fun PasteTimetableDialog(store: CampusStore, close: () -> Unit) {
         }
     }, confirmButton = {
         Button(enabled = preview.second.isNotEmpty(), onClick = {
-            val (subjects, slots) = AttendanceEngine.parseTimetable(text, store.data.value.subjects, store.nextId())
+            val (subjects, slots) = AttendanceEngine.parseTimetable(text, store.data.value.subjects, store.nextId(), store.data.value.settings.afternoonBeforeHour)
             store.update { d -> d.copy(subjects = d.subjects + subjects, slots = d.slots + slots) }
             close()
         }) { Text("Add") }

@@ -7,6 +7,41 @@ import java.time.ZoneId
 data class UrgeLog(val time: Long, val intensity: Int, val trigger: String, val resisted: Boolean, val note: String = "")
 data class ResetLog(val time: Long, val trigger: String, val lesson: String)
 
+/** Editable lists and times for the Discipline tab. */
+data class DisciplineSettings(
+    val milestones: List<Int> = listOf(1, 3, 7, 14, 21, 30, 45, 60, 90, 120, 180, 270, 365),
+    val triggers: List<String> = listOf("Bored", "Alone late at night", "Stressed", "Lonely", "Tired", "Scrolling social media", "In bed with phone", "After a bad day", "Procrastinating"),
+    val actions: List<String> = listOf(
+        "Stand up and leave the room right now",
+        "Splash cold water on your face",
+        "20 push-ups or squats",
+        "Go to the library or a common area — be around people",
+        "Open your next DSA problem",
+        "Text or call a friend",
+        "Put the phone in another room for 15 minutes",
+        "Walk outside for 10 minutes"
+    ),
+    val checkInMinute: Int = 22 * 60 + 30,
+    val urgeTimerMinutes: Int = 10,
+    val protectionLockMinutes: Int = 1440,
+    /** Apps blocked during risk hours; empty = suggest installed browsers and social apps. */
+    val guardedApps: Set<String> = emptySet()
+) {
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun normalized(): DisciplineSettings {
+        val d = DisciplineSettings()
+        return copy(
+            milestones = (milestones ?: d.milestones).filter { it > 0 }.sorted().ifEmpty { d.milestones },
+            triggers = triggers ?: d.triggers,
+            actions = actions ?: d.actions,
+            checkInMinute = if (checkInMinute in 1 until 24 * 60) checkInMinute else d.checkInMinute,
+            urgeTimerMinutes = if (urgeTimerMinutes > 0) urgeTimerMinutes else d.urgeTimerMinutes,
+            protectionLockMinutes = if (protectionLockMinutes > 0) protectionLockMinutes else d.protectionLockMinutes,
+            guardedApps = guardedApps ?: emptySet()
+        )
+    }
+}
+
 /** Private habit-breaking tracker. Kept separate from other data and never exported with backups. */
 data class DisciplineState(
     val started: Long = 0,
@@ -18,8 +53,15 @@ data class DisciplineState(
     val riskEnd: Int = 2 * 60,
     val riskGuard: Boolean = true,
     val checkIns: Map<String, Boolean> = emptyMap(),
-    val dailyCheckIn: Boolean = true
-)
+    val dailyCheckIn: Boolean = true,
+    val settings: DisciplineSettings = DisciplineSettings()
+) {
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun normalized() = copy(
+        resets = resets ?: emptyList(), urges = urges ?: emptyList(), reasons = reasons ?: emptyList(),
+        checkIns = checkIns ?: emptyMap(), settings = (settings ?: DisciplineSettings()).normalized()
+    )
+}
 
 data class DisciplineInsights(
     val currentDays: Int,
@@ -34,8 +76,6 @@ data class DisciplineInsights(
 )
 
 object DisciplineEngine {
-    val milestones = listOf(1, 3, 7, 14, 21, 30, 45, 60, 90, 120, 180, 270, 365)
-    val triggers = listOf("Bored", "Alone late at night", "Stressed", "Lonely", "Tired", "Scrolling social media", "In bed with phone", "After a bad day", "Procrastinating")
 
     fun insights(s: DisciplineState, now: Long, zone: ZoneId = ZoneId.systemDefault()): DisciplineInsights {
         val start = if (s.streakStart > 0) s.streakStart else now
@@ -59,7 +99,7 @@ object DisciplineEngine {
             currentDays = days,
             currentHours = hours,
             bestDays = maxOf(best, days),
-            nextMilestone = milestones.firstOrNull { it > days } ?: (days + 30),
+            nextMilestone = s.settings.milestones.firstOrNull { it > days } ?: (days + 30),
             urgesByHour = byHour,
             topTriggers = triggers.take(4),
             resistRate = if (s.urges.isEmpty()) null else 100 * resisted / s.urges.size,
@@ -78,15 +118,4 @@ object DisciplineEngine {
         if (s.started == 0L) return null
         return s.resets.none { Instant.ofEpochMilli(it.time).atZone(zone).toLocalDate() == today }
     }
-
-    val copingActions = listOf(
-        "Stand up and leave the room right now",
-        "Splash cold water on your face",
-        "20 push-ups or squats",
-        "Go to the library or a common area — be around people",
-        "Open your next DSA problem",
-        "Text or call a friend",
-        "Put the phone in another room for 15 minutes",
-        "Walk outside for 10 minutes"
-    )
 }

@@ -42,7 +42,7 @@ internal fun DeadlinesTab() {
     var showDone by remember { mutableStateOf(false) }
     val today = LocalDate.now()
     val open = data.deadlines.filter { !it.done }.sortedBy { it.date + clock(it.minute) }
-    val exams = open.filter { it.kind == DeadlineKind.MIDSEM || it.kind == DeadlineKind.ENDSEM || it.kind == DeadlineKind.QUIZ }
+    val exams = open.filter { data.settings.isExam(it.label) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (exams.isNotEmpty()) item {
@@ -53,7 +53,7 @@ internal fun DeadlinesTab() {
             }
         }
         item {
-            SectionCard("Assignments, quizzes & exams", "${open.size} open · reminders 1 day and 3 hours before", action = { TextButton(onClick = { adding = true }) { Text("Add") } }) {
+            SectionCard("Assignments, quizzes & exams", "${open.size} open · reminders " + data.settings.deadlineReminderHours.joinToString { "${it}h" } + " before", action = { TextButton(onClick = { adding = true }) { Text("Add") } }) {
                 open.forEach { d -> DeadlineRow(d, data, today, store) }
                 if (open.isEmpty()) Text("Nothing pending.", style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { showDone = !showDone }) { Text(if (showDone) "Hide completed" else "Show completed") }
@@ -71,7 +71,7 @@ private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: 
         Checkbox(d.done, { on -> store.update { c -> c.copy(deadlines = c.deadlines.map { if (it.id == d.id) it.copy(done = on) else it }) } })
         Column(Modifier.weight(1f)) {
             Text(d.title, fontWeight = FontWeight.SemiBold)
-            Text("${d.kind.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("${d.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Color(0xFFC62828) else MaterialTheme.colorScheme.onSurfaceVariant)
         }
         IconButton(onClick = { store.update { c -> c.copy(deadlines = c.deadlines.filterNot { it.id == d.id }) } }) { Icon(Icons.Default.Delete, "Delete") }
     }
@@ -80,21 +80,22 @@ private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: 
 @Composable
 private fun DeadlineDialog(data: CampusData, store: CampusStore, close: () -> Unit) {
     var title by remember { mutableStateOf("") }
-    var kind by remember { mutableStateOf(DeadlineKind.ASSIGNMENT) }
+    var kind by remember { mutableStateOf(data.settings.deadlineKinds.first()) }
     var date by remember { mutableStateOf(LocalDate.now().plusDays(3)) }
     var time by remember { mutableStateOf("23:59") }
     var subjectId by remember { mutableStateOf<Long?>(null) }
     AlertDialog(onDismissRequest = close, title = { Text("Add deadline or exam") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("Title") }, singleLine = true)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(DeadlineKind.values().toList()) { k -> FilterChip(kind == k, { kind = k; if (title.isBlank() && k != DeadlineKind.ASSIGNMENT) title = k.label }, label = { Text(k.label) }) } }
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(data.settings.deadlineKinds) { k -> FilterChip(kind == k, { kind = k; if (title.isBlank() && data.settings.isExam(k)) title = k }, label = { Text(k) }) } }
+            Text("Edit these types in Campus → Settings.", style = MaterialTheme.typography.labelSmall)
             if (data.subjects.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(data.subjects) { s -> FilterChip(subjectId == s.id, { subjectId = if (subjectId == s.id) null else s.id }, label = { Text(s.name) }) } }
             DateButton("Due", date) { date = it }
             OutlinedTextField(time, { time = it }, label = { Text("Time") }, singleLine = true, isError = parseClock(time) == null)
         }
     }, confirmButton = {
         Button(enabled = title.isNotBlank() && parseClock(time) != null, onClick = {
-            store.update { d -> d.copy(deadlines = d.deadlines + Deadline(store.nextId(), title.trim(), kind, date.toString(), parseClock(time)!!, subjectId)) }
+            store.update { d -> d.copy(deadlines = d.deadlines + Deadline(store.nextId(), title.trim(), DeadlineKind.OTHER, date.toString(), parseClock(time)!!, subjectId, kindLabel = kind)) }
             close()
         }) { Text("Add") }
     }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
@@ -140,16 +141,22 @@ internal fun WakeTab() {
                     }
                 }
                 Text("Armed tomorrow: " + armed.joinToString(" → ") { it.name.lowercase() }, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
-                Text("Walk/squat get you out of bed. Barcode/photo need a reference registered for \"First class\" in Alarms (e.g. the bathroom mirror) — until then they're skipped. Holding the dismiss bar for 5 s still works as a safety net, and the \"still awake?\" check follows.", style = MaterialTheme.typography.bodySmall)
+                Text("Walk/squat get you out of bed. Barcode/photo need a reference registered for \"First class\" in Alarms (e.g. the bathroom mirror) — until then they're skipped. Holding the dismiss bar still works as a safety net, and the \"still awake?\" check follows.", style = MaterialTheme.typography.bodySmall)
                 Stepper("Backup alarm after", if (w.backupMinutes == 0) "Off" else "${w.backupMinutes}m", { save(w.copy(backupMinutes = (w.backupMinutes - 1).coerceAtLeast(0))) }, { save(w.copy(backupMinutes = w.backupMinutes + 1)) })
                 Stepper("\"Still awake?\" check after", if (w.wakeCheckMinutes == 0) "Off" else "${w.wakeCheckMinutes}m", { save(w.copy(wakeCheckMinutes = (w.wakeCheckMinutes - 5).coerceAtLeast(0))) }, { save(w.copy(wakeCheckMinutes = w.wakeCheckMinutes + 5)) })
+                Stepper("Snoozes allowed", "${data.settings.wakeSnoozes}", { store.update { it.copy(settings = it.settings.copy(wakeSnoozes = (it.settings.wakeSnoozes - 1).coerceAtLeast(0))) } }, { store.update { it.copy(settings = it.settings.copy(wakeSnoozes = (it.settings.wakeSnoozes + 1).coerceAtMost(10))) } })
+                Stepper("Snooze length", "${data.settings.wakeSnoozeMinutes}m", { store.update { it.copy(settings = it.settings.copy(wakeSnoozeMinutes = (it.settings.wakeSnoozeMinutes - 1).coerceAtLeast(1))) } }, { store.update { it.copy(settings = it.settings.copy(wakeSnoozeMinutes = (it.settings.wakeSnoozeMinutes + 1).coerceAtMost(60))) } })
+                Stepper("Hold to dismiss (safety net)", "${data.settings.wakeHoldToDismissSeconds}s", { store.update { it.copy(settings = it.settings.copy(wakeHoldToDismissSeconds = (it.settings.wakeHoldToDismissSeconds - 1).coerceAtLeast(1))) } }, { store.update { it.copy(settings = it.settings.copy(wakeHoldToDismissSeconds = (it.settings.wakeHoldToDismissSeconds + 1).coerceAtMost(5))) } })
                 Stepper("Sleep reminder (hours before)", "${w.sleepHours}h", { save(w.copy(sleepHours = (w.sleepHours - 1).coerceAtLeast(0))) }, { save(w.copy(sleepHours = (w.sleepHours + 1).coerceAtMost(12))) })
             }
         }
         item {
             SectionCard("If the phone might die", "Alarms can't ring on a switched-off phone, so Chronora prevents it and recovers") {
                 Stepper("Night battery warning below", "${w.batteryThreshold}%", { save(w.copy(batteryThreshold = (w.batteryThreshold - 5).coerceAtLeast(10))) }, { save(w.copy(batteryThreshold = (w.batteryThreshold + 5).coerceAtMost(90))) })
-                Text("• Every 30 min from your sleep reminder until the alarm, a loud warning if the phone isn't charging and is low.\n• If the phone restarts overnight, a fallback alarm rings even before you unlock it.\n• If the phone was off at alarm time, it rings the moment the phone turns back on (up to 3 hours late).", style = MaterialTheme.typography.bodySmall)
+                val st = data.settings
+                Stepper("Check battery every", "${st.batteryCheckEveryMinutes}m", { store.update { it.copy(settings = st.copy(batteryCheckEveryMinutes = (st.batteryCheckEveryMinutes - 5).coerceAtLeast(5))) } }, { store.update { it.copy(settings = st.copy(batteryCheckEveryMinutes = st.batteryCheckEveryMinutes + 5)) } })
+                Stepper("Ring after power-on, up to", "${st.missedAlarmRecoveryHours}h late", { store.update { it.copy(settings = st.copy(missedAlarmRecoveryHours = (st.missedAlarmRecoveryHours - 1).coerceAtLeast(1))) } }, { store.update { it.copy(settings = st.copy(missedAlarmRecoveryHours = st.missedAlarmRecoveryHours + 1)) } })
+                Text("• From your sleep reminder until the alarm, a loud warning if the phone isn't charging and is low.\n• If the phone restarts overnight, a fallback alarm rings even before you unlock it.\n• If the phone was off at alarm time, it rings the moment the phone turns back on.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item {
@@ -161,10 +168,11 @@ internal fun WakeTab() {
         }
         item {
             val logs = data.wakeLogs.takeLast(30).reversed()
-            SectionCard("Wake-up history", if (logs.isEmpty()) "No mornings logged yet" else "On time ${logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + 10 * 60_000L }} of ${logs.size}") {
+            val tol = data.settings.onTimeToleranceMinutes
+            SectionCard("Wake-up history", if (logs.isEmpty()) "No mornings logged yet" else "On time ${logs.count { it.dismissedAt != null && it.dismissedAt <= it.target + tol * 60_000L }} of ${logs.size} (within ${tol}m)") {
                 logs.take(10).forEach { l ->
                     val late = l.dismissedAt?.let { ((it - l.target) / 60_000L).toInt() }
-                    Text("${l.date} · " + when { late == null -> "missed"; late <= 10 -> "on time"; else -> "${hm(late)} late" }, style = MaterialTheme.typography.bodySmall, color = if (late != null && late <= 10) Color(0xFF2E7D32) else Color(0xFFC62828))
+                    Text("${l.date} · " + when { late == null -> "missed"; late <= tol -> "on time"; else -> "${hm(late)} late" }, style = MaterialTheme.typography.bodySmall, color = if (late != null && late <= tol) Color(0xFF2E7D32) else Color(0xFFC62828))
                 }
             }
         }
@@ -241,7 +249,7 @@ internal fun LibraryTab() {
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Stat("Today", hm(LibraryPlanner.minutesIn(data.librarySessions, today)), Modifier.weight(1f))
                     Stat("This week", hm((0L..6L).sumOf { LibraryPlanner.minutesIn(data.librarySessions, today.minusDays(it)) }), Modifier.weight(1f))
-                    Stat("Days this month", "${(0 until today.dayOfMonth).count { LibraryPlanner.minutesIn(data.librarySessions, today.minusDays(it.toLong())) >= 30 }}", Modifier.weight(1f))
+                    Stat("Days this month", "${(0 until today.dayOfMonth).count { LibraryPlanner.minutesIn(data.librarySessions, today.minusDays(it.toLong())) >= data.settings.libraryVisitMinutes }}", Modifier.weight(1f))
                 }
             }
         }
@@ -279,15 +287,17 @@ internal fun CgpaTab() {
     var target by remember { mutableStateOf("8.5") }
     var remaining by remember { mutableStateOf("80") }
     var editing by remember { mutableStateOf<Int?>(null) }
+    var scaleOpen by remember { mutableStateOf(false) }
+    val scale = data.settings.gradeScale
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            val cg = Cgpa.cgpa(semesters)
-            SectionCard("CGPA ${cg?.let { "%.2f".format(it) } ?: "—"}", "${Cgpa.earnedCredits(semesters)} credits graded · grades AA=10 AB=9 BB=8 BC=7 CC=6 CD=5 DD=4 FF=0") {
+            val cg = Cgpa.cgpa(semesters, scale)
+            SectionCard("CGPA ${cg?.let { "%.2f".format(it) } ?: "—"}", "${Cgpa.earnedCredits(semesters, scale)} credits graded · " + scale.joinToString(" ") { "${it.letter}=${fmt(it.points)}" }, action = { TextButton(onClick = { scaleOpen = true }) { Text("Grade scale") } }) {
                 semesters.sortedBy { it.number }.forEach { s ->
                     Row(Modifier.fillMaxWidth().clickable { editing = s.number }, verticalAlignment = Alignment.CenterVertically) {
                         Text("Semester ${s.number}", Modifier.weight(1f))
-                        Text("SGPA ${Cgpa.sgpa(s.courses)?.let { "%.2f".format(it) } ?: "—"} · ${s.courses.sumOf { it.credits }} cr", fontWeight = FontWeight.SemiBold)
+                        Text("SGPA ${Cgpa.sgpa(s.courses, scale)?.let { "%.2f".format(it) } ?: "—"} · ${s.courses.sumOf { it.credits }} cr", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -307,20 +317,48 @@ internal fun CgpaTab() {
                 }
                 val t = target.toDoubleOrNull(); val r = remaining.toIntOrNull()
                 if (t != null && r != null) {
-                    val need = Cgpa.requiredAverage(semesters, t, r)
-                    Text(if (need == null) "Not reachable with $r credits left — even all AA wouldn't get there." else "You need an average SGPA of ${"%.2f".format(need)} over the remaining $r credits.", fontWeight = FontWeight.SemiBold)
+                    val need = Cgpa.requiredAverage(semesters, t, r, scale)
+                    Text(if (need == null) "Not reachable with $r credits left — even the top grade everywhere wouldn't get there." else "You need an average SGPA of ${"%.2f".format(need)} over the remaining $r credits.", fontWeight = FontWeight.SemiBold)
                 }
                 Text("Tip: fill the current semester with expected grades to see where you'll land.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
-    editing?.let { n -> semesters.firstOrNull { it.number == n }?.let { SemesterDialog(it, store) { editing = null } } }
+    editing?.let { n -> semesters.firstOrNull { it.number == n }?.let { SemesterDialog(it, store, scale) { editing = null } } }
+    if (scaleOpen) GradeScaleDialog(scale, onSave = { v -> store.update { it.copy(settings = it.settings.copy(gradeScale = v)) } }) { scaleOpen = false }
+}
+
+private fun fmt(v: Double) = if (v % 1.0 == 0.0) v.toInt().toString() else v.toString()
+
+@Composable
+private fun GradeScaleDialog(scale: List<GradePoint>, onSave: (List<GradePoint>) -> Unit, close: () -> Unit) {
+    var rows by remember { mutableStateOf(scale.map { it.letter to fmt(it.points) }) }
+    AlertDialog(onDismissRequest = close, title = { Text("Grade scale") }, text = {
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.heightIn(max = 460.dp)) {
+            item { Text("Letter grades and their points. Plain numbers (e.g. 8.5) are also accepted as grades.", style = MaterialTheme.typography.bodySmall) }
+            items(rows.indices.toList()) { i ->
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(rows[i].first, { v -> rows = rows.toMutableList().also { it[i] = v to rows[i].second } }, label = { Text("Grade") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(rows[i].second, { v -> rows = rows.toMutableList().also { it[i] = rows[i].first to v } }, label = { Text("Points") }, singleLine = true, modifier = Modifier.weight(1f))
+                    IconButton(onClick = { rows = rows.toMutableList().also { it.removeAt(i) } }) { Icon(Icons.Default.Delete, "Remove") }
+                }
+            }
+            item { TextButton(onClick = { rows = rows + ("" to "") }) { Text("Add grade") } }
+            item { TextButton(onClick = { rows = Cgpa.defaultScale.map { it.letter to fmt(it.points) } }) { Text("Reset to AA–FF (10-point)") } }
+        }
+    }, confirmButton = {
+        Button(onClick = {
+            val parsed = rows.mapNotNull { (l, p) -> p.toDoubleOrNull()?.takeIf { l.isNotBlank() }?.let { GradePoint(l.trim(), it) } }
+            if (parsed.isNotEmpty()) onSave(parsed.sortedByDescending { it.points })
+            close()
+        }) { Text("Save") }
+    }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
 @Composable
-private fun SemesterDialog(sem: SemesterResult, store: CampusStore, close: () -> Unit) {
+private fun SemesterDialog(sem: SemesterResult, store: CampusStore, scale: List<GradePoint>, close: () -> Unit) {
     var courses by remember { mutableStateOf(sem.courses) }
-    AlertDialog(onDismissRequest = close, title = { Text("Semester ${sem.number} · SGPA ${Cgpa.sgpa(courses)?.let { "%.2f".format(it) } ?: "—"}") }, text = {
+    AlertDialog(onDismissRequest = close, title = { Text("Semester ${sem.number} · SGPA ${Cgpa.sgpa(courses, scale)?.let { "%.2f".format(it) } ?: "—"}") }, text = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 480.dp)) {
             items(courses.indices.toList()) { i ->
                 val c = courses[i]
@@ -331,7 +369,7 @@ private fun SemesterDialog(sem: SemesterResult, store: CampusStore, close: () ->
                         IconButton(onClick = { courses = courses.toMutableList().also { it.removeAt(i) } }) { Icon(Icons.Default.Delete, "Remove") }
                     }
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
-                        items(Cgpa.points.keys.toList()) { g -> FilterChip(c.grade == g, { courses = courses.toMutableList().also { it[i] = c.copy(grade = if (c.grade == g) null else g) } }, label = { Text(g) }) }
+                        items(scale.map { it.letter }) { g -> FilterChip(c.grade == g, { courses = courses.toMutableList().also { it[i] = c.copy(grade = if (c.grade == g) null else g) } }, label = { Text(g) }) }
                     }
                 }
             }
@@ -350,23 +388,25 @@ internal fun PlacementTab() {
     val context = LocalContext.current
     val store = remember { CampusStore.get(context) }
     val companies by store.companies.collectAsStateWithLifecycle()
+    val data by store.data.collectAsStateWithLifecycle()
+    val stages = data.settings.placementStages
     var editing by remember { mutableStateOf<Company?>(null) }
     val today = LocalDate.now()
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            val funnel = PlacementStats.funnel(companies)
-            SectionCard("Placement tracker", "${companies.size} companies", action = { TextButton(onClick = { editing = Company(store.nextId(), "") }) { Text("Add") } }) {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(PlacementStage.values().toList()) { st -> Stat(st.label, "${funnel[st] ?: 0}") } }
+            val funnel = PlacementStats.funnel(companies, stages)
+            SectionCard("Placement tracker", "${companies.size} companies", action = { TextButton(onClick = { editing = Company(store.nextId(), "", stageLabel = stages.first()) }) { Text("Add") } }) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) { items(funnel.keys.toList()) { st -> Stat(st, "${funnel[st] ?: 0}") } }
                 PlacementStats.upcoming(companies, today).take(5).forEach { c ->
-                    Text("${c.nextDate} ${clock(c.nextMinute)} · ${c.name}: ${c.nextEvent.ifBlank { c.stage.label }}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+                    Text("${c.nextDate} ${clock(c.nextMinute)} · ${c.name}: ${c.nextEvent.ifBlank { c.stageName }}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
                 }
                 Text("Prep sheets (CS core, AI/ML, aptitude, resume) are in the Sheets tab.", style = MaterialTheme.typography.bodySmall)
             }
         }
-        PlacementStage.values().forEach { stage ->
-            val list = companies.filter { it.stage == stage }
+        (stages + companies.map { it.stageName }).distinct().forEach { stage ->
+            val list = companies.filter { it.stageName.equals(stage, true) }
             if (list.isNotEmpty()) {
-                item { Text(stage.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
+                item(key = "stage-$stage") { Text(stage, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold) }
                 items(list, key = { it.id }) { c ->
                     Card(Modifier.fillMaxWidth().clickable { editing = c }) {
                         Column(Modifier.padding(12.dp)) {
@@ -378,15 +418,15 @@ internal fun PlacementTab() {
             }
         }
     }
-    editing?.let { CompanyDialog(it, store) { editing = null } }
+    editing?.let { CompanyDialog(it, store, stages) { editing = null } }
 }
 
 @Composable
-private fun CompanyDialog(c: Company, store: CampusStore, close: () -> Unit) {
+private fun CompanyDialog(c: Company, store: CampusStore, stages: List<String>, close: () -> Unit) {
     var name by remember { mutableStateOf(c.name) }
     var role by remember { mutableStateOf(c.role) }
     var ctc by remember { mutableStateOf(c.ctc) }
-    var stage by remember { mutableStateOf(c.stage) }
+    var stage by remember { mutableStateOf(c.stageName) }
     var nextDate by remember { mutableStateOf(c.nextDate?.let { LocalDate.parse(it) }) }
     var time by remember { mutableStateOf(clock(c.nextMinute)) }
     var event by remember { mutableStateOf(c.nextEvent) }
@@ -396,7 +436,7 @@ private fun CompanyDialog(c: Company, store: CampusStore, close: () -> Unit) {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 500.dp)) {
             item { OutlinedTextField(name, { name = it }, label = { Text("Company") }, singleLine = true) }
             item { Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(role, { role = it }, label = { Text("Role") }, singleLine = true, modifier = Modifier.weight(1f)); OutlinedTextField(ctc, { ctc = it }, label = { Text("CTC / stipend") }, singleLine = true, modifier = Modifier.weight(1f)) } }
-            item { LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(PlacementStage.values().toList()) { s -> FilterChip(stage == s, { stage = s }, label = { Text(s.label) }) } } }
+            item { LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(stages) { s -> FilterChip(stage == s, { stage = s }, label = { Text(s) }) } } }
             item { OutlinedTextField(event, { event = it }, label = { Text("Next step (OA, Interview round 1…)") }, singleLine = true) }
             item { Row(verticalAlignment = Alignment.CenterVertically) { DateButton("On", nextDate ?: LocalDate.now().plusDays(3)) { nextDate = it }; Spacer(Modifier.width(6.dp)); OutlinedTextField(time, { time = it }, label = { Text("Time") }, singleLine = true, modifier = Modifier.width(96.dp)) } }
             item { OutlinedTextField(link, { link = it }, label = { Text("Link") }, singleLine = true) }
@@ -405,7 +445,7 @@ private fun CompanyDialog(c: Company, store: CampusStore, close: () -> Unit) {
         }
     }, confirmButton = {
         Button(enabled = name.isNotBlank(), onClick = {
-            val updated = c.copy(name = name.trim(), role = role.trim(), ctc = ctc.trim(), stage = stage, nextDate = nextDate?.toString(), nextMinute = parseClock(time) ?: c.nextMinute, nextEvent = event.trim(), link = link.trim(), notes = notes)
+            val updated = c.copy(name = name.trim(), role = role.trim(), ctc = ctc.trim(), stageLabel = stage, nextDate = nextDate?.toString(), nextMinute = parseClock(time) ?: c.nextMinute, nextEvent = event.trim(), link = link.trim(), notes = notes)
             store.updateCompanies { l -> l.filterNot { it.id == c.id } + updated }
             close()
         }) { Text("Save") }

@@ -37,7 +37,7 @@ class WellbeingStore(context: Context) {
     private val gson = Gson()
 
     var config: WellbeingConfig
-        get() = read("config") ?: WellbeingConfig()
+        get() = (read<WellbeingConfig>("config") ?: WellbeingConfig()).normalized()
         set(v) = write("config", v)
 
     fun update(transform: (WellbeingConfig) -> WellbeingConfig) { config = transform(config) }

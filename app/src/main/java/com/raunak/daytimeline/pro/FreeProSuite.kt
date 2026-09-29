@@ -167,7 +167,7 @@ private fun FocusGuardTab() {
                     else Text("Locked mode: the session cannot be ended early.", style = MaterialTheme.typography.bodySmall)
                 } else {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(25, 50, 90, 180).forEach { m ->
+                        config.sessionPresets.forEach { m ->
                             OutlinedButton(onClick = { store.update { it.copy(sessionUntil = System.currentTimeMillis() + m * 60_000L) } }, contentPadding = PaddingValues(horizontal = 10.dp)) { Text("${m}m") }
                         }
                     }
@@ -177,6 +177,10 @@ private fun FocusGuardTab() {
                 Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay} · wait ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
                 Slider(config.emergencyUnlocksPerDay.toFloat(), { v -> store.update { it.copy(emergencyUnlocksPerDay = v.toInt()) } }, valueRange = 0f..5f, steps = 4)
                 Slider(config.unlockDelaySeconds.toFloat(), { v -> store.update { it.copy(unlockDelaySeconds = v.toInt()) } }, valueRange = 5f..120f)
+                com.raunak.daytimeline.campus.Stepper("Emergency unlock lasts", "${config.emergencyUnlockMinutes}m", { store.update { it.copy(emergencyUnlockMinutes = (it.emergencyUnlockMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(emergencyUnlockMinutes = it.emergencyUnlockMinutes + 1) } })
+                com.raunak.daytimeline.campus.Stepper("Mindful pause length", "${config.interventionSeconds}s", { store.update { it.copy(interventionSeconds = (it.interventionSeconds - 1).coerceAtLeast(3)) } }, { store.update { it.copy(interventionSeconds = (it.interventionSeconds + 1).coerceAtMost(60)) } })
+                com.raunak.daytimeline.campus.Stepper("App stays open after a pause", "${config.interventionGrantMinutes}m", { store.update { it.copy(interventionGrantMinutes = (it.interventionGrantMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(interventionGrantMinutes = it.interventionGrantMinutes + 1) } })
+                com.raunak.daytimeline.campus.ListEditor("Session buttons (minutes)", config.sessionPresets.map { it.toString() }, numeric = true) { v -> store.update { it.copy(sessionPresets = v.mapNotNull(String::toIntOrNull).filter { n -> n > 0 }) } }
             } }
         }
         item {

@@ -23,7 +23,25 @@ data class WebFilterConfig(
     /** Commitment lock: turning protection down requires waiting this many minutes. */
     val lockDelayMinutes: Int = 0,
     val pendingUnlockAt: Long = 0,
-    val importedSources: List<String> = emptyList()
+    val importedSources: List<String> = emptyList(),
+    /** Your changes to the bundled lists, keyed by category name. */
+    val categoryAdded: Map<String, Set<String>> = emptyMap(),
+    val categoryRemoved: Map<String, Set<String>> = emptyMap(),
+    val keywordsAdded: Set<String> = emptySet(),
+    val keywordsRemoved: Set<String> = emptySet(),
+    val bypassAdded: Set<String> = emptySet(),
+    val bypassRemoved: Set<String> = emptySet(),
+    /** Download sources shown under "Bigger blocklists" (label to URL). */
+    val listSources: List<ListSourceCfg> = defaultListSources
+)
+
+data class ListSourceCfg(val label: String, val url: String)
+
+val defaultListSources = listOf(
+    ListSourceCfg("Adult sites (StevenBlack porn-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/porn-only/hosts"),
+    ListSourceCfg("Gambling (StevenBlack gambling-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/gambling-only/hosts"),
+    ListSourceCfg("Social media (StevenBlack social-only)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/alternates/social-only/hosts"),
+    ListSourceCfg("Ads + malware (StevenBlack unified)", "https://raw.githubusercontent.com/StevenBlack/hosts/master/hosts")
 )
 
 data class BlockLogEntry(val time: Long, val domain: String, val reason: String, val app: String)
@@ -49,7 +67,14 @@ class WebFilterStore(context: Context) {
         allowed = allowed ?: emptySet(),
         appRules = appRules ?: emptyMap(),
         importedSources = importedSources ?: emptyList(),
-        upstream = upstream ?: UpstreamDns.CLOUDFLARE_FAMILY
+        upstream = upstream ?: UpstreamDns.CLOUDFLARE_FAMILY,
+        categoryAdded = categoryAdded ?: emptyMap(),
+        categoryRemoved = categoryRemoved ?: emptyMap(),
+        keywordsAdded = keywordsAdded ?: emptySet(),
+        keywordsRemoved = keywordsRemoved ?: emptySet(),
+        bypassAdded = bypassAdded ?: emptySet(),
+        bypassRemoved = bypassRemoved ?: emptySet(),
+        listSources = listSources ?: defaultListSources
     )
 
     fun imported(): Set<String> = runCatching { DomainFilter.parseList(importedFile.readText()) }.getOrDefault(emptySet())
@@ -66,8 +91,19 @@ class WebFilterStore(context: Context) {
     fun categorySet(category: FilterCategory): Set<String> =
         runCatching { appContext.assets.open(category.asset).bufferedReader().use { DomainFilter.parseList(it.readText()) } }.getOrDefault(emptySet())
 
+    /** Bundled list for [category] with your additions and removals applied. */
+    fun effectiveCategory(category: FilterCategory, c: WebFilterConfig = config): Set<String> =
+        categorySet(category) - (c.categoryRemoved[category.name] ?: emptySet()) + (c.categoryAdded[category.name] ?: emptySet())
+
+    fun effectiveKeywords(c: WebFilterConfig = config): List<String> =
+        (DomainFilter.defaultAdultWords - c.keywordsRemoved + c.keywordsAdded).distinct()
+
+    fun effectiveBypass(c: WebFilterConfig = config): Set<String> = DomainFilter.bypass - c.bypassRemoved + c.bypassAdded
+
     fun buildFilter(c: WebFilterConfig = config) = DomainFilter(
-        categories = c.categories.associateWith { categorySet(it) },
+        categories = c.categories.associateWith { effectiveCategory(it, c) },
+        keywords = effectiveKeywords(c),
+        bypassSet = effectiveBypass(c),
         custom = c.customBlocked + imported(),
         allow = c.allowed,
         keywordBlocking = c.keywordBlocking,
@@ -106,7 +142,11 @@ object FilterLock {
             !new.customBlocked.containsAll(old.customBlocked) ||
             !old.allowed.containsAll(new.allowed) ||
             new.lockDelayMinutes < old.lockDelayMinutes ||
-            (old.upstream.name.contains("FAMILY") && !new.upstream.name.contains("FAMILY"))
+            (old.upstream.name.contains("FAMILY") && !new.upstream.name.contains("FAMILY")) ||
+            new.categoryRemoved.any { (k, v) -> !(old.categoryRemoved[k] ?: emptySet()).containsAll(v) } ||
+            old.categoryAdded.any { (k, v) -> !(new.categoryAdded[k] ?: emptySet()).containsAll(v) } ||
+            !old.keywordsRemoved.containsAll(new.keywordsRemoved) || !new.keywordsAdded.containsAll(old.keywordsAdded) ||
+            !old.bypassRemoved.containsAll(new.bypassRemoved) || !new.bypassAdded.containsAll(old.bypassAdded)
 
     /** True when a loosening change may be applied now. */
     fun canLoosen(config: WebFilterConfig, now: Long): Boolean =
