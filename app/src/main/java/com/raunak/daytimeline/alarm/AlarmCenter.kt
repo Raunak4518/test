@@ -2,6 +2,10 @@ package com.raunak.daytimeline.alarm
 
 import android.app.TimePickerDialog
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -37,7 +41,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
     var editing by remember { mutableStateOf<AlarmEditorModel?>(null) }
     if (editing != null) {
         AlarmEditor(editing!!, { editing = null }, { model ->
-            val saved = model.toPersistent(); store.save(saved); scheduler.schedule(saved); alarms = store.all(); editing = null
+            val saved = model.toPersistent(); store.save(saved); scheduleWithExactAccess(context, scheduler, saved); alarms = store.all(); editing = null
         })
         return
     }
@@ -71,7 +75,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                         Text("Snooze: ${alarm.snoozeMinutes}m × ${alarm.maxSnoozes}" + if (alarm.snoozeMaxTotalMinutes > 0) " · ${alarm.snoozeMaxTotalMinutes}m total" else "")
                         if (alarm.wakeCheckMinutes > 0) Text("Wake check: ${alarm.wakeCheckMinutes}m + ${alarm.wakeCheckRetries} retries")
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { scheduler.schedule(alarm) }) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Schedule") }
+                            OutlinedButton(onClick = { scheduleWithExactAccess(context, scheduler, alarm) }) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Schedule") }
                             OutlinedButton(onClick = { scheduler.skipNext(alarm); alarms = store.all() }) { Text("Skip next") }
                             IconButton(onClick = { editing = AlarmEditorModel.fromPersistent(alarm) }) { Icon(Icons.Default.Edit, "Edit") }
                             IconButton(onClick = { scheduler.cancel(alarm.id); store.delete(alarm.id); AlarmReferenceStore(context).clear(alarm.id); alarms = store.all() }) { Icon(Icons.Default.Delete, "Delete") }
@@ -169,4 +173,18 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onSave: (
             }
         }
     }, confirmButton = { TextButton(onClick = { picker = false }) { Text("Close") } })
+}
+
+private fun scheduleWithExactAccess(context: Context, scheduler: AlarmManagerBridge, alarm: AlarmPersistentConfig) {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val manager = context.getSystemService(android.app.AlarmManager::class.java)
+        if (manager != null && !manager.canScheduleExactAlarms()) {
+            runCatching {
+                context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    data = Uri.parse("package:" + context.packageName)
+                })
+            }
+        }
+    }
+    scheduler.schedule(alarm)
 }
