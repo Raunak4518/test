@@ -34,7 +34,6 @@ class AlarmRingingActivity : ComponentActivity() {
         runtime = AlarmMissionRuntime(this)
         references = AlarmReferenceStore(this)
         val id = intent.getLongExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, -1L)
-        val testMode = intent.getBooleanExtra(EXTRA_TEST_MODE, false)
         activeConfig = AlarmPersistentStore(this).find(id)
         val config = activeConfig ?: run { finish(); return }
         flow = AlarmAlarmFlow(config.missionChain, AlarmMissionPolicy(config.maxSnoozes, config.snoozeMinutes, config.longPressMs, config.timeoutMinutes, config.backupDelayMinutes).validated())
