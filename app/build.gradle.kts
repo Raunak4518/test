@@ -7,7 +7,14 @@ plugins {
 android {
     namespace = "com.raunak.daytimeline"
     compileSdk = 35
-    defaultConfig { applicationId = "com.raunak.daytimeline"; minSdk = 26; targetSdk = 35; versionCode = 1; versionName = "1.0"; testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner" }
+    // CI sets CHRONORA_VERSION_CODE (it rises with every build) so each published APK installs as an update.
+    val ciVersion = System.getenv("CHRONORA_VERSION_CODE")?.toIntOrNull() ?: 1
+    defaultConfig {
+        applicationId = "com.raunak.daytimeline"; minSdk = 26; targetSdk = 35
+        versionCode = ciVersion; versionName = "1.0.$ciVersion"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        buildConfigField("String", "UPDATE_REPO", "\"Raunak4518/test\"")
+    }
     // One fixed key for every build, so a new APK installs over the previous one without uninstalling.
     // This is a development key committed on purpose; use a private release key for Play Store uploads.
     signingConfigs {
@@ -20,7 +27,7 @@ android {
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     composeOptions { kotlinCompilerExtensionVersion = "1.5.14" }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
     testOptions { unitTests.isIncludeAndroidResources = true }

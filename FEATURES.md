@@ -267,6 +267,14 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 - **Alarm list:** "Rings in 8h 42m" hero, one-tap naps (10 min–1.5 h), on/off switches, day dots and mission icons, preview, skip next, duplicate, presets.
 - **Wake-up record:** on-time rate, streak, average minutes late, snoozes, and a daily bar chart.
 
+## In-app updates (⋮ menu → Update app)
+
+- **Where updates come from:** every push to `main` has CI build the APK and publish it as a GitHub Release, tagged `v<version code>`.
+- **Update app:** checks the latest release, shows its size and notes, downloads it with a progress bar, and installs it through Android's package installer.
+- **Signing:** the same committed signing key is used for every build, so updates install over the existing app and keep its data.
+- **Daily check:** a background check sends a notification when a new version is out; tapping it opens the update dialog.
+- **Permission:** the first update needs "Install unknown apps" to be allowed for Chronora, one time only. On Android 12+ later updates can install without a confirmation screen.
+
 ## Requires internet or third parties (not part of the offline core)
 
 | Feature | Status |
@@ -286,4 +294,5 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 | WRITE_SECURE_SETTINGS (granted once via ADB) | Grayscale at bedtime | Optional |
 | Fine and background location | Arrive/leave reminders while the app is closed | Only for Places |
 | Foreground service (media playback) | Keeps the timer and focus sounds alive with the screen off | Automatic |
+| Install unknown apps | Installs Chronora's own updates | Only for Update app |
 | VPN (local, DNS only) | Web filter and app firewall; DNS goes to the chosen resolver, other traffic is untouched | Only for the web filter |

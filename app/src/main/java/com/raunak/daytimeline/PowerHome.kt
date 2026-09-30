@@ -62,6 +62,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     var searchOpen by remember { mutableStateOf(false) }
     var powerCenterOpen by remember { mutableStateOf(false) }
     var proSuiteOpen by remember { mutableStateOf(false) }
+    val updateRequested by com.raunak.daytimeline.update.UpdateNav.requested.collectAsStateWithLifecycle()
     LaunchedEffect(openQuickAdd) { if (openQuickAdd) { proSuiteOpen = true; onQuickAddHandled() } }
 
     run {
@@ -79,6 +80,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                             DropdownMenuItem(text = { Text("Calendar") }, leadingIcon = { Icon(Icons.Default.CalendarMonth, null) }, onClick = { menu = false; calendarOpen = true })
                             DropdownMenuItem(text = { Text("Power Center") }, leadingIcon = { Icon(Icons.Default.Dashboard, null) }, onClick = { menu = false; powerCenterOpen = true })
                             DropdownMenuItem(text = { Text("Command center") }, leadingIcon = { Icon(Icons.Default.Tune, null) }, onClick = { menu = false; onOpenCommandCenter() })
+                            DropdownMenuItem(text = { Text("Update app") }, leadingIcon = { Icon(Icons.Default.SystemUpdate, null) }, onClick = { menu = false; com.raunak.daytimeline.update.UpdateNav.requested.value = true })
                             val prefs by productivity.settings.collectAsStateWithLifecycle()
                             DropdownMenuItem(text = { Text(if (prefs.pinnedQuickAdd) "Unpin quick-add notification" else "Pin quick-add notification") }, leadingIcon = { Icon(Icons.Default.PushPin, null) }, onClick = {
                                 menu = false
@@ -121,6 +123,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     if (calendarOpen) com.raunak.daytimeline.productivity.CalendarPage(vm, date, { editTask = it }) { calendarOpen = false }
     if (searchOpen) TaskSearchDialog(allTasks, vm) { searchOpen = false }
     if (proSuiteOpen) com.raunak.daytimeline.pro.FreeProSuite(vm) { proSuiteOpen = false }
+    if (updateRequested) com.raunak.daytimeline.update.UpdateDialog { com.raunak.daytimeline.update.UpdateNav.requested.value = false }
     if (powerCenterOpen) ChronoraPowerCenter(allTasks, productivity, { powerCenterOpen = false }) { vm.selectDate(it); powerCenterOpen = false }
     if (dialog?.startsWith("editHabit:") == true) {
         val id = dialog!!.substringAfter(":").toLongOrNull()

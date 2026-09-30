@@ -5,8 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Publishing a release needs write access to the repository contents.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -30,8 +31,13 @@ jobs:
           set -euo pipefail
           test -d "$ANDROID_SDK_ROOT/platforms/android-35"
           test -d "$ANDROID_SDK_ROOT/build-tools/35.0.0"
-          echo "Android SDK API 35 and Build Tools 35.0.0 are available."
           echo "$ANDROID_SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+
+      - name: Version for this build
+        shell: bash
+        run: |
+          # Rises with every run so the app's updater sees each build as newer.
+          echo "CHRONORA_VERSION_CODE=$(( ${{ github.run_number }} + 100 ))" >> "$GITHUB_ENV"
 
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
@@ -40,28 +46,35 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Run unit tests
-        id: tests
         run: ./gradlew testDebugUnitTest --no-daemon --stacktrace
 
-      - name: Build debug APK
+      - name: Build APK
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Verify APK
+      - name: Prepare release file
         shell: bash
         run: |
           set -euo pipefail
           APK="app/build/outputs/apk/debug/app-debug.apk"
-          test -f "$APK"
           test -s "$APK"
-          echo "APK successfully generated:"
-          ls -lh "$APK"
+          mkdir -p dist
+          cp "$APK" "dist/chronora-${CHRONORA_VERSION_CODE}.apk"
+          git log -1 --pretty=%B > dist/notes.md
 
-      - name: Upload debug APK artifact
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Chronora-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: Chronora-apk
+          path: dist/*.apk
           if-no-files-found: error
 
-      - name: Report test status
-        run: echo "Unit tests passed and APK build completed."
+      # The in-app "Update app" button reads the latest release of this repository.
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ env.CHRONORA_VERSION_CODE }}
+          name: Chronora 1.0.${{ env.CHRONORA_VERSION_CODE }}
+          body_path: dist/notes.md
+          files: dist/chronora-${{ env.CHRONORA_VERSION_CODE }}.apk
+          make_latest: true

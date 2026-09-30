@@ -50,6 +50,7 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleOpen(intent)
+        com.raunak.daytimeline.update.AppUpdater.scheduleDailyCheck(applicationContext)
         if (com.raunak.daytimeline.features.OfflineProductivityStore(applicationContext).settings.value.pinnedQuickAdd) com.raunak.daytimeline.productivity.QuickAddNotification.show(applicationContext)
 
         if (Build.VERSION.SDK_INT >= 33 &&
@@ -89,6 +90,10 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleOpen(intent: android.content.Intent?) {
+        if (intent?.getStringExtra(com.raunak.daytimeline.update.AppUpdater.EXTRA_OPEN) == com.raunak.daytimeline.update.AppUpdater.OPEN_UPDATE) {
+            com.raunak.daytimeline.update.UpdateNav.requested.value = true
+            intent.removeExtra(com.raunak.daytimeline.update.AppUpdater.EXTRA_OPEN)
+        }
         if (intent?.getStringExtra(com.raunak.daytimeline.classroom.ClassroomSync.EXTRA_OPEN) == "classroom") {
             com.raunak.daytimeline.campus.CampusNav.open("Classroom")
             intent.removeExtra(com.raunak.daytimeline.classroom.ClassroomSync.EXTRA_OPEN)
