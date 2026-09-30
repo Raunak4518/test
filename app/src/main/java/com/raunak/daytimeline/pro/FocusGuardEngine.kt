@@ -48,7 +48,19 @@ data class FocusGuardConfig(
     /** Quick-start session lengths (minutes). */
     val sessionPresets: List<Int> = listOf(25, 50, 90, 180),
     /** If set, an emergency unlock needs this exact sentence typed first (friction against impulse). */
-    val unlockPhrase: String = ""
+    val unlockPhrase: String = "",
+    /** Focus mode (Digital Wellbeing style): one switch that pauses these distracting apps. */
+    val focusModeApps: Set<String> = emptySet(),
+    val focusModeOn: Boolean = false,
+    /** When the manual Focus mode ends by itself (epoch millis); 0 = until turned off. */
+    val focusModeUntil: Long = 0,
+    /** Focus mode is paused for a break until this time. */
+    val focusModeBreakUntil: Long = 0,
+    val focusModeSchedules: List<BlockSchedule> = emptyList(),
+    /** Strict: no breaks, no turning off early, no emergency unlocks while Focus mode is on. */
+    val focusModeStrict: Boolean = false,
+    val focusModeDurations: List<Int> = listOf(30, 60, 120),
+    val focusModeBreaks: List<Int> = listOf(5, 15, 30)
 ) {
     /** Fills fields missing from settings saved by an older version. */
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
@@ -57,7 +69,10 @@ data class FocusGuardConfig(
         return copy(
             blockedPackages = blockedPackages ?: emptySet(), blockLists = blockLists ?: emptyMap(), allowedPackages = allowedPackages ?: emptySet(),
             schedules = schedules ?: emptyList(), dailyLimits = dailyLimits ?: emptyMap(), mindfulPackages = mindfulPackages ?: emptySet(),
-            blockedSites = blockedSites ?: emptySet(), unlockPhrase = unlockPhrase ?: "", sessionPresets = (sessionPresets ?: d.sessionPresets).filter { it > 0 }.ifEmpty { d.sessionPresets },
+            blockedSites = blockedSites ?: emptySet(), unlockPhrase = unlockPhrase ?: "",
+            focusModeApps = focusModeApps ?: emptySet(), focusModeSchedules = focusModeSchedules ?: emptyList(),
+            focusModeDurations = (focusModeDurations ?: d.focusModeDurations).filter { it > 0 }.ifEmpty { d.focusModeDurations },
+            focusModeBreaks = (focusModeBreaks ?: d.focusModeBreaks).filter { it > 0 }.ifEmpty { d.focusModeBreaks }, sessionPresets = (sessionPresets ?: d.sessionPresets).filter { it > 0 }.ifEmpty { d.sessionPresets },
             interventionSeconds = if (interventionSeconds > 0) interventionSeconds else d.interventionSeconds,
             interventionGrantMinutes = if (interventionGrantMinutes > 0) interventionGrantMinutes else d.interventionGrantMinutes,
             emergencyUnlockMinutes = if (emergencyUnlockMinutes > 0) emergencyUnlockMinutes else d.emergencyUnlockMinutes
@@ -96,10 +111,12 @@ object FocusGuardEngine {
         "com.android.permissioncontroller"
     )
 
-    fun activeSchedule(config: FocusGuardConfig, now: LocalDateTime): BlockSchedule? {
+    fun activeSchedule(config: FocusGuardConfig, now: LocalDateTime): BlockSchedule? = activeIn(config.schedules, now)
+
+    fun activeIn(schedules: List<BlockSchedule>, now: LocalDateTime): BlockSchedule? {
         val minute = now.hour * 60 + now.minute
         val day = now.dayOfWeek.value
-        return config.schedules.firstOrNull { s ->
+        return schedules.firstOrNull { s ->
             if (!s.enabled) return@firstOrNull false
             if (s.startMinute <= s.endMinute) {
                 day in s.days && minute >= s.startMinute && minute < s.endMinute
@@ -115,6 +132,17 @@ object FocusGuardEngine {
 
     fun enforcing(config: FocusGuardConfig, now: LocalDateTime, nowMillis: Long) =
         sessionActive(config, nowMillis) || activeSchedule(config, now) != null
+
+    /** Focus mode is on (switched on and not expired, or inside one of its schedules) and not on a break. */
+    fun focusModeActive(c: FocusGuardConfig, now: LocalDateTime, nowMillis: Long): Boolean =
+        c.focusModeBreakUntil <= nowMillis && focusModeScheduledOrOn(c, now, nowMillis)
+
+    /** On, ignoring breaks. */
+    fun focusModeScheduledOrOn(c: FocusGuardConfig, now: LocalDateTime, nowMillis: Long): Boolean =
+        (c.focusModeOn && (c.focusModeUntil == 0L || c.focusModeUntil > nowMillis)) || activeIn(c.focusModeSchedules, now) != null
+
+    /** Any focus state: a session, a block schedule or Focus mode. Used for DND and website blocking. */
+    fun anyFocus(c: FocusGuardConfig, now: LocalDateTime, nowMillis: Long) = enforcing(c, now, nowMillis) || focusModeActive(c, now, nowMillis)
 
     fun emergencyRemaining(config: FocusGuardConfig, runtime: FocusGuardRuntime, today: LocalDate): Int {
         val used = if (runtime.emergencyDate == today.toString()) runtime.emergencyCount else 0
@@ -147,6 +175,11 @@ object FocusGuardEngine {
             }
         }
 
+        if (packageName in config.focusModeApps && focusModeActive(config, now, nowMillis)) {
+            val strict = config.focusModeStrict
+            return GuardDecision.Block("Paused by Focus mode", !strict && emergencyRemaining(config, runtime, now.toLocalDate()) > 0, config.unlockDelaySeconds)
+        }
+
         val limit = config.dailyLimits[packageName]
         if (limit != null && usedMinutesToday >= limit) {
             return GuardDecision.Block("Daily limit of ${limit}m reached", canUnlock, config.unlockDelaySeconds)
@@ -160,7 +193,7 @@ object FocusGuardEngine {
 
     fun decideSite(config: FocusGuardConfig, runtime: FocusGuardRuntime, url: String, now: LocalDateTime, nowMillis: Long): GuardDecision {
         if (runtime.pausedUntil > nowMillis) return GuardDecision.Allow
-        if (!config.sitesAlwaysBlocked && !enforcing(config, now, nowMillis)) return GuardDecision.Allow
+        if (!config.sitesAlwaysBlocked && !anyFocus(config, now, nowMillis)) return GuardDecision.Allow
         val rule = WebsiteRules.matches(url, config.blockedSites) ?: return GuardDecision.Allow
         val canUnlock = !(config.lockedMode && enforcing(config, now, nowMillis)) &&
             emergencyRemaining(config, runtime, now.toLocalDate()) > 0

@@ -161,7 +161,7 @@ object WellbeingModes {
         val c = store.config
         val bedtime = WellbeingEngine.bedtimeActive(c.bedtime, now)
         val nowMillis = System.currentTimeMillis()
-        val focus = FocusGuardEngine.enforcing(FocusGuardStore(context).config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(context, nowMillis)
+        val focus = FocusGuardEngine.anyFocus(FocusGuardStore(context).config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(context, nowMillis)
         val wantDnd = (bedtime && c.bedtime.doNotDisturb) || (focus && c.doNotDisturbDuringFocus)
         val nm = context.getSystemService(NotificationManager::class.java)
         if (dndAccess(context)) {
@@ -192,7 +192,7 @@ object WellbeingModes {
     fun focusOrBedtime(context: Context): Boolean {
         val now = LocalDateTime.now(); val ms = System.currentTimeMillis()
         return WellbeingEngine.bedtimeActive(WellbeingStore(context).config.bedtime, now) ||
-            FocusGuardEngine.enforcing(FocusGuardStore(context).config, now, ms) || PomodoroFocusFlag.isFocusRunning(context, ms)
+            FocusGuardEngine.anyFocus(FocusGuardStore(context).config, now, ms) || PomodoroFocusFlag.isFocusRunning(context, ms)
     }
 }
 

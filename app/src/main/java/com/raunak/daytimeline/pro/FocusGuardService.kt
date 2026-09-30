@@ -236,7 +236,7 @@ class FocusGuardService : AccessibilityService() {
         if (nowMillis - lastStrictCheck < 500) return false
         lastStrictCheck = nowMillis
         val now = LocalDateTime.now()
-        val active = FocusGuardEngine.enforcing(store.config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(this, nowMillis) ||
+        val active = FocusGuardEngine.anyFocus(store.config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(this, nowMillis) ||
             WellbeingEngine.bedtimeActive(wellbeing.config.bedtime, now) || wellbeing.cooldowns().values.any { it > nowMillis }
         if (!active) return false
         val root = rootInActiveWindow ?: return false

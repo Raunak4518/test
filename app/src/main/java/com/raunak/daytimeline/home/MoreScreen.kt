@@ -24,10 +24,11 @@ data class MoreItem(val label: String, val icon: ImageVector, val color: Long, v
 
 val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
     "Digital wellbeing" to listOf(
+        MoreItem("Focus mode", Icons.Default.SelfImprovement, 0xFF55786A, "focusmode"),
         MoreItem("Screen time", Icons.Default.PhoneAndroid, 0xFF3D85C6, "wellbeing:0"),
         MoreItem("App blocker", Icons.Default.Block, 0xFFC62828, "wellbeing:2"),
         MoreItem("Limits", Icons.Default.HourglassBottom, 0xFFE0A33B, "wellbeing:3"),
-        MoreItem("Web filter", Icons.Default.Shield, 0xFF55786A, "wellbeing:4")
+        MoreItem("Web filter", Icons.Default.Shield, 0xFF8E6BBF, "wellbeing:4")
     ),
     "Life" to listOf(
         MoreItem("Habits", Icons.Default.Loop, 0xFF43A047, "prod:0"),

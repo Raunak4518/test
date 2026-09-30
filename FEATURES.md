@@ -25,6 +25,17 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
   - Tools: Alarms, Calendar, Search, Quick add, Sounds, Garden, Energy plan, Week review, Places, Private journal.
   - App: Insights, Command center, Settings & backup, Update app.
 
+## Focus mode (Digital Wellbeing-style)
+
+- **One tap:** pauses the distracting apps you picked. Turn it on from the Home card, the Focus tab, More → Focus mode or the "Focus mode" Quick Settings tile.
+- **How long:** until you turn it off, or for a timer. Timer lengths are editable (default 30 min, 1 h, 2 h).
+- **Breaks:** take a break (default 5, 15 or 30 min); the apps pause again on their own when it ends.
+- **Schedules:** e.g. Study, Mon–Fri 09:00–13:00. Overnight windows work.
+- **Strict option:** no breaks, no emergency unlock, and no turning off before the timer ends. Strict never applies to "until off", so you can't lock yourself in by mistake.
+- **App picker:** lists your most-used apps first, with today's time, plus search.
+- **Notification:** an ongoing one shows the status, with Break and Turn off buttons.
+- **Separate from the App blocker:** it has its own app list. Websites and Do Not Disturb follow it too.
+
 ## Screen time (YourHour-style)
 
 - **Overview:**

@@ -96,9 +96,12 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         Box(Modifier.fillMaxSize().padding(padding)) {
             androidx.compose.animation.Crossfade(tab, label = "tab") { t ->
                 when (t) {
-                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }) { tab = 2 }
+                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }, onOpenFocusMode = { page = "focusmode" }) { tab = 2 }
                     1 -> com.raunak.daytimeline.home.PlanScreen(vm, productivity, { editTask = it }, { d, m -> addAt = d to m }) { page = "calendar" }
-                    2 -> com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, allTasks, vm)
+                    2 -> Column {
+                        com.raunak.daytimeline.pro.FocusModeCard(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { page = "focusmode" }
+                        com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, allTasks, vm)
+                    }
                     3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
                     else -> com.raunak.daytimeline.home.MoreScreen(open)
                 }
@@ -111,6 +114,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     when (val p = page) {
         null -> Unit
         "calendar" -> com.raunak.daytimeline.productivity.CalendarPage(vm, date, { editTask = it }) { page = null }
+        "focusmode" -> FullScreenPage("Focus mode", { page = null }) { com.raunak.daytimeline.pro.FocusModeScreen() }
         "power" -> ChronoraPowerCenter(allTasks, productivity, { page = null }) { vm.selectDate(it); page = null }
         else -> when {
             p.startsWith("wellbeing:") -> com.raunak.daytimeline.wellbeing.WellbeingHub(p.substringAfter(":").toIntOrNull() ?: 0) { page = null }

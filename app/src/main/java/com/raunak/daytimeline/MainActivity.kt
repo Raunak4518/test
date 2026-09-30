@@ -51,6 +51,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         handleOpen(intent)
         com.raunak.daytimeline.update.AppUpdater.scheduleDailyCheck(applicationContext)
+        runCatching { com.raunak.daytimeline.pro.FocusMode.refresh(applicationContext) }
         if (com.raunak.daytimeline.features.OfflineProductivityStore(applicationContext).settings.value.pinnedQuickAdd) com.raunak.daytimeline.productivity.QuickAddNotification.show(applicationContext)
 
         if (Build.VERSION.SDK_INT >= 33 &&
