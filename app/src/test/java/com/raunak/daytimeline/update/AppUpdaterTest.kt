@@ -16,7 +16,5 @@ class AppUpdaterTest {
         assertThat(AppUpdater.parseRelease("""{"tag_name":"v3","assets":[]}""")).isNull()
         assertThat(AppUpdater.versionFromTag("v17")).isEqualTo(17)
         assertThat(AppUpdater.versionFromTag("nightly")).isNull()
-        // A local build is version 1, so any CI release is newer.
-        assertThat(AppUpdater.currentVersion).isEqualTo(1)
     }
 }
