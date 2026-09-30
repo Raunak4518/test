@@ -42,101 +42,21 @@ import java.time.format.DateTimeFormatter
 private fun hm(m: Int) = if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
 private fun clock(m: Int) = "%02d:%02d".format((m / 60) % 24, m % 60)
 
-/**
- * Digital Wellbeing, StayFree, ActionDash, ScreenZen and Opal features in one place: usage dashboard,
- * app timers, group/total/open/session limits, bedtime, notification digest, Shorts/Reels blocking,
- * strict mode, goals and reports.
- */
+/** Limits, bedtime, short-video blocking, notification digest and protection. The dashboard lives in [ScreenTimeDashboard]. */
 @Composable
 fun WellbeingScreen() {
     val context = LocalContext.current
     val store = remember { WellbeingStore(context) }
-    val guard = remember { FocusGuardStore(context) }
     var config by remember { mutableStateOf(store.config) }
-    var guardConfig by remember { mutableStateOf(guard.config) }
-    var selectedDay by remember { mutableStateOf(LocalDate.now()) }
-    var week by remember { mutableStateOf<Map<LocalDate, DayUsage>>(emptyMap()) }
-    var loading by remember { mutableStateOf(true) }
-    var detailPkg by remember { mutableStateOf<String?>(null) }
     var perms by remember { mutableStateOf(Perms.read(context)) }
 
     fun save(next: WellbeingConfig) { store.config = next; config = next; WellbeingAlarmReceiver.schedule(context) }
-    fun saveGuard(next: com.raunak.daytimeline.pro.FocusGuardConfig) { guard.config = next; guardConfig = next }
-
-    LaunchedEffect(perms.usage) {
-        loading = true
-        week = withContext(Dispatchers.IO) {
-            val today = LocalDate.now()
-            (0L..13L).associate { today.minusDays(it) to UsageRepository.day(context, today.minusDays(it), store) }
-                .also { m -> m.forEach { (d, u) -> if (d != today && u.totalMinutes > 0) store.saveDailyTotal(d, u.totalMinutes) } }
-        }
-        loading = false
-    }
     LaunchedEffect(Unit) { while (true) { delay(3000); perms = Perms.read(context) } }
-
-    val day = week[selectedDay]
-    val labels = remember(week) { week.values.flatMap { it.apps }.map { it.pkg }.distinct().associateWith { WellbeingAlarmReceiver.label(context, it) } }
-    fun name(pkg: String) = labels[pkg] ?: WellbeingAlarmReceiver.label(context, pkg)
+    val labels = remember { HashMap<String, String>() }
+    fun name(pkg: String) = labels.getOrPut(pkg) { WellbeingAlarmReceiver.label(context, pkg) }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!perms.all) item { PermissionsCard(perms) }
-        item {
-            val days = (6L downTo 0L).map { LocalDate.now().minusDays(it) }
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                days.forEach { d ->
-                    FilterChip(d == selectedDay, { selectedDay = d }, label = { Text(if (d == LocalDate.now()) "Today" else d.dayOfWeek.name.take(2).lowercase().replaceFirstChar { it.uppercase() }) })
-                }
-            }
-        }
-        item {
-            Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (loading && day == null) { LinearProgressIndicator(Modifier.fillMaxWidth()); return@Column }
-                val d = day ?: return@Column
-                Text(hm(d.totalMinutes), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
-                val goal = config.screenTimeGoalMinutes
-                Text(
-                    (if (d.totalMinutes <= goal) "Under your ${hm(goal)} goal" else "${hm(d.totalMinutes - goal)} over your ${hm(goal)} goal") +
-                        " · streak ${UsageStatsCalculator.goalStreak(store.dailyTotals() + (LocalDate.now() to (week[LocalDate.now()]?.totalMinutes ?: 0)), goal, LocalDate.now())} days",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Stat("Pickups", d.pickups.toString(), Modifier.weight(1f))
-                    Stat("Opens", d.opens.toString(), Modifier.weight(1f))
-                    Stat("Notifications", d.notifications.toString(), Modifier.weight(1f))
-                }
-                Text(
-                    listOfNotNull(
-                        d.firstPickup?.let { "First pickup " + Instant.ofEpochMilli(it).atZone(ZoneId.systemDefault()).toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm")) },
-                        "longest session ${hm(d.longestSessionMinutes)}"
-                    ).joinToString(" · "),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Text("By hour", style = MaterialTheme.typography.labelMedium)
-                BarChart(d.hourlyMinutes.toList(), labels = (0..23).map { if (it % 6 == 0) "%02d".format(it) else "" }, valueLabel = { i, v -> "%02d:00 · %s".format(i, hm(v)) }, height = 110.dp)
-            } }
-        }
-        item {
-            val today = LocalDate.now()
-            val last7 = (6L downTo 0L).map { today.minusDays(it) }
-            val totals = last7.map { week[it]?.totalMinutes ?: 0 }
-            val prev = (13L downTo 7L).sumOf { week[today.minusDays(it)]?.totalMinutes ?: 0 }
-            Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Last 7 days", fontWeight = FontWeight.Bold)
-                val sum = totals.sum()
-                Text("Daily average ${hm(sum / 7)}" + (UsageStatsCalculator.percentChange(sum, prev)?.let { " · ${if (it > 0) "+" else ""}$it% vs previous week" } ?: ""), style = MaterialTheme.typography.bodySmall)
-                BarChart(totals, labels = last7.map { it.dayOfWeek.name.take(1) }, valueLabel = { i, v -> "${last7[i]} · ${hm(v)}" }, height = 120.dp, goal = config.screenTimeGoalMinutes, highlight = last7.indexOf(selectedDay))
-            } }
-        }
-        item { Text("Apps", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold) }
-        items(day?.apps?.take(30) ?: emptyList(), key = { it.pkg }) { a ->
-            val limit = WellbeingEngine.dailyLimitFor(a.pkg, guardConfig.dailyLimits, config, selectedDay)
-            ListItem(
-                modifier = Modifier.clickable { detailPkg = a.pkg },
-                headlineContent = { Text(name(a.pkg)) },
-                supportingContent = { Text("${hm(a.minutes)} · ${a.opens} opens · ${a.notifications} notifications" + (limit?.let { " · timer ${hm(it)}" } ?: "")) },
-                trailingContent = { if (limit != null) LinearProgressIndicator(progress = { (a.minutes.toFloat() / limit).coerceIn(0f, 1f) }, modifier = Modifier.width(56.dp)) }
-            )
-        }
         item { GoalsCard(config) { save(it) } }
         item { LimitsCard(config, context, ::name) { save(it) } }
         item { BedtimeCard(config, perms) { save(it) } }
@@ -145,19 +65,15 @@ fun WellbeingScreen() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Protection", fontWeight = FontWeight.Bold)
-                SwitchRow("Strict mode — during blocks, bedtime and cooldowns, Chronora's settings, uninstall and accessibility pages are covered", config.strictMode) { save(config.copy(strictMode = it)) }
+                SwitchRow("Strict mode (guard settings & uninstall)", config.strictMode) { save(config.copy(strictMode = it)) }
                 SwitchRow("Do Not Disturb during focus sessions", config.doNotDisturbDuringFocus) { save(config.copy(doNotDisturbDuringFocus = it)) }
-                Text("Emergency unlocks and Locked mode are shared with Focus Guard.", style = MaterialTheme.typography.bodySmall)
             } }
         }
     }
 
-    detailPkg?.let { pkg ->
-        AppDetailDialog(pkg, name(pkg), week, config, guardConfig, onSave = ::save, onSaveGuard = ::saveGuard) { detailPkg = null }
-    }
 }
 
-private data class Perms(val usage: Boolean, val accessibility: Boolean, val notifications: Boolean, val dnd: Boolean, val grayscale: Boolean) {
+internal data class Perms(val usage: Boolean, val accessibility: Boolean, val notifications: Boolean, val dnd: Boolean, val grayscale: Boolean) {
     val all get() = usage && accessibility && notifications && dnd
     companion object {
         fun read(c: android.content.Context) = Perms(UsageAccess.granted(c), FocusGuardService.isEnabled(c), WellbeingNotificationListener.enabled(c), WellbeingModes.dndAccess(c), WellbeingModes.grayscaleAccess(c))
@@ -165,15 +81,15 @@ private data class Perms(val usage: Boolean, val accessibility: Boolean, val not
 }
 
 @Composable
-private fun PermissionsCard(p: Perms) {
+internal fun PermissionsCard(p: Perms) {
     val context = LocalContext.current
     fun open(action: String) = runCatching { context.startActivity(Intent(action).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Text("Finish setup", fontWeight = FontWeight.Bold)
-        PermRow("Usage access — screen time, pickups, app timers", p.usage) { open(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
-        PermRow("Accessibility (Chronora Focus Guard) — enforce limits, block Shorts/Reels", p.accessibility) { open(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
-        PermRow("Notification access — counts and digest", p.notifications) { open(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
-        PermRow("Do Not Disturb access — bedtime and focus", p.dnd) { open(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) }
+        PermRow("Usage access", p.usage) { open(Settings.ACTION_USAGE_ACCESS_SETTINGS) }
+        PermRow("Accessibility (Focus Guard)", p.accessibility) { open(Settings.ACTION_ACCESSIBILITY_SETTINGS) }
+        PermRow("Notification access", p.notifications) { open(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
+        PermRow("Do Not Disturb access", p.dnd) { open(Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) }
     } }
 }
 
@@ -188,14 +104,14 @@ private fun PermRow(label: String, granted: Boolean, onGrant: () -> Unit) {
 
 /** Single-series bar chart: rounded data ends on the baseline, 2 dp gaps, tap a bar to read its value. */
 @Composable
-private fun BarChart(values: List<Int>, labels: List<String>, valueLabel: (Int, Int) -> String, height: androidx.compose.ui.unit.Dp, goal: Int? = null, highlight: Int = -1) {
+internal fun BarChart(values: List<Int>, labels: List<String>, valueLabel: (Int, Int) -> String, height: androidx.compose.ui.unit.Dp, goal: Int? = null, highlight: Int = -1) {
     val bar = MaterialTheme.colorScheme.primary
     val muted = MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
     val grid = MaterialTheme.colorScheme.outlineVariant
     var selected by remember(values) { mutableIntStateOf(-1) }
     val max = (values.maxOrNull() ?: 0).coerceAtLeast(goal ?: 0).coerceAtLeast(1)
     Column {
-        Text(if (selected in values.indices) valueLabel(selected, values[selected]) else "Tap a bar for details", style = MaterialTheme.typography.labelSmall)
+        if (selected in values.indices) Text(valueLabel(selected, values[selected]), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
         Canvas(
             Modifier.fillMaxWidth().height(height).pointerInput(values) {
                 detectTapGestures { o -> selected = (o.x / (size.width / values.size.toFloat())).toInt().coerceIn(0, values.lastIndex) }
@@ -246,13 +162,13 @@ private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
                 Text("Unlock limit")
-                Text(if (c.unlockLimit == 0) "Off" else "After ${c.unlockLimit} unlocks a day, apps are blocked (bedtime-allowed apps still work)", style = MaterialTheme.typography.bodySmall)
+                
             }
             TextButton(onClick = { save(c.copy(unlockLimit = (c.unlockLimit - 10).coerceAtLeast(0))) }) { Text("−") }
             Text(if (c.unlockLimit == 0) "Off" else "${c.unlockLimit}")
             TextButton(onClick = { save(c.copy(unlockLimit = if (c.unlockLimit == 0) 50 else c.unlockLimit + 10)) }) { Text("+") }
         }
-        SwitchRow("Daily report at ${clock(c.reportMinute)} (weekly comparison on Sundays)", c.dailyReport) { save(c.copy(dailyReport = it)) }
+        SwitchRow("Daily report", c.dailyReport) { save(c.copy(dailyReport = it)) }
         MinutesStepper("Report time", c.reportMinute, step = 15, min = 15, max = 24 * 60 - 15) { save(c.copy(reportMinute = it)) }
     } }
 }
@@ -266,7 +182,6 @@ private fun LimitsCard(c: WellbeingConfig, context: android.content.Context, nam
     val apps = remember { installedApps(context) }
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Limits", fontWeight = FontWeight.Bold)
-        Text("Per-app timers, open limits and session limits: tap an app above.", style = MaterialTheme.typography.bodySmall)
         MinutesStepper("Total daily screen time", c.totalDailyLimitMinutes) { save(c.copy(totalDailyLimitMinutes = it)) }
         MinutesStepper("Warn before a limit", c.warnMinutesBefore, step = 1, max = 15, zeroLabel = "Never") { save(c.copy(warnMinutesBefore = it)) }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -354,13 +269,12 @@ private fun BedtimeCard(c: WellbeingConfig, perms: Perms, save: (WellbeingConfig
 private fun ShortFormCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text("Block short videos", fontWeight = FontWeight.Bold)
-        Text("Backs out of the short-video feed while messages, search and the rest of the app keep working. Apps change their screens often, so this is best-effort.", style = MaterialTheme.typography.bodySmall)
         var advanced by remember { mutableStateOf(false) }
         ShortForm.values().forEach { sf ->
             SwitchRow(sf.label, sf in c.blockedShortForm) { on -> save(c.copy(blockedShortForm = if (on) c.blockedShortForm + sf else c.blockedShortForm - sf)) }
             if (advanced) ListEditor("Screen ids for ${sf.label} (${sf.packageName})", c.idsFor(sf)) { ids -> save(c.copy(shortFormIds = c.shortFormIds + (sf.name to ids))) }
         }
-        TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide screen ids" else "Edit screen ids (if an app update breaks detection)") }
+        TextButton(onClick = { advanced = !advanced }) { Text(if (advanced) "Hide screen ids" else "Screen ids") }
         if (advanced) TextButton(onClick = { save(c.copy(shortFormIds = emptyMap())) }) { Text("Restore built-in ids") }
     } }
 }
@@ -374,7 +288,6 @@ private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Notifications", fontWeight = FontWeight.Bold)
         if (counts.isNotEmpty()) Text("Today: " + counts.entries.sortedByDescending { it.value }.take(5).joinToString { "${name(it.key)} ${it.value}" }, style = MaterialTheme.typography.bodySmall)
-        Text("Quiet apps are silenced and delivered together as a digest.", style = MaterialTheme.typography.bodySmall)
         c.quietApps.forEach { pkg ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(name(pkg), Modifier.weight(1f))
@@ -413,7 +326,7 @@ private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (
 }
 
 @Composable
-private fun AppDetailDialog(
+internal fun AppDetailDialog(
     pkg: String, label: String, week: Map<LocalDate, DayUsage>,
     c: WellbeingConfig, g: com.raunak.daytimeline.pro.FocusGuardConfig,
     onSave: (WellbeingConfig) -> Unit, onSaveGuard: (com.raunak.daytimeline.pro.FocusGuardConfig) -> Unit, onClose: () -> Unit

@@ -30,38 +30,25 @@ import java.time.LocalDate
 
 private data class InstalledApp(val packageName: String, val label: String)
 
-/**
- * One place for the features other Android apps sell as "Pro": natural-language + voice capture,
- * app/website-free distraction blocking with schedules and limits, generated focus sounds with a
- * lock-screen timer, and geofenced reminders. Everything runs on-device.
- */
+/** The extra tools, each opened as its own page from More. */
+enum class ProTool(val title: String) {
+    QUICK_ADD("Quick add"), SEARCH("Search"), WEEK("Week review"), SOUNDS("Focus sounds"), GARDEN("Focus garden"),
+    ENERGY("Energy planner"), PLACES("Place reminders"), JOURNAL("Private journal")
+}
+
 @Composable
-fun FreeProSuite(vm: PlannerViewModel, initialTab: Int = 0, onClose: () -> Unit) {
-    var tab by remember { mutableIntStateOf(initialTab) }
+fun ProToolPage(vm: PlannerViewModel, tool: ProTool, onClose: () -> Unit) {
     val openDate: (LocalDate) -> Unit = { vm.selectDate(it); onClose() }
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-            Column {
-                ChronoraTopBar("Free Pro Suite", onClose, subtitle = "Offline · no account · no subscription")
-                ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-                    listOf("Quick add", "Search", "Week", "Wellbeing", "Web filter", "Focus Guard", "Sounds", "Garden", "Energy plan", "Places", "Private journal").forEachIndexed { i, t ->
-                        Tab(tab == i, { tab = i }, text = { Text(t) })
-                    }
-                }
-                when (tab) {
-                    0 -> QuickAddTab(vm)
-                    1 -> SearchTab(vm, openDate)
-                    2 -> WeekTab(vm, openDate)
-                    3 -> com.raunak.daytimeline.wellbeing.WellbeingScreen()
-                    4 -> com.raunak.daytimeline.filter.WebFilterScreen()
-                    5 -> FocusGuardTab()
-                    6 -> SoundsTab(vm)
-                    7 -> GardenTab()
-                    8 -> EnergyTab(vm)
-                    9 -> PlacesTab()
-                    10 -> PrivateJournalTab()
-                }
-            }
+    FullScreenPage(tool.title, onClose) {
+        when (tool) {
+            ProTool.QUICK_ADD -> QuickAddTab(vm)
+            ProTool.SEARCH -> SearchTab(vm, openDate)
+            ProTool.WEEK -> WeekTab(vm, openDate)
+            ProTool.SOUNDS -> SoundsTab(vm)
+            ProTool.GARDEN -> GardenTab()
+            ProTool.ENERGY -> EnergyTab(vm)
+            ProTool.PLACES -> PlacesTab()
+            ProTool.JOURNAL -> PrivateJournalTab()
         }
     }
 }
@@ -111,24 +98,11 @@ private fun QuickAddTab(vm: PlannerViewModel) {
             } }
         }
         added?.let { msg -> item { Text(msg, color = MaterialTheme.colorScheme.primary) } }
-        item {
-            Text("Understands", fontWeight = FontWeight.Bold)
-            Text(
-                "• today / tomorrow / next monday / in 3 days / 2026-10-02 / 14/10\n" +
-                    "• at 7, 7pm, 19:30, 7-9, from 9 to 11:30\n" +
-                    "• for 2 hours, 90m, 1h30m\n" +
-                    "• daily, every weekday, every mon and thu, weekly\n" +
-                    "• p1–p4 or !1–!4, urgent, #tags\n" +
-                    "• remind me 15m before, remind at start\n" +
-                    "• pomodoro / focus",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
     }
 }
 
 @Composable
-private fun FocusGuardTab() {
+internal fun FocusGuardTab() {
     val context = LocalContext.current
     val store = remember { FocusGuardStore(context) }
     val config by store.configFlow.collectAsState()
@@ -145,12 +119,13 @@ private fun FocusGuardTab() {
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
+        item { com.raunak.daytimeline.wellbeing.TodayUsageStrip() }
+        if (!serviceOn || !usageOn) item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Setup", fontWeight = FontWeight.Bold)
-                Text(if (serviceOn) "✓ Blocking service is on" else "Turn on Chronora Focus Guard in Accessibility settings so blocked apps can be covered.")
-                if (!serviceOn) Button(onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Open accessibility settings") }
-                Text(if (usageOn) "✓ Usage access granted (daily limits + screen time)" else "Grant usage access for daily limits and screen-time stats.")
+                Text(if (serviceOn) "✓ Blocking is on" else "Blocking is off")
+                if (!serviceOn) Button(onClick = { context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Turn on") }
+                Text(if (usageOn) "✓ Usage access" else "Usage access needed")
                 if (!usageOn) OutlinedButton(onClick = { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }) { Text("Grant usage access") }
             } }
         }
@@ -168,12 +143,12 @@ private fun FocusGuardTab() {
                         }
                     }
                 }
-                SwitchRow("Locked mode (no emergency unlock during blocks)", config.lockedMode) { v -> store.update { it.copy(lockedMode = v) } }
+                SwitchRow("Locked mode", config.lockedMode) { v -> store.update { it.copy(lockedMode = v) } }
                 var phrase by remember(config.unlockPhrase) { mutableStateOf(config.unlockPhrase) }
-                OutlinedTextField(phrase, { phrase = it }, label = { Text("Unlock phrase (type it to unlock; blank = off)") }, modifier = Modifier.fillMaxWidth(),
+                OutlinedTextField(phrase, { phrase = it }, label = { Text("Unlock phrase") }, modifier = Modifier.fillMaxWidth(),
                     trailingIcon = { if (phrase != config.unlockPhrase) TextButton(onClick = { store.update { it.copy(unlockPhrase = phrase.trim()) } }) { Text("Save") } })
                 if (config.unlockPhrase.isBlank()) TextButton(onClick = { phrase = "I am choosing distraction over my goals right now" }) { Text("Use a suggested phrase") }
-                SwitchRow("Allowlist mode (block everything except allowed apps)", config.allowlistMode) { v -> store.update { it.copy(allowlistMode = v) } }
+                SwitchRow("Allowlist mode", config.allowlistMode) { v -> store.update { it.copy(allowlistMode = v) } }
                 Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay} · wait ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
                 Slider(config.emergencyUnlocksPerDay.toFloat(), { v -> store.update { it.copy(emergencyUnlocksPerDay = v.toInt()) } }, valueRange = 0f..5f, steps = 4)
                 Slider(config.unlockDelaySeconds.toFloat(), { v -> store.update { it.copy(unlockDelaySeconds = v.toInt()) } }, valueRange = 5f..120f)
@@ -186,7 +161,7 @@ private fun FocusGuardTab() {
         item {
             PackageCard(
                 title = if (config.allowlistMode) "Allowed apps" else "Blocked apps",
-                subtitle = if (config.allowlistMode) "Only these open during sessions and schedules" else "Blocked during sessions, schedules and Pomodoro focus",
+                subtitle = "",
                 packages = if (config.allowlistMode) config.allowedPackages else config.blockedPackages,
                 name = ::name,
                 onAdd = { picker = if (config.allowlistMode) "allow" else "block" },
@@ -214,8 +189,7 @@ private fun FocusGuardTab() {
             var site by remember { mutableStateOf("") }
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Blocked websites", fontWeight = FontWeight.Bold)
-                Text("Works in Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, DuckDuckGo, Vivaldi and Kiwi. Use a domain (reddit.com) or a path (youtube.com/shorts).", style = MaterialTheme.typography.bodySmall)
-                SwitchRow("Block these sites all day (not only during focus)", config.sitesAlwaysBlocked) { v -> store.update { it.copy(sitesAlwaysBlocked = v) } }
+                SwitchRow("Block all day", config.sitesAlwaysBlocked) { v -> store.update { it.copy(sitesAlwaysBlocked = v) } }
                 config.blockedSites.sorted().forEach { d ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(d, Modifier.weight(1f))
@@ -262,26 +236,12 @@ private fun FocusGuardTab() {
         item {
             PackageCard(
                 title = "Mindful pause",
-                subtitle = "A ${config.interventionSeconds}s breathing pause before these apps open, any time of day",
+                subtitle = "${config.interventionSeconds}s pause before opening",
                 packages = config.mindfulPackages,
                 name = ::name,
                 onAdd = { picker = "mindful" },
                 onRemove = { pkg -> store.update { it.copy(mindfulPackages = it.mindfulPackages - pkg) } }
             )
-        }
-        item {
-            val usage = remember(usageOn) { UsageAccess.today(context) }
-            val runtime = remember { store.runtime }
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("Screen time today", fontWeight = FontWeight.Bold)
-                if (usage.isEmpty()) Text("Grant usage access to see app usage.") else {
-                    Text("Total ${usage.values.sum() / 60}h ${usage.values.sum() % 60}m")
-                    usage.entries.sortedByDescending { it.value }.take(8).forEach { (pkg, m) -> Text("${name(pkg)} · ${m}m", style = MaterialTheme.typography.bodySmall) }
-                }
-                if (runtime.blockedDate == LocalDate.now().toString() && runtime.blockedToday.isNotEmpty()) {
-                    Text("Blocked attempts: " + runtime.blockedToday.entries.joinToString { "${name(it.key)} ×${it.value}" }, style = MaterialTheme.typography.bodySmall)
-                }
-            } }
         }
     }
 
@@ -326,7 +286,7 @@ private fun ScheduleEditor(onAdd: (BlockSchedule) -> Unit) {
 private fun PackageCard(title: String, subtitle: String, packages: Set<String>, name: (String) -> String, onAdd: () -> Unit, onRemove: (String) -> Unit) {
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.Bold); Text(subtitle, style = MaterialTheme.typography.bodySmall) }
+            Column(Modifier.weight(1f)) { Text(title, fontWeight = FontWeight.Bold); if (subtitle.isNotBlank()) Text(subtitle, style = MaterialTheme.typography.bodySmall, color = Chronora.muted) }
             IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Add app") }
         }
         if (packages.isEmpty()) Text("None yet", style = MaterialTheme.typography.bodySmall)
@@ -370,7 +330,6 @@ private fun SoundsTab(vm: PlannerViewModel) {
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item {
-            Text("Generated on-device, so they work offline and never run out.", style = MaterialTheme.typography.bodySmall)
         }
         item {
             Card { Column(Modifier.padding(8.dp)) {
@@ -397,12 +356,6 @@ private fun SoundsTab(vm: PlannerViewModel) {
             }
         }
         item { TextButton(onClick = { FocusSessionService.send(context, FocusSessionService.ACTION_STOP) }) { Text("Stop session and sound") } }
-        item {
-            Text(
-                "The timer keeps running with the screen off and shows a lock-screen countdown with Pause, Skip, +5 min and Stop.",
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
     }
 }
 
@@ -439,10 +392,9 @@ private fun PlacesTab() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Location reminders", fontWeight = FontWeight.Bold)
-                Text("“When I arrive at college, remind me to submit the assignment.” Uses GPS on the device; no Google account or internet required.", style = MaterialTheme.typography.bodySmall)
                 if (!hasFine) Button(onClick = { fineLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)) }) { Text("Allow location") }
                 else if (!hasBackground && Build.VERSION.SDK_INT >= 29) {
-                    Text("Allow “all the time” location so reminders fire while Chronora is closed.", style = MaterialTheme.typography.bodySmall)
+                    Text("Background location is off", style = MaterialTheme.typography.bodySmall)
                     OutlinedButton(onClick = { bgLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION) }) { Text("Allow background location") }
                 }
             } }

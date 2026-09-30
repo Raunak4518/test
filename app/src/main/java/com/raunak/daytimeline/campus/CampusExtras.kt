@@ -81,7 +81,7 @@ internal fun SleepCard(data: CampusData, store: CampusStore) {
     }
     val nights = data.sleepLog.takeLast(7).reversed()
     val next = CampusScheduler.nextWake(data, LocalDateTime.now())
-    SectionCard("Sleep", if (nights.isEmpty()) "Grant usage access (Free Pro Suite → Wellbeing) to estimate sleep" else "Average ${hm(nights.map { it.minutes }.average().toInt())} · goal ${hm(goal)}") {
+    SectionCard("Sleep", if (nights.isEmpty()) "Needs usage access (More → Screen time)" else "Average ${hm(nights.map { it.minutes }.average().toInt())} · goal ${hm(goal)}") {
         next?.let { Text("For ${hm(goal)} before your ${it.at.toLocalTime().withSecond(0)} alarm, be asleep by ${it.at.minusMinutes(goal.toLong()).toLocalTime().withSecond(0)}.", fontWeight = FontWeight.SemiBold) }
         nights.forEach { n ->
             Text("${n.date} · ${StudyEngines.clockOf(n.sleptAt)} → ${StudyEngines.clockOf(n.wokeAt)} · ${hm(n.minutes)}", style = MaterialTheme.typography.bodySmall, color = if (n.minutes >= goal) Chronora.colors.good else Chronora.colors.bad)

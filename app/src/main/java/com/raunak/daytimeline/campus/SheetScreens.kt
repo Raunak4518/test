@@ -177,7 +177,6 @@ private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit)
                             StudyEngines.revisionPlan(sheet.items, exam, today, buffer).toSortedMap().forEach { (day, items) ->
                                 Text("${day.dayOfWeek.name.take(3)} ${day}: " + items.joinToString { it.title }, style = MaterialTheme.typography.bodySmall)
                             }
-                            Text("Last $buffer day(s) before the exam are kept for full revision (change in Settings).", style = MaterialTheme.typography.labelSmall)
                         }
                     }
                 }

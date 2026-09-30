@@ -5,6 +5,10 @@ import com.raunak.daytimeline.ui.*
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -48,12 +53,30 @@ object CampusNav {
 @Composable
 fun CampusScreen(modifier: Modifier = Modifier) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
-    val tabs = listOf("Today", "Classroom", "Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline", "Settings")
+    val tabs = CampusSections.map { it.first }
     val requested by CampusNav.requested.collectAsStateWithLifecycle()
     LaunchedEffect(requested) { requested?.let { name -> tabs.indexOf(name).takeIf { it >= 0 }?.let { tab = it }; CampusNav.consume() } }
+    androidx.activity.compose.BackHandler(enabled = tab != 0) { tab = 0 }
     Column(modifier.fillMaxSize()) {
-        ScrollableTabRow(selectedTabIndex = tab, edgePadding = 8.dp) {
-            tabs.forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) }
+        if (tab == 0) {
+            // Sections as a row of icon shortcuts instead of twelve text tabs.
+            androidx.compose.foundation.lazy.LazyRow(Modifier.testTag("campusNav"), contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(CampusSections.size - 1) { j ->
+                    val (label, icon) = CampusSections[j + 1]
+                    Column(Modifier.width(72.dp).clip(RoundedCornerShape(16.dp)).clickable { tab = j + 1 }.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(Modifier.size(46.dp).clip(RoundedCornerShape(14.dp)).background(MaterialTheme.colorScheme.primary.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
+                            Icon(icon, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
+                        }
+                        Text(label, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp))
+                    }
+                }
+            }
+        } else {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = { tab = 0 }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Campus") }
+                Icon(CampusSections[tab].second, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
+                Text("  " + CampusSections[tab].first, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            }
         }
         when (tab) {
             0 -> TodayTab { tab = it }
@@ -71,6 +94,13 @@ fun CampusScreen(modifier: Modifier = Modifier) {
         }
     }
 }
+
+private val CampusSections = listOf(
+    "Today" to Icons.Default.Today, "Classroom" to Icons.Default.Class, "Attendance" to Icons.Default.HowToReg,
+    "Timetable" to Icons.Default.TableChart, "Sheets" to Icons.Default.FactCheck, "Exams & tasks" to Icons.Default.Assignment,
+    "Wake-up" to Icons.Default.WbSunny, "Library" to Icons.Default.LocalLibrary, "CGPA" to Icons.Default.Grade,
+    "Placements" to Icons.Default.Work, "Discipline" to Icons.Default.SelfImprovement, "Settings" to Icons.Default.Settings
+)
 
 // ------------------------------------------------------------------ shared UI
 
@@ -306,7 +336,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
                         OutlinedButton(onClick = { FocusGuardStore(context).update { it.copy(sessionUntil = System.currentTimeMillis() + m * 60_000L) } }) { Text(hm(m)) }
                     }
                 }
-                Text("Uses the blocked-apps list from Free Pro Suite → Focus Guard.", style = MaterialTheme.typography.bodySmall)
+                Text("Uses your App blocker list.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

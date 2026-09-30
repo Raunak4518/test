@@ -109,7 +109,6 @@ private fun DaySchedule(vm: PlannerViewModel, tasks: List<TaskModel>, allTasks: 
         item {
             Card { Column(Modifier.padding(12.dp)) {
                 Text(date.format(DateTimeFormatter.ofPattern("EEEE, d MMMM")), style = MaterialTheme.typography.titleMedium)
-                Text("Drag a block vertically to move it. Use the resize handle or duration buttons to resize it.")
             } }
         }
         items(tasks.sortedBy { it.startMinute }, key = { it.id }) { task ->
@@ -223,7 +222,6 @@ private fun StudyWorkspace(store: CompletionStore) {
     val today = LocalDate.now().toEpochDay()
     Column(Modifier.fillMaxSize().padding(12.dp)) {
         Text("Study mode", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-        Text("Flashcards use an offline SM-2-style scheduler. Exam plans stay on device.")
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { showAdd = !showAdd }) { Text("New card") }
             OutlinedButton(onClick = { cards = store.studyCards() }) { Text("Refresh") }
@@ -282,7 +280,6 @@ private fun InsightsWorkspace(tasks: List<TaskModel>, habits: List<OfflineHabit>
             }
         }
         item { Heatmap(tasks, habits) }
-        item { Text("Workload balancing is computed from duration, priority and overdue work. Use the smart planner for an actionable block suggestion.") }
     }
 }
 
@@ -306,7 +303,6 @@ private fun Heatmap(tasks: List<TaskModel>, habits: List<OfflineHabit>) {
                 }
             }
         }
-        Text("Intensity combines completed tasks and completed habits over the last 84 days.", style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -366,7 +362,6 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
         item { Text("Integrations, focus and data", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold) }
         item { Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Offline Smart Assistant", fontWeight = FontWeight.Bold)
-            Text("A deterministic local copilot for planning questions; it never sends your data anywhere.")
             OutlinedTextField(assistantQuery, { assistantQuery = it }, label = { Text("Ask: what should I do next?") }, modifier = Modifier.fillMaxWidth())
             Button(onClick = {
                 val unfinished = tasks.filterNot { it.completed }.sortedWith(compareByDescending<TaskModel> { it.priority }.thenBy { it.startMinute })
@@ -430,11 +425,9 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
                     IconButton(onClick = { store.deleteTemplate(template.id) }) { Icon(Icons.Default.Delete, "Delete template") }
                 }
             }
-            Text("Templates are persistent offline schedule blueprints and can now be created, applied and deleted.")
         } } }
         item { Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Notification controls", fontWeight = FontWeight.Bold)
-            Text("Open Android's notification settings for Chronora or notification-policy access for focus workflows.")
             Row {
                 Button(onClick = {
                     runCatching {
@@ -447,7 +440,6 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
         } } }
         item { Card { Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text("Focus shield / distraction awareness", fontWeight = FontWeight.Bold)
-            Text("Usage Access is used for transparent usage reporting. Android does not permit an ordinary app to silently make itself an undeletable system blocker.")
             Row { Button(onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)) } }) { Text("Usage access") }; Spacer(Modifier.width(8.dp)); OutlinedButton(onClick = { shield = FocusShieldConfig(true, System.currentTimeMillis() + 25 * 60_000L, false, store.blockedPackages()); store.saveFocusShield(shield) }) { Text("Start 25m") } }
             OutlinedTextField(packageName, { packageName = it }, label = { Text("Flag distraction package") }, modifier = Modifier.fillMaxWidth())
             Button(onClick = { if (packageName.isNotBlank()) { val next = store.blockedPackages() + packageName.trim(); store.setBlockedPackages(next); shield = shield.copy(blockedPackages = next); store.saveFocusShield(shield); packageName = "" } }) { Text("Add") }
@@ -459,7 +451,6 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
         } } }
         item { Card { Column(Modifier.padding(12.dp)) {
             Text("Cloud / cross-device path", fontWeight = FontWeight.Bold)
-            Text("Chronora remains offline-first. JSON backup plus ICS export provides portable sync artifacts; no account or server is silently introduced.")
         } } }
         item { Card { Column(Modifier.padding(12.dp)) { Text("Usage snapshot", fontWeight = FontWeight.Bold); Text(usageSummary(context)) } } }
     }

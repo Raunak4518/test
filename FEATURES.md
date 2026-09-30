@@ -6,13 +6,45 @@ Everything below runs on the phone with no account, server or subscription.
 
 Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others (out of scope for offline core)
 
+## App layout
+
+- **Bottom bar:** Home · Plan · Focus · Campus · More. The top bar has only Search and Alarms.
+- **Home:** the day as one animated, scrollable timeline.
+  - Rows: wake-up alarm, classes, mess meals, tasks, deadlines and free gaps, ending at wind-down.
+  - Motion: a live now-line with a breathing dot; the rail fills in as the day passes; the current event pulses; rows fade in one after another; the list scrolls to "now" on open.
+  - Top of the page: a greeting, a task-progress ring, a week strip, and a "Now / Up next" card on a slowly moving gradient.
+  - Tap a free gap to plan something at that time; tick tasks right on the timeline.
+- **Plan:** a real time-blocking planner.
+  - Day grid: classes and meals are fixed blocks; tap empty space to add at that time; long-press a task to drag it (snaps to 15 min); drag its bottom edge to resize; overlapping items sit side by side.
+  - Auto-plan fits open tasks around classes and meals, highest priority first, with buffers. Tasks tagged #fixed stay put.
+  - Week grid: meals shown as quiet bands, and tap a day to open it. Agenda (upcoming days plus overdue) and the priority Matrix are also here; the month calendar sits behind the calendar icon.
+- **Campus:** Today opens first, with a row of icon shortcuts to Classroom, Attendance, Timetable, Sheets, Exams, Wake-up, Library, CGPA, Placements, Discipline and Settings. Each section has a back arrow.
+- **More:** today's screen-time card, then tiles grouped by kind:
+  - Digital wellbeing: Screen time, App blocker, Limits, Web filter.
+  - Life: Habits, Goals, Routines, Notes, Journal, Time log.
+  - Tools: Alarms, Calendar, Search, Quick add, Sounds, Garden, Energy plan, Week review, Places, Private journal.
+  - App: Insights, Command center, Settings & backup, Update app.
+
+## Screen time (YourHour-style)
+
+- **Overview:**
+  - A donut split by your top apps, with total time, your goal and the change from yesterday.
+  - An addiction level (Champion → Achiever → Fit → Habitual → Dependent → Addicted), measured against your editable daily goal.
+  - Unlocks, opens, notifications, first unlock, longest session and minutes per unlock.
+  - An hourly chart, and a week chart with the goal line and the change from last week.
+  - Every app with its icon, an animated bar, opens and its limit. Tap an app for timers, open limits, session limits, a mindful pause and blocking.
+- **Timeline:** every app session of the day in order: app icon, start–end and length.
+- **Usage bubble:** an optional floating pill over the app you're using, e.g. "Instagram · 42m", drawn by the accessibility service, so it needs no extra permission.
+- **App blocker:** shows today's screen time at the top.
+- **Limits and Web filter:** in the same page, as tabs.
+
 ## Planning
 
 | Feature | Status | Where |
 |---|---|---|
 | Tasks: title, notes, date, start/end, duration, priority, tags, colour, checklist, complete, duplicate, delete | ✅ | Today tab, task editor |
 | Recurring tasks (daily, weekdays, weekends, weekly, custom days) | ✅ | `RecurrenceEngine` |
-| Natural-language quick add: dates, weekdays, "in 3 days", ISO dates, ranges, "at 7pm", "for 90m", recurrence, p1–p4, #tags, "remind 10m before" | 🆕 | `QuickAddParser`, Free Pro Suite → Quick add |
+| Natural-language quick add: dates, weekdays, "in 3 days", ISO dates, ranges, "at 7pm", "for 90m", recurrence, p1–p4, #tags, "remind 10m before" | 🆕 | `QuickAddParser`, More → Quick add |
 | Voice-to-task (uses the device's offline speech recogniser when installed) | 🆕 | Quick add → mic |
 | Live parse preview before adding | 🆕 | Quick add |
 | Day timeline, calendar month view, conflict detection, drag and resize | ✅ | Today, Calendar, `ConflictDetector` |
@@ -30,8 +62,8 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Pomodoro skip phase and +5 min | 🆕 | Focus tab, notification |
 | Timer keeps running with the screen off; lock-screen countdown with Pause / Skip / +5 min / Stop | 🆕 | `FocusSessionService` |
 | Phase-change alerts ("Focus complete, take a break") | 🆕 | `FocusSessionService` |
-| Ambient focus sounds generated on-device: white, pink and brown noise, rain, ocean, fan, 40 Hz tone | 🆕 | Free Pro Suite → Sounds |
-| App blocking during focus sessions (25/50/90/180 min) | 🆕 | Free Pro Suite → Focus Guard |
+| Ambient focus sounds generated on-device: white, pink and brown noise, rain, ocean, fan, 40 Hz tone | 🆕 | More → Sounds |
+| App blocking during focus sessions (25/50/90/180 min) | 🆕 | More → App blocker |
 | Block apps automatically while a Pomodoro focus phase runs | 🆕 | Sounds → toggle |
 | Recurring block schedules, including overnight windows | 🆕 | Focus Guard |
 | Allowlist mode (block everything except chosen apps) | 🆕 | Focus Guard |
@@ -43,7 +75,7 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 | Alarms: backup alarms, wake-check, snooze policy, bedtime, naps, odd/even weeks | ✅ | Alarms |
 | Alarm missions: math, typing, memory, shake, squats, walking/steps, photo, barcode/QR | ✅ | Alarms |
 | Task reminders with Complete / Snooze actions; boot and time-zone recovery | ✅ | `ReminderReceiver`, `BootReceiver` |
-| Location reminders: arrive / leave / both, radius, once or every visit; GPS only, no Play Services | 🆕 | Free Pro Suite → Places |
+| Location reminders: arrive / leave / both, radius, once or every visit; GPS only, no Play Services | 🆕 | More → Places |
 | Habits: weekly targets, active days, streaks, reminders | ✅ | Productivity tab |
 | Routines with steps, durations, per-step completion, history | ✅ | Productivity tab |
 | App lock (device credential or biometric) | ✅ | Settings |
@@ -64,15 +96,15 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 
 | Feature | Status | Where |
 |---|---|---|
-| Unified search across tasks, notes, journal, habits, goals and routines, with filters like "unfinished dsa tasks", "notes #exam", "everything yesterday", "last week" | 🆕 | Free Pro Suite → Search |
-| Week view with daily load and overload highlight, plus a 3-week agenda | 🆕 | Free Pro Suite → Week |
-| Focus Garden: XP, levels, a plant per completed Pomodoro (bigger for longer sessions), withered plants for abandoned sessions, focus-day streaks, badges | 🆕 | Free Pro Suite → Garden |
-| Energy-aware planning: #deep/#hard work in peak hours, #easy/#admin outside, priority order, buffers, #fixed pins a task | 🆕 | Free Pro Suite → Energy plan |
-| Private journal encrypted with AES-256-GCM and a hardware-backed Keystore key | 🆕 | Free Pro Suite → Private journal |
+| Unified search across tasks, notes, journal, habits, goals and routines, with filters like "unfinished dsa tasks", "notes #exam", "everything yesterday", "last week" | 🆕 | More → Search |
+| Week view with daily load and overload highlight, plus a 3-week agenda | 🆕 | More → Week review |
+| Focus Garden: XP, levels, a plant per completed Pomodoro (bigger for longer sessions), withered plants for abandoned sessions, focus-day streaks, badges | 🆕 | More → Garden |
+| Energy-aware planning: #deep/#hard work in peak hours, #easy/#admin outside, priority order, buffers, #fixed pins a task | 🆕 | More → Energy plan |
+| Private journal encrypted with AES-256-GCM and a hardware-backed Keystore key | 🆕 | More → Private journal |
 | Website blocking in Chrome, Firefox, Samsung Internet, Edge, Brave, Opera, DuckDuckGo, Vivaldi and Kiwi (domains or path prefixes; during focus or all day) | 🆕 | Focus Guard → Blocked websites |
 | "Chronora Focus" home-screen widget: live Pomodoro countdown, Start/Pause, Quick add, garden level, habits done today | 🆕 | `FocusWidget` |
 
-## Campus (home tab)
+## Campus (Campus tab)
 
 Built for a college student: every screen below comes from one weekly timetable.
 
@@ -129,7 +161,7 @@ Built for a college student: every screen below comes from one weekly timetable.
 
 Campus → Settings holds every number and list the Campus features use: revision gaps, study-block and break lengths, walking buffer, minimum free slot, library reminders, deadline and interview reminder times, deadline/exam types, placement stages, daily-score weights and grade letters, on-time tolerance, attendance warning margin, afternoon cut-off for pasted timetables and lock-in durations. Also editable: the CGPA grade scale, wake-up snoozes, hold-to-dismiss time, battery-check interval and missed-alarm window (Wake-up tab), the Discipline milestones, triggers, actions, check-in time, urge timer, lock length and guarded apps, every web-filter category list, the adult keywords, the anti-bypass list and download sources, digest and report times, Shorts/Reels screen ids, and Focus Guard pause, unlock and session lengths. Settings saved by older versions are upgraded with defaults.
 
-## Digital wellbeing (Free Pro Suite → Wellbeing)
+## Digital wellbeing (More → Screen time)
 
 Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one sec, AppBlock, Lock Me Out and YourHour offer, including their paid tiers.
 
@@ -152,7 +184,7 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 | Strict mode: during blocks, Chronora's settings, uninstall and accessibility pages are covered | 🆕 |
 | Screen-time and pickup goals, under-goal streak, daily report notification, weekly comparison on Sundays | 🆕 |
 
-## Web filter & firewall (Free Pro Suite → Web filter)
+## Web filter & firewall (More → Web filter)
 
 | Feature | Status |
 |---|---|
@@ -267,7 +299,7 @@ Covers what Google Digital Wellbeing, StayFree, ActionDash, ScreenZen, Opal, one
 - **Alarm list:** "Rings in 8h 42m" hero, one-tap naps (10 min–1.5 h), on/off switches, day dots and mission icons, preview, skip next, duplicate, presets.
 - **Wake-up record:** on-time rate, streak, average minutes late, snoozes, and a daily bar chart.
 
-## In-app updates (⋮ menu → Update app)
+## In-app updates (More → Update app)
 
 - **Where updates come from:** every push to `main` has CI build the APK and publish it as a GitHub Release, tagged `v<version code>`.
 - **Update app:** checks the latest release, shows its size and notes, downloads it with a progress bar, and installs it through Android's package installer.

@@ -452,7 +452,7 @@ private fun TimerSettings(pomo: PomodoroStateEntity, vm: PlannerViewModel, cfg: 
             if (cfg.strict) {
                 Text("Allowed: " + (if (cfg.strictAllowed.isEmpty()) "only phone, launcher and Chronora" else cfg.strictAllowed.joinToString { appLabel(context, it) }), style = MaterialTheme.typography.bodySmall)
                 TextButton(onClick = { picking = true }) { Text("Choose allowed apps") }
-                Text("Uses Focus Guard's accessibility service (Free Pro Suite → Focus Guard).", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                Text("Uses the App blocker (More → App blocker).", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
             }
             ListEditor("Tags", cfg.tags) { v -> save { it.copy(tags = v) } }
             if (!idle) Text("New lengths apply from the next phase.", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)

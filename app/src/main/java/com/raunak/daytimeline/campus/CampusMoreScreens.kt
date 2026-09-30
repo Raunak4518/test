@@ -133,7 +133,6 @@ internal fun WakeTab() {
             SectionCard("Next wake-up", plan?.let { "${it.at.toLocalDate()} at ${it.at.toLocalTime().withSecond(0)}" } ?: "Off") {
                 plan?.let { Text(it.label, fontWeight = FontWeight.SemiBold) }
                 SwitchRow("Automatic alarm before my first class", w.enabled) { save(w.copy(enabled = it)) }
-                Text("Changes every day with your timetable, holidays, cancellations and extra classes.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item { ReadinessCard(tick) }
@@ -214,7 +213,7 @@ private fun ReadinessCard(tick: Int) {
         Check("Full-screen alarm allowed", fullScreen) { if (Build.VERSION.SDK_INT >= 34) open(Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}"))) }
         Check("Alarm volume $volume%", volume >= 60) { audio.setStreamVolume(AudioManager.STREAM_ALARM, audio.getStreamMaxVolume(AudioManager.STREAM_ALARM), AudioManager.FLAG_SHOW_UI) }
         Check("Battery $level%" + if (charging) " · charging" else "", charging || level >= 60, fixLabel = null) {}
-        Text("Some phones (Xiaomi, Oppo, Vivo, Realme, Samsung) also need Chronora allowed to auto-start and run in the background — check the phone's battery/app settings.", style = MaterialTheme.typography.bodySmall)
+        Text("Also allow auto-start in the phone's battery settings.", style = MaterialTheme.typography.bodySmall)
         TextButton(onClick = { open(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:${context.packageName}"))) }) { Text("Open app settings") }
     }
 }
@@ -346,7 +345,6 @@ internal fun CgpaTab() {
                         store.updateSemesters { it + SemesterResult(n, data.subjects.map { s -> Course(s.name, s.credits, null) }) }; editing = n
                     }) { Text("From current subjects") }
                 }
-                Text("Tip: fill the current semester with expected grades to see where you'll land.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item { MarksCard(data, store) }
@@ -396,7 +394,6 @@ private fun GradeScaleDialog(scale: List<GradePoint>, onSave: (List<GradePoint>)
     var rows by remember { mutableStateOf(scale.map { it.letter to fmt(it.points) }) }
     AlertDialog(onDismissRequest = close, title = { Text("Grade scale") }, text = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.heightIn(max = 460.dp)) {
-            item { Text("Letter grades and their points. Plain numbers (e.g. 8.5) are also accepted as grades.", style = MaterialTheme.typography.bodySmall) }
             items(rows.indices.toList()) { i ->
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(rows[i].first, { v -> rows = rows.toMutableList().also { it[i] = v to rows[i].second } }, label = { Text("Grade") }, singleLine = true, modifier = Modifier.weight(1f))
@@ -503,7 +500,6 @@ internal fun PlacementTab() {
         } else items(shown.sortedWith(compareBy<Company> { stages.indexOfFirst { s -> s.equals(it.stageName, true) } }.thenByDescending { it.excitement }), key = { it.id }) { c ->
             CompanyCard(c, cgpa, today, { editing = c }, if (stageIndex(c) > 0) ({ move(c, -1) }) else null, if (stageIndex(c) < stages.size - 1) ({ move(c, 1) }) else null)
         }
-        item { Text("Prep sheets (CS core, AI/ML, aptitude, resume) are in the Sheets tab. Stages are editable in Settings.", style = MaterialTheme.typography.bodySmall, color = Chronora.muted) }
     }
     editing?.let { CompanyDialog(it, store, stages) { editing = null } }
 }

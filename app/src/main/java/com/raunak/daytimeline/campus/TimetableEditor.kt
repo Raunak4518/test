@@ -143,7 +143,6 @@ internal fun TimetableTab() {
                         Button(onClick = { newSubject = true }) { Icon(Icons.Default.Add, null); Spacer(Modifier.width(4.dp)); Text("Subject") }
                         OutlinedButton(onClick = { dialog = "paste" }) { Text("Paste whole week") }
                     }
-                    Text("Tap a subject to set all its classes for the week — several per day if needed. It repeats every week until the semester ends.", style = MaterialTheme.typography.bodySmall)
                 }
                 val current = AttendanceEngine.currentSlots(data, today)
                 val clashes = AttendanceEngine.conflicts(current)
@@ -179,7 +178,6 @@ internal fun TimetableTab() {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { dialog = "holiday" }) { Text("Holidays (date range)") }
                     }
-                    Text("To cancel, move or add a single class, open that day in the Week view.", style = MaterialTheme.typography.bodySmall)
                 }
                 val list = data.exceptions.sortedBy { it.newDate ?: it.date }
                 if (list.isEmpty()) item { Text("No changes yet.") }
@@ -273,7 +271,6 @@ private fun WeekGrid(data: CampusData, weekStart: LocalDate, onDay: (LocalDate) 
                     }
                 }
             }
-            Text("Outlined = extra or moved class · faded = marked absent · tap a day to change it", style = MaterialTheme.typography.labelSmall)
         }
     }
 }
@@ -326,7 +323,6 @@ private fun SubjectWeekEditor(subject: Subject?, data: CampusData, store: Campus
                     }
                 }
                 item {
-                    Text("Repeats every week until ${data.semester.end}. Add as many classes per day as you have.", style = MaterialTheme.typography.bodySmall)
                     if (subject != null && existing.isNotEmpty() && today.isAfter(semStart)) {
                         Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(fromToday, { fromToday = true }); Text("Apply from today (past attendance stays as it was)") }
                         Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(!fromToday, { fromToday = false }); Text("Correct the whole semester") }
@@ -451,7 +447,6 @@ private fun DayEditor(date: LocalDate, data: CampusData, store: CampusStore, onE
             ChronoraTopBar(date.format(DateTimeFormatter.ofPattern("EEEE d MMMM")), onClose)
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item {
-                    Text("Changes here affect only this date. To change every week, use Edit week.", style = MaterialTheme.typography.bodySmall)
                 }
                 item {
                     SwitchRow("Holiday / no classes this day", holiday.isNotEmpty()) { on ->

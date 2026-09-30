@@ -93,7 +93,6 @@ fun WebFilterScreen() {
                     }
                     Switch(config.enabled && running, { on -> if (on) turnOn() else commit(config.copy(enabled = false)) })
                 }
-                Text("A local VPN that only carries DNS lookups. Blocked sites never resolve, in every app and browser. Nothing is sent to a Chronora server.", style = MaterialTheme.typography.bodySmall)
                 if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.error)
             } }
         }
@@ -123,7 +122,6 @@ fun WebFilterScreen() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("Upstream DNS", fontWeight = FontWeight.Bold)
-                Text("Family resolvers add a second, constantly updated adult/malware filter on top of Chronora's lists.", style = MaterialTheme.typography.bodySmall)
                 UpstreamDns.values().forEach { u ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(config.upstream == u, { commit(config.copy(upstream = u)) })
@@ -147,7 +145,6 @@ fun WebFilterScreen() {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Bigger blocklists", fontWeight = FontWeight.Bold)
                 Text("Imported: ${store.importedCount()} domains" + if (config.importedSources.isNotEmpty()) " from ${config.importedSources.size} source(s)" else "", style = MaterialTheme.typography.bodySmall)
-                Text("Download once (needs internet), then filtering stays fully offline. Hosts files, plain lists and AdBlock ||domain^ rules are supported.", style = MaterialTheme.typography.bodySmall)
                 config.listSources.forEach { src ->
                     OutlinedButton(enabled = !busy, onClick = {
                         busy = true; message = "Downloading ${src.label}…"
@@ -180,7 +177,6 @@ fun WebFilterScreen() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Commitment lock", fontWeight = FontWeight.Bold)
-                Text("Loosening protection (turning off, removing categories, allowing sites, switching to an unfiltered DNS) needs a waiting period.", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(0, 5, 30, 120, 1440).forEach { m ->
                         FilterChip(config.lockDelayMinutes == m, { commit(config.copy(lockDelayMinutes = m)) }, label = { Text(if (m == 0) "Off" else if (m >= 60) "${m / 60}h" else "${m}m") })
@@ -363,7 +359,6 @@ private fun ListOverridesCard(config: WebFilterConfig, store: WebFilterStore, co
     var editing by remember { mutableStateOf<String?>(null) }
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Text("Edit the built-in lists", fontWeight = FontWeight.Bold)
-        Text("Add or remove sites from any category, change the adult keywords, the anti-bypass list and the download sources. Removing entries counts as loosening, so the lock applies.", style = MaterialTheme.typography.bodySmall)
         FilterCategory.values().forEach { c ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${c.label} · ${store.effectiveCategory(c, config).size} sites", Modifier.weight(1f))

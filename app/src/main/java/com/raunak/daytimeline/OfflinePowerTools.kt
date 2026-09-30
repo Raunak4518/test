@@ -54,7 +54,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     }
     Scaffold(topBar = { ChronoraTopBar("Power tools", onClose) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("Offline command center", style = MaterialTheme.typography.headlineSmall); Text("Projects, time tracking, challenges, achievements and portable backups. Everything remains local.") }
+            item { Text("Settings & backup", style = MaterialTheme.typography.headlineSmall) }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tamper protection", style = MaterialTheme.typography.titleMedium)
                 Text(if (protectionEnabled) "Android device-admin protection is active. It must be explicitly disabled before normal uninstall can proceed." else "Optional Android-managed protection. This does not bypass Android security or make the app permanently undeletable.")
@@ -90,13 +90,13 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 if (achievements.isEmpty()) Text("No achievements unlocked yet.") else achievements.sortedByDescending { it.unlockedAt }.forEach { ListItem(headlineContent = { Text(it.title) }, supportingContent = { Text(it.description) }, leadingContent = { Icon(Icons.Default.EmojiEvents, null) }) }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Backup & restore", style = MaterialTheme.typography.titleMedium); Text("Export the complete secondary productivity store as versioned JSON, or restore a validated backup.")
+                Text("Backup & restore", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { exporter.launch("chronora-backup.json") }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save JSON") }
                 OutlinedButton(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Share productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Appearance & accessibility", style = MaterialTheme.typography.titleMedium)
-                Text("Theme is stored locally and applies immediately. Android font scale and system accessibility services remain respected.")
+                
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf("SYSTEM", "LIGHT", "DARK").forEach { mode ->
                         FilterChip(selected = settings.theme == mode, onClick = { store.updateSettings { it.copy(theme = mode) } }, label = { Text(mode) })

@@ -58,7 +58,9 @@ data class WellbeingConfig(
     /** Your own screen ids per short-video surface (ShortForm name → ids); replaces the built-in ones. */
     val shortFormIds: Map<String, List<String>> = emptyMap(),
     /** Lock Me Out style: after this many unlocks today, apps are blocked (0 = off). Bedtime-allowed apps stay usable. */
-    val unlockLimit: Int = 0
+    val unlockLimit: Int = 0,
+    /** Small floating pill over other apps showing today's time in that app. */
+    val usageBubble: Boolean = false
 ) {
     fun idsFor(sf: ShortForm): List<String> = shortFormIds[sf.name]?.takeIf { it.isNotEmpty() } ?: sf.viewIds
 
@@ -177,8 +179,14 @@ data class DayUsage(
     val firstPickup: Long?,
     val hourlyMinutes: IntArray,
     val apps: List<AppUsage>,
-    val longestSessionMinutes: Int
+    val longestSessionMinutes: Int,
+    val sessions: List<AppSession> = emptyList()
 )
+
+/** One continuous stretch of an app in the foreground. */
+data class AppSession(val pkg: String, val start: Long, val end: Long) {
+    val minutes: Int get() = ((end - start) / 60_000L).toInt()
+}
 
 object UsageStatsCalculator {
     /**
@@ -196,6 +204,7 @@ object UsageStatsCalculator {
         var firstPickup: Long? = null
         var longest = 0L
         var lastForeground: String? = null
+        val sessions = ArrayList<AppSession>()
 
         fun close(pkg: String, at: Long) {
             val from = openSince.remove(pkg) ?: return
@@ -204,6 +213,9 @@ object UsageStatsCalculator {
             if (e <= s) return
             minutesMs[pkg] = (minutesMs[pkg] ?: 0) + (e - s)
             longest = maxOf(longest, e - s)
+            // Joins quick returns to the same app (under a minute away) into one session.
+            val last = sessions.lastOrNull()
+            if (last != null && last.pkg == pkg && s - last.end < 60_000L) sessions[sessions.lastIndex] = last.copy(end = e) else sessions += AppSession(pkg, s, e)
             // spread across hour buckets
             var cursor = s
             while (cursor < e) {
@@ -248,7 +260,8 @@ object UsageStatsCalculator {
             firstPickup = firstPickup,
             hourlyMinutes = IntArray(24) { (hourly[it] / 60_000L).toInt() },
             apps = apps,
-            longestSessionMinutes = (longest / 60_000L).toInt()
+            longestSessionMinutes = (longest / 60_000L).toInt(),
+            sessions = sessions.sortedBy { it.start }
         )
     }
 

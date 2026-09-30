@@ -25,7 +25,7 @@ import org.robolectric.annotation.GraphicsMode
 import java.io.File
 import java.time.LocalDate
 
-/** Opens the real app on the Focus, Priority matrix and Habits screens and saves screenshots (build/screens/). */
+/** Opens the real app on its main screens and saves screenshots (build/screens/). */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
 @Config(sdk = [34], qualifiers = "w400dp-h860dp-xxhdpi")
@@ -76,19 +76,26 @@ class HomeScreenshotTest {
             view.draw(android.graphics.Canvas(bmp))
             File("build/screens").apply { mkdirs() }.resolve("$name.png").outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
         }
-        compose.onAllNodesWithText("Focus")[0].performClick(); save("home-focus")
+        fun nav(label: String) = compose.onAllNodes(hasText(label) and androidx.compose.ui.test.hasAnyAncestor(androidx.compose.ui.test.hasTestTag("nav")))[0].performClick()
+        fun back() = compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Back"))[0].performClick()
+        compose.mainClock.advanceTimeBy(3000); save("home-timeline")
+        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Revise DBMS", substring = true)); save("home-timeline-evening")
+        nav("Plan"); compose.mainClock.advanceTimeBy(1500); save("plan-day")
+        compose.onAllNodesWithText("Week")[0].performClick(); save("plan-week")
+        compose.onAllNodesWithText("Agenda")[0].performClick(); save("plan-agenda")
+        compose.onAllNodesWithText("Matrix")[0].performClick(); save("plan-matrix")
+        assertThat(compose.onAllNodesWithText("Do first").fetchSemanticsNodes()).isNotEmpty()
+        nav("Focus"); save("home-focus")
         assertThat(compose.onAllNodesWithText("Start focus").fetchSemanticsNodes()).isNotEmpty()
         compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Reports")); save("home-focus-reports")
-        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToIndex(0)
-        compose.onAllNodes(hasText("Today") and hasClickAction())[0].performClick()
-        save("home-day")
-        compose.onAllNodesWithText("Upcoming")[0].performClick(); save("home-upcoming")
-        compose.onAllNodesWithText("Matrix")[0].performClick(); save("home-matrix")
-        assertThat(compose.onAllNodesWithText("Do first").fetchSemanticsNodes()).isNotEmpty()
-        compose.onAllNodesWithText("Productivity")[0].performClick(); save("home-habits")
+        nav("More"); save("more")
+        compose.onAllNodesWithText("Habits")[0].performClick(); save("home-habits")
         assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
-        listOf("Goals", "Notes", "Journal", "Time").forEach { t -> compose.onAllNodesWithText(t)[0].performClick(); save("home-" + t.lowercase()) }
-        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("More"))[0].performClick()
+        listOf("Goals", "Notes", "Journal", "Time log").forEach { t -> compose.onAllNodesWithText(t)[0].performClick(); save("home-" + t.lowercase().replace(' ', '-')) }
+        back()
+        compose.onAllNodesWithText("Screen time")[0].performClick(); save("screen-time")
+        compose.onAllNodesWithText("Blocker")[0].performClick(); save("screen-blocker")
+        back()
         compose.onAllNodesWithText("Calendar")[0].performClick(); save("home-calendar")
         scenario.close()
     }

@@ -57,7 +57,6 @@ private fun BackupCard() {
             Button(onClick = { exporter.launch("chronora-backup-${java.time.LocalDate.now()}.json") }) { Text("Back up") }
             OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore") }
         }
-        Text("Restoring replaces current settings and data, and adds the backed-up timeline tasks.", style = MaterialTheme.typography.bodySmall)
         if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.primary)
         if (restored) Button(onClick = {
             val intent = context.packageManager.getLaunchIntentForPackage(context.packageName)?.addFlags(android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -94,14 +93,12 @@ internal fun CampusSettingsTab() {
                 SwitchRow("Split library slots into focus blocks", st.splitLibraryIntoBlocks) { save(st.copy(splitLibraryIntoBlocks = it)) }
                 NumberStepper("Library closing reminder", st.libraryCloseReminderMinutes, 5, 0) { save(st.copy(libraryCloseReminderMinutes = it)) }
                 NumberStepper("A visit counts after", st.libraryVisitMinutes, 5, 5) { save(st.copy(libraryVisitMinutes = it)) }
-                Text("Opening hours and the daily study goal are in the Library tab.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item {
             SectionCard("Reminders") {
                 ListEditor("Deadline reminders (hours before)", st.deadlineReminderHours.map { it.toString() }, numeric = true) { v -> save(st.copy(deadlineReminderHours = v.mapNotNull(String::toIntOrNull).filter { it > 0 }.distinct().sortedDescending())) }
                 ListEditor("Interview/test reminders (hours before)", st.companyReminderHours.map { it.toString() }, numeric = true) { v -> save(st.copy(companyReminderHours = v.mapNotNull(String::toIntOrNull).filter { it > 0 }.distinct().sortedDescending())) }
-                Text("Class, leave-now and wake-up timings are in the Wake-up tab.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item {
@@ -143,10 +140,8 @@ internal fun CampusSettingsTab() {
                         Text("This week is Week ${AttendanceEngine.weekLetter(AttendanceEngine.rotationWeek(data, today))}", Modifier.weight(1f))
                         TextButton(onClick = { save(st.copy(rotationStart = today.with(java.time.DayOfWeek.MONDAY).toString())) }) { Text("Make this Week A") }
                     }
-                    Text("Pick the week for each class in its weekly schedule (Every week, Week A, Week B…).", style = MaterialTheme.typography.bodySmall)
                 }
                 NumberStepper("Pasted times before this hour are afternoon", st.afternoonBeforeHour, 1, 1, 12, ":00") { save(st.copy(afternoonBeforeHour = it)) }
-                Text("Required % and credits are set per subject in the Attendance tab.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item {

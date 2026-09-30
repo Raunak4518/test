@@ -14,6 +14,7 @@ import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.raunak.daytimeline.campus.*
+import com.raunak.daytimeline.campus.openCampusSection
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -69,11 +70,11 @@ class ScreenshotTest {
         compose.setContent { ChronoraThemeBase(dark) { Surface(Modifier.fillMaxSize(), color = androidx.compose.material3.MaterialTheme.colorScheme.background) { CampusScreen() } } }
         val mode = if (dark) "dark" else "light"
         save("campus-today-$mode")
-        compose.onAllNodesWithText("Attendance")[0].performClick(); save("campus-attendance-$mode")
-        compose.onAllNodesWithText("Timetable")[0].performClick(); save("campus-timetable-$mode")
-        compose.onAllNodesWithText("Classroom")[0].performScrollTo().performClick(); save("campus-classroom-$mode")
-        compose.onAllNodesWithText("CGPA")[0].performScrollTo().performClick(); save("campus-cgpa-$mode")
-        compose.onAllNodesWithText("Placements")[0].performScrollTo().performClick(); save("campus-placements-$mode")
+        compose.openCampusSection("Attendance"); save("campus-attendance-$mode")
+        compose.openCampusSection("Timetable"); save("campus-timetable-$mode")
+        compose.openCampusSection("Classroom"); save("campus-classroom-$mode")
+        compose.openCampusSection("CGPA"); save("campus-cgpa-$mode")
+        compose.openCampusSection("Placements"); save("campus-placements-$mode")
     }
 
     @Test fun light() = shoot(false)

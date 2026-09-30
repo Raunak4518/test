@@ -17,7 +17,7 @@ import java.time.LocalDate
 /** Kept for older call sites; the full editor lives in [com.raunak.daytimeline.productivity.TaskEditor]. */
 @Composable
 fun TaskEditorDialog(vm: PlannerViewModel, initial: TaskModel?, close: () -> Unit) =
-    com.raunak.daytimeline.productivity.TaskEditor(vm, initial, initial?.date ?: vm.currentDate.value, close)
+    com.raunak.daytimeline.productivity.TaskEditor(vm, initial, initial?.date ?: vm.currentDate.value, close = close)
 
 @Composable
 fun CalendarDialog(date: LocalDate, vm: PlannerViewModel, close: () -> Unit) {

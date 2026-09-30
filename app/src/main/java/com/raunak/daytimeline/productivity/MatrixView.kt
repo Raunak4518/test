@@ -55,7 +55,6 @@ fun EisenhowerMatrix(tasks: List<TaskModel>, vm: PlannerViewModel, settings: Off
                 QuadrantCard(b, groups[b].orEmpty(), today, important, vm, onOpen, Modifier.weight(1f).fillMaxHeight())
             }
         }
-        Text("Tick to complete · tap a task to make it more or less important", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
     }
 }
 

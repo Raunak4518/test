@@ -143,7 +143,6 @@ private fun DisciplineTab() {
             SectionCard("Settings") {
                 SwitchRow("Daily ${clock(s.settings.checkInMinute)} check-in (notification says only \"Daily check-in\")", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
                 DisciplineSettingsEditor(s.settings) { next -> store.update { it.copy(settings = next) }; CampusScheduler.rescheduleAll(context) }
-                Text("This section is protected by your phone lock, stored separately and never included in backups.", style = MaterialTheme.typography.bodySmall)
             }
         }
     }
@@ -248,7 +247,7 @@ private fun ProtectionCard(s: DisciplineState, store: DisciplineStore) {
             Text((if (strict) "✓ " else "✗ ") + "Strict mode (can't switch protection off during a block)", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
             if (!strict) TextButton(onClick = { WellbeingStore(context).update { it.copy(strictMode = true) }; tick++ }) { Text("Turn on") }
         }
-        Text("Also: keep the phone out of bed — charge it across the room. Set Always-on VPN in Web filter for a filter that can't be closed.", style = MaterialTheme.typography.bodySmall)
+        Text("Charge the phone across the room.", style = MaterialTheme.typography.bodySmall)
         if (msg.isNotBlank()) Text(msg, color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodySmall)
     }
 }

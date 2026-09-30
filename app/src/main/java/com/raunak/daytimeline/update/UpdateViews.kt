@@ -55,7 +55,7 @@ fun UpdateDialog(close: () -> Unit) {
                     Text("${r.versionName} is ready", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
                     if (r.sizeBytes > 0) Text("%.1f MB".format(r.sizeBytes / 1_048_576.0), color = Chronora.muted, style = MaterialTheme.typography.bodySmall)
                     if (r.notes.isNotBlank()) Text(r.notes.take(1200), style = MaterialTheme.typography.bodySmall)
-                    if (!canInstall) Text("Allow Chronora to install updates (one time) — tap Update and switch it on.", style = MaterialTheme.typography.bodySmall, color = Chronora.colors.warn)
+                    if (!canInstall) Text("One-time permission needed to install updates.", style = MaterialTheme.typography.bodySmall, color = Chronora.colors.warn)
                     progress?.let { p -> LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape)) }
                 }
             }

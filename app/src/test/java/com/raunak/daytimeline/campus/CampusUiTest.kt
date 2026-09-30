@@ -52,23 +52,22 @@ class CampusUiTest {
         compose.setContent { CampusScreen() }
         compose.onNodeWithText("Today's score").assertExists()
         listOf("Attendance", "Timetable", "Sheets", "Exams & tasks", "Wake-up", "Library", "CGPA", "Placements", "Discipline").forEach { tab ->
-            compose.onAllNodesWithText(tab)[0].performClick()
-            compose.waitForIdle()
+            compose.openCampusSection(tab)
         }
         compose.onNodeWithText("Start").assertExists() // Discipline setup (no device lock in tests)
-        compose.onAllNodesWithText("Settings")[0].performScrollTo().performClick()
+        compose.openCampusSection("Settings")
         compose.onNodeWithText("Revision gaps (days) — first after solving, then after each revision").assertExists()
     }
 
     @Test
     fun attendance_and_timetable_details() {
         compose.setContent { CampusScreen() }
-        compose.onAllNodesWithText("Attendance")[0].performClick()
+        compose.openCampusSection("Attendance")
         compose.onNodeWithText("All present").performClick()
         compose.waitForIdle()
         val data = CampusStore.get(ApplicationProvider.getApplicationContext()).data.value
         assertThat(data.marks.values.count { it == Mark.PRESENT }).isGreaterThan(5)
-        compose.onAllNodesWithText("Timetable")[0].performClick()
+        compose.openCampusSection("Timetable")
         compose.onNodeWithText("Changes").performClick()
         compose.onNodeWithText("Holidays (date range)").performClick()
         compose.onNodeWithText("Holiday / no classes").assertExists()
@@ -83,11 +82,11 @@ class CampusUiTest {
     @Test
     fun sheet_detail_and_discipline_flow() {
         compose.setContent { CampusScreen() }
-        compose.onAllNodesWithText("Sheets")[0].performScrollTo().performClick()
+        compose.openCampusSection("Sheets")
         compose.onNodeWithText("DSA — 196 must-do problems").performClick()
         compose.onAllNodes(hasScrollToNodeAction())[0].performScrollToNode(hasText("Two Sum"))
         compose.onNodeWithText("Two Sum").assertExists()
-        compose.onAllNodesWithText("Discipline")[0].performScrollTo().performClick()
+        compose.openCampusSection("Discipline")
         compose.onNodeWithText("Start").performClick()
         compose.onNodeWithText("I'm having an urge — help me now").assertExists().performClick()
         val sos = compose.onNodeWithTag("sos")

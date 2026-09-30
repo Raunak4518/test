@@ -262,7 +262,7 @@ private fun ConnectionCard(s: ClassroomSettings, busy: Boolean, message: String,
         }
         if (help) {
             val sha = remember { ClassroomAuth.signingSha1(context) }
-            Text("Google only lets apps read Classroom after a one-time registration (free, ~5 minutes):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+            Text("One-time setup (about 5 minutes):", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
             listOf(
                 "1. On a computer open console.cloud.google.com and create a project (any name).",
                 "2. APIs & Services → Library → enable “Google Classroom API”.",
@@ -337,7 +337,6 @@ private fun PasteDialog(onAdd: (String, String) -> Unit) {
     var course by remember { mutableStateOf("") }
     AlertDialog(onDismissRequest = { onAdd("", "") }, title = { Text("Paste from Classroom") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text("Paste an assignment, announcement or message — the type, title and due date are read automatically.", style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(course, { course = it }, label = { Text("Course (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(text, { text = it }, label = { Text("Text") }, minLines = 4, modifier = Modifier.fillMaxWidth())
         }

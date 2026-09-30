@@ -203,11 +203,11 @@ object TaskViewsScope {
 /** Full task editor: date and time pickers, duration shortcuts, priority, colour, repeat, reminder, tags, notes. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun TaskEditor(vm: PlannerViewModel, initial: TaskModel?, defaultDate: LocalDate, close: () -> Unit) {
+fun TaskEditor(vm: PlannerViewModel, initial: TaskModel?, defaultDate: LocalDate, defaultStart: Int? = null, close: () -> Unit) {
     var title by remember { mutableStateOf(initial?.title ?: "") }
     var date by remember { mutableStateOf(initial?.date ?: defaultDate) }
-    var start by remember { mutableIntStateOf(initial?.startMinute ?: 9 * 60) }
-    var end by remember { mutableIntStateOf(initial?.endMinute ?: 10 * 60) }
+    var start by remember { mutableIntStateOf(initial?.startMinute ?: defaultStart ?: 9 * 60) }
+    var end by remember { mutableIntStateOf(initial?.endMinute ?: ((defaultStart ?: 9 * 60) + 60).coerceAtMost(24 * 60 - 1)) }
     var notes by remember { mutableStateOf(initial?.notes ?: "") }
     var tags by remember { mutableStateOf(initial?.tags ?: "") }
     var priority by remember { mutableIntStateOf(initial?.priority ?: 1) }

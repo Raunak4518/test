@@ -73,7 +73,6 @@ internal fun SearchTab(vm: PlannerViewModel, onOpenDate: (LocalDate) -> Unit) {
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         item {
             OutlinedTextField(query, { query = it }, label = { Text("Search everything") }, placeholder = { Text("unfinished dsa tasks · notes #exam · everything yesterday") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            Text("Filters: task/note/journal/habit/goal/routine/question/deadline/subject/company, done/unfinished, #tag, today, yesterday, this/last/next week, this/last month", style = MaterialTheme.typography.bodySmall)
         }
         if (query.isNotBlank()) item { Text("${results.size} results", style = MaterialTheme.typography.labelMedium) }
         items(results, key = { it.id }) { r ->
@@ -157,7 +156,7 @@ internal fun GardenTab() {
         item {
             Card { Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Your garden (${summary.plants.size} plants, ${summary.withered} withered)", fontWeight = FontWeight.Bold)
-                if (summary.plants.isEmpty() && summary.withered == 0) Text("Finish a Pomodoro focus session to plant your first sprout. Longer sessions grow bigger plants; abandoning a session withers one.")
+                if (summary.plants.isEmpty() && summary.withered == 0) Text("Finish a focus session to plant your first sprout.")
                 val cells = summary.plants.map { it.emoji } + List(summary.withered) { "🥀" }
                 cells.chunked(8).forEach { row -> Text(row.joinToString(" "), fontSize = 26.sp) }
                 Text(Plant.values().joinToString("  ") { "${it.emoji} ${it.minMinutes}m+" }, style = MaterialTheme.typography.bodySmall)
@@ -241,7 +240,6 @@ internal fun PrivateJournalTab() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Default.Lock, null)
                 Spacer(Modifier.width(8.dp))
-                Text("Entries are encrypted with AES-256 using a key kept in the phone's secure hardware. Turn on App lock in settings to require your fingerprint or PIN.", style = MaterialTheme.typography.bodySmall)
             }
         }
         item {

@@ -49,6 +49,7 @@ class FocusGuardService : AccessibilityService() {
     }
 
     override fun onDestroy() {
+        hideBubble()
         runCatching { unregisterReceiver(unlockReceiver) }
         handler.removeCallbacks(ticker)
         super.onDestroy()
@@ -88,6 +89,7 @@ class FocusGuardService : AccessibilityService() {
     private fun onForeground(pkg: String) {
         if (isNeutral(pkg)) return
         val nowMillis = System.currentTimeMillis()
+        runCatching { updateBubble(pkg) }
         if (pkg == packageName || pkg in launchers) {
             if (foreground != null && foreground != pkg) lastLeftAt = nowMillis
             foreground = pkg
@@ -160,6 +162,36 @@ class FocusGuardService : AccessibilityService() {
         }
     }
 
+    private var bubble: android.widget.TextView? = null
+
+    /** YourHour-style pill over the app in use: "Instagram · 42m today". Accessibility overlays need no extra permission. */
+    private fun updateBubble(pkg: String?) {
+        if (pkg == null || pkg == packageName || pkg in launchers || isNeutral(pkg) || !wellbeing.config.usageBubble) { hideBubble(); return }
+        val minutes = todayTotals(System.currentTimeMillis()).first[pkg] ?: 0
+        val text = WellbeingAlarmReceiver.label(this, pkg) + " · " + (if (minutes >= 60) "${minutes / 60}h ${minutes % 60}m" else "${minutes}m")
+        val view = bubble ?: android.widget.TextView(this).apply {
+            setTextColor(android.graphics.Color.WHITE)
+            textSize = 12f
+            val pad = (resources.displayMetrics.density * 10).toInt()
+            setPadding(pad, pad / 2, pad, pad / 2)
+            background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = pad * 2f; setColor(0xCC17221E.toInt()) }
+            val params = android.view.WindowManager.LayoutParams(
+                android.view.WindowManager.LayoutParams.WRAP_CONTENT, android.view.WindowManager.LayoutParams.WRAP_CONTENT,
+                android.view.WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN,
+                android.graphics.PixelFormat.TRANSLUCENT
+            ).apply { gravity = android.view.Gravity.TOP or android.view.Gravity.END; x = pad; y = (resources.displayMetrics.density * 36).toInt() }
+            getSystemService(android.view.WindowManager::class.java).addView(this, params)
+            bubble = this
+        }
+        view.text = text
+    }
+
+    private fun hideBubble() {
+        bubble?.let { runCatching { getSystemService(android.view.WindowManager::class.java).removeView(it) } }
+        bubble = null
+    }
+
     private fun todayTotals(nowMillis: Long): Pair<Map<String, Int>, Int> {
         totalsCache?.let { (at, v) -> if (nowMillis - at < 30_000) return v }
         val v = UsageRepository.todayTotals(this)
@@ -173,8 +205,10 @@ class FocusGuardService : AccessibilityService() {
         if (power?.isInteractive != true) {
             if (foreground != null) lastLeftAt = System.currentTimeMillis()
             foreground = null
+            hideBubble()
             return
         }
+        runCatching { updateBubble(foreground) }
         if (foreground == null) rootInActiveWindow?.packageName?.toString()?.let { onForeground(it); return }
         val fg = foreground ?: return
         if (fg == packageName || fg in launchers || System.currentTimeMillis() - lastShownAt < 5_000) return
