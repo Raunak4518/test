@@ -90,7 +90,7 @@ internal fun CampusSettingsTab() {
                 NumberStepper("Break between blocks", st.breakMinutes, 5, 0) { save(st.copy(breakMinutes = it)) }
                 NumberStepper("Walking time around classes", st.walkBufferMinutes, 5, 0) { save(st.copy(walkBufferMinutes = it)) }
                 NumberStepper("Library slot: shortest free gap", st.librarySlotMinutes, 15, 30) { save(st.copy(librarySlotMinutes = it)) }
-                SwitchRow("Split library slots into focus blocks", st.splitLibraryIntoBlocks) { save(st.copy(splitLibraryIntoBlocks = it)) }
+                SwitchRow("Split into focus blocks", st.splitLibraryIntoBlocks) { save(st.copy(splitLibraryIntoBlocks = it)) }
                 NumberStepper("Library closing reminder", st.libraryCloseReminderMinutes, 5, 0) { save(st.copy(libraryCloseReminderMinutes = it)) }
                 NumberStepper("A visit counts after", st.libraryVisitMinutes, 5, 5) { save(st.copy(libraryVisitMinutes = it)) }
             }
@@ -131,9 +131,9 @@ internal fun CampusSettingsTab() {
         }
         item {
             SectionCard("Attendance & timetable") {
-                NumberStepper("Warn when within this many % of the requirement", st.attendanceMargin, 1, 0, 50, "%") { save(st.copy(attendanceMargin = it)) }
-                SwitchRow("Only mark bunks (unmarked classes count as attended)", st.assumePresent) { save(st.copy(assumePresent = it)) }
-                NumberStepper("Rotating timetable (weeks in the cycle)", st.rotationWeeks.coerceAtLeast(1), 1, 1, 4, if (st.rotationWeeks <= 1) " (off)" else " weeks") { save(st.copy(rotationWeeks = it)) }
+                NumberStepper("Warning margin", st.attendanceMargin, 1, 0, 50, "%") { save(st.copy(attendanceMargin = it)) }
+                SwitchRow("Count unmarked as present", st.assumePresent) { save(st.copy(assumePresent = it)) }
+                NumberStepper("Rotation weeks", st.rotationWeeks.coerceAtLeast(1), 1, 1, 4, if (st.rotationWeeks <= 1) " (off)" else " weeks") { save(st.copy(rotationWeeks = it)) }
                 if (st.rotationWeeks > 1) {
                     val today = java.time.LocalDate.now()
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -141,12 +141,12 @@ internal fun CampusSettingsTab() {
                         TextButton(onClick = { save(st.copy(rotationStart = today.with(java.time.DayOfWeek.MONDAY).toString())) }) { Text("Make this Week A") }
                     }
                 }
-                NumberStepper("Pasted times before this hour are afternoon", st.afternoonBeforeHour, 1, 1, 12, ":00") { save(st.copy(afternoonBeforeHour = it)) }
+                NumberStepper("PM before hour", st.afternoonBeforeHour, 1, 1, 12, ":00") { save(st.copy(afternoonBeforeHour = it)) }
             }
         }
         item {
             SectionCard("Exams & marks") {
-                NumberStepper("Free days before an exam for full revision", st.examBufferDays, 1, 0, 14, "d") { save(st.copy(examBufferDays = it)) }
+                NumberStepper("Revision days before exam", st.examBufferDays, 1, 0, 14, "d") { save(st.copy(examBufferDays = it)) }
                 ListEditor("Predicted grade from internal marks (percent=grade)", st.gradeCutoffs.sortedByDescending { it.minPercent }.map { "${it.minPercent}=${it.grade}" }) { v ->
                     val cuts = v.mapNotNull { e -> e.split('=').takeIf { it.size == 2 }?.let { (n, g) -> n.trim().toIntOrNull()?.let { GradeCutoff(it, g.trim()) } } }
                     save(st.copy(gradeCutoffs = cuts.ifEmpty { CampusSettings().gradeCutoffs }))
@@ -174,7 +174,7 @@ internal fun CampusSettingsTab() {
                 NumberStepper("Time a meal takes (with the walk)", st.mealMinutes, 5, 10, 120) { save(st.copy(mealMinutes = it)) }
                 SwitchRow("Remind me before the mess closes", !st.mealReminderOff) { save(st.copy(mealReminderOff = !it)) }
                 if (!st.mealReminderOff) NumberStepper("Minutes before closing", st.mealReminderMinutes, 5, 5, 90) { save(st.copy(mealReminderMinutes = it)) }
-                SwitchRow("Keep meal time free when planning study", !st.mealsIgnoredInPlanning) { save(st.copy(mealsIgnoredInPlanning = !it)) }
+                SwitchRow("Keep meal times free", !st.mealsIgnoredInPlanning) { save(st.copy(mealsIgnoredInPlanning = !it)) }
                 val today = java.time.LocalDate.now()
                 val clashes = (0L..6L).map { today.plusDays(it) }.flatMap { d -> Mess.clashes(data, d).map { d to it } }
                 if (clashes.isNotEmpty()) Text("No time to eat: " + clashes.joinToString { (d, m) -> "${d.dayOfWeek.name.take(3).lowercase().replaceFirstChar(Char::uppercase)} ${m.name.lowercase()}" }, color = Chronora.colors.warn, style = MaterialTheme.typography.bodySmall)
@@ -183,7 +183,7 @@ internal fun CampusSettingsTab() {
         item { BackupCard() }
         item {
             SectionCard("Wake-up screen", "Shown while the alarm rings") {
-                SwitchRow("Morning briefing (first class, deadlines today)", !st.wakeBriefingOff) { save(st.copy(wakeBriefingOff = !it)) }
+                SwitchRow("Morning briefing", !st.wakeBriefingOff) { save(st.copy(wakeBriefingOff = !it)) }
                 ListEditor("Wake-up quotes (one is picked each day)", st.wakeQuotes) { v -> save(st.copy(wakeQuotes = v)) }
             }
         }

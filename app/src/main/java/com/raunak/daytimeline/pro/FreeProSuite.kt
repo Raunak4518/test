@@ -224,10 +224,13 @@ internal fun FocusGuardTab() {
                 Text("Daily limits", fontWeight = FontWeight.Bold)
                 config.dailyLimits.forEach { (pkg, limit) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("${name(pkg)} · ${usage[pkg] ?: 0}/${limit}m", Modifier.weight(1f))
-                        TextButton(onClick = { store.update { it.copy(dailyLimits = it.dailyLimits + (pkg to (limit - 15).coerceAtLeast(5))) } }) { Text("−15") }
-                        TextButton(onClick = { store.update { it.copy(dailyLimits = it.dailyLimits + (pkg to limit + 15)) } }) { Text("+15") }
-                        IconButton(onClick = { store.update { it.copy(dailyLimits = it.dailyLimits - pkg) } }) { Icon(Icons.Default.Delete, "Remove limit") }
+                        com.raunak.daytimeline.wellbeing.AppIcon(pkg, 30.dp)
+                        Box(Modifier.weight(1f).padding(start = 10.dp)) {
+                            Stepper("${name(pkg)} · ${usage[pkg] ?: 0}m used", "${limit}m",
+                                { store.update { it.copy(dailyLimits = it.dailyLimits + (pkg to (limit - 5).coerceAtLeast(5))) } },
+                                { store.update { it.copy(dailyLimits = it.dailyLimits + (pkg to limit + 5)) } })
+                        }
+                        IconButton(onClick = { store.update { it.copy(dailyLimits = it.dailyLimits - pkg) } }) { Icon(Icons.Default.Close, "Remove limit") }
                     }
                 }
                 OutlinedButton(onClick = { picker = "limit" }) { Text("Add app limit (30m)") }
@@ -345,7 +348,7 @@ private fun SoundsTab(vm: PlannerViewModel) {
             Text("Volume ${(volume * 100).toInt()}%")
             Slider(volume, { volume = it; prefs.volume = it })
         }
-        item { SwitchRow("Block Focus Guard apps during Pomodoro focus", blockFocus) { blockFocus = it; prefs.blockDuringFocus = it } }
+        item { SwitchRow("Block apps during focus", blockFocus) { blockFocus = it; prefs.blockDuringFocus = it } }
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = {

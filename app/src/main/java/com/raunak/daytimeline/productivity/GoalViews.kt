@@ -152,9 +152,7 @@ fun GoalEditor(initial: OfflineGoal?, onSave: (OfflineGoal) -> Unit, onDelete: (
         Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedTextField(title, { title = it }, label = { Text("Goal") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(why, { why = it }, label = { Text("Why (optional)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-                GoalKind.values().forEachIndexed { i, k -> SegmentedButton(kind == k, { kind = k }, SegmentedButtonDefaults.itemShape(i, 2)) { Text(k.label, maxLines = 1) } }
-            }
+            PillTabs(GoalKind.values().map { it.label }, GoalKind.values().indexOf(kind)) { kind = GoalKind.values()[it] }
             if (kind == GoalKind.TARGET) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }, singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(unit, { unit = it }, label = { Text("Unit (pages, km…)") }, singleLine = true, modifier = Modifier.weight(1f))

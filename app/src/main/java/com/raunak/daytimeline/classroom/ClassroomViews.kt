@@ -346,8 +346,8 @@ private fun PasteDialog(onAdd: (String, String) -> Unit) {
 @Composable
 private fun ClassroomSettingsEditor(s: ClassroomSettings, data: ClassroomData, subjects: List<Subject>, store: ClassroomStore, rescheduled: () -> Unit) {
     fun save(t: (ClassroomSettings) -> ClassroomSettings) { store.settings(t); rescheduled() }
-    SwitchRow("Turn pending work into Campus deadlines", s.autoDeadlines) { v -> save { it.copy(autoDeadlines = v) } }
-    SwitchRow("Alert at once for urgent items (quizzes, due soon, messages, important posts)", s.instantAlerts) { v -> save { it.copy(instantAlerts = v) } }
+    SwitchRow("Add work as deadlines", s.autoDeadlines) { v -> save { it.copy(autoDeadlines = v) } }
+    SwitchRow("Instant alerts for urgent items", s.instantAlerts) { v -> save { it.copy(instantAlerts = v) } }
     Stepper("Urgent = due within", "${s.urgentHours}h", { save { it.copy(urgentHours = (s.urgentHours - 12).coerceAtLeast(6)) } }, { save { it.copy(urgentHours = s.urgentHours + 12) } })
     SwitchRow("Morning digest", !s.digestOff) { v -> save { it.copy(digestOff = !v) } }
     if (!s.digestOff) Stepper("Digest time", clock(s.digestMinute), { save { it.copy(digestMinute = (s.digestMinute - 15).coerceAtLeast(15)) } }, { save { it.copy(digestMinute = (s.digestMinute + 15).coerceAtMost(24 * 60 - 15)) } })

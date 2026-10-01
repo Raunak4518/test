@@ -113,10 +113,10 @@ fun WebFilterScreen() {
                     SwitchRow(c.label, c in config.categories) { on -> commit(config.copy(categories = if (on) config.categories + c else config.categories - c)) }
                 }
                 HorizontalDivider()
-                SwitchRow("Adult keyword detection (catches unlisted sites)", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
-                SwitchRow("Force SafeSearch (Google, Bing, DuckDuckGo, Yandex)", config.safeSearch) { commit(config.copy(safeSearch = it)) }
+                SwitchRow("Keyword detection", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
+                SwitchRow("Force SafeSearch", config.safeSearch) { commit(config.copy(safeSearch = it)) }
                 SwitchRow("YouTube Restricted Mode", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
-                SwitchRow("Block DNS-over-HTTPS, proxies and VPN sites", config.blockBypass) { commit(config.copy(blockBypass = it)) }
+                SwitchRow("Block bypass services", config.blockBypass) { commit(config.copy(blockBypass = it)) }
             } }
         }
         item {
@@ -224,7 +224,7 @@ private fun FilterInsights(store: WebFilterStore, running: Boolean, now: Long) {
     val apps = remember(running, now / 10_000) { store.appQueriesToday() }
     val today = remember(running, now / 10_000) { store.log().filter { java.time.Instant.ofEpochMilli(it.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() } }
     fun label(pkg: String) = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg.substringAfterLast('.'))
-    SectionCard("Today", "Lookups seen by the filter since midnight") {
+    SectionCard("Today") {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Stat("Lookups", "$queries", Modifier.weight(1f))
             Stat("Blocked", "$blocked", Modifier.weight(1f), color = Chronora.colors.bad)

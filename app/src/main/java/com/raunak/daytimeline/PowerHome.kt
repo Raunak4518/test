@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -36,10 +37,10 @@ private val HomeBg: Color @Composable get() = MaterialTheme.colorScheme.backgrou
 private val HomeSage: Color @Composable get() = MaterialTheme.colorScheme.primary
 private val HomeMuted: Color @Composable get() = Chronora.muted
 
-private data class NavTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector)
+private data class NavTab(val label: String, val icon: androidx.compose.ui.graphics.vector.ImageVector, val accent: Color)
 private val Tabs = listOf(
-    NavTab("Home", Icons.Default.ViewTimeline), NavTab("Plan", Icons.Default.CalendarViewDay),
-    NavTab("Focus", Icons.Default.Timer), NavTab("Campus", Icons.Default.School), NavTab("More", Icons.Default.GridView)
+    NavTab("Today", Icons.Default.ViewTimeline, Palette.indigo), NavTab("Plan", Icons.Default.CalendarViewDay, Palette.violet),
+    NavTab("Focus", Icons.Default.Timer, Palette.coral), NavTab("Campus", Icons.Default.School, Palette.teal), NavTab("You", Icons.Default.Person, Palette.amber)
 )
 
 @Composable
@@ -76,37 +77,52 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         }
     }
 
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(Unit) {
+        Feedback.messages.collect { m ->
+            snackbar.currentSnackbarData?.dismiss()
+            launch {
+                val r = snackbar.showSnackbar(m.text, actionLabel = if (m.undo != null) "Undo" else null, duration = SnackbarDuration.Short)
+                if (r == SnackbarResult.ActionPerformed) m.undo?.invoke()
+            }
+        }
+    }
+
+    SectionTheme(Tabs[tab].accent) {
     Scaffold(
-        containerColor = HomeBg,
+        containerColor = MaterialTheme.colorScheme.background,
+        snackbarHost = { SnackbarHost(snackbar) { Snackbar(it, shape = RoundedCornerShape(16.dp)) } },
         topBar = {
-            ChronoraTopBar(if (tab == 0) "Chronora" else Tabs[tab].label, null) {
+            ChronoraTopBar(if (tab == 0) "Today" else Tabs[tab].label, null) {
                 IconButton(onClick = { page = "tool:SEARCH" }) { Icon(Icons.Default.Search, "Search") }
                 IconButton(onClick = onOpenAlarms) { Icon(Icons.Default.Alarm, "Alarms") }
+                if (tab == 4) IconButton(onClick = { page = "settingsPage" }) { Icon(Icons.Default.Settings, "Settings") }
             }
         },
         bottomBar = {
-            NavigationBar(Modifier.testTag("nav"), tonalElevation = 0.dp) {
-                Tabs.forEachIndexed { i, t -> NavigationBarItem(tab == i, { tab = i }, icon = { Icon(t.icon, null) }, label = { Text(t.label) }) }
+            NavigationBar(Modifier.testTag("nav"), containerColor = MaterialTheme.colorScheme.surface, tonalElevation = 0.dp) {
+                Tabs.forEachIndexed { i, t ->
+                    NavigationBarItem(tab == i, { tab = i }, icon = { Icon(t.icon, null) }, label = { Text(t.label) },
+                        colors = NavigationBarItemDefaults.colors(selectedIconColor = t.accent, selectedTextColor = t.accent, indicatorColor = t.accent.copy(alpha = .15f)))
+                }
             }
         },
         floatingActionButton = {
-            if (tab <= 1) FloatingActionButton(onClick = { addAt = date to null }, shape = RoundedCornerShape(18.dp)) { Icon(Icons.Default.Add, "Add task") }
+            if (tab <= 1) FloatingActionButton(onClick = { addAt = date to null }, shape = RoundedCornerShape(20.dp), containerColor = MaterialTheme.colorScheme.primary, contentColor = MaterialTheme.colorScheme.onPrimary) { Icon(Icons.Default.Add, "Add task") }
         }
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             androidx.compose.animation.Crossfade(tab, label = "tab") { t ->
                 when (t) {
-                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }, onOpenFocusMode = { page = "focusmode" }) { tab = 2 }
+                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }, onOpenFocusMode = { tab = 2 }, onOpenHabits = { page = "prod:0" }) { tab = 2 }
                     1 -> com.raunak.daytimeline.home.PlanScreen(vm, productivity, { editTask = it }, { d, m -> addAt = d to m }) { page = "calendar" }
-                    2 -> Column {
-                        com.raunak.daytimeline.pro.FocusModeCard(Modifier.padding(start = 16.dp, end = 16.dp, top = 8.dp)) { page = "focusmode" }
-                        com.raunak.daytimeline.productivity.FocusPanel(pomo, tasks, allTasks, vm)
-                    }
+                    2 -> com.raunak.daytimeline.productivity.FocusTab(pomo, tasks, allTasks, vm)
                     3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
                     else -> com.raunak.daytimeline.home.MoreScreen(open)
                 }
             }
         }
+    }
     }
 
     addAt?.let { (d, m) -> com.raunak.daytimeline.productivity.TaskEditor(vm, null, d, m) { addAt = null } }
@@ -114,11 +130,12 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     when (val p = page) {
         null -> Unit
         "calendar" -> com.raunak.daytimeline.productivity.CalendarPage(vm, date, { editTask = it }) { page = null }
-        "focusmode" -> FullScreenPage("Focus mode", { page = null }) { com.raunak.daytimeline.pro.FocusModeScreen() }
+        "focusmode" -> FullScreenPage("Focus mode", { page = null }, accent = Palette.coral) { com.raunak.daytimeline.pro.FocusModeScreen() }
+        "settingsPage" -> FullScreenPage("Settings", { page = null }, accent = Palette.amber) { com.raunak.daytimeline.home.SettingsList { r -> page = null; open(r) } }
         "power" -> ChronoraPowerCenter(allTasks, productivity, { page = null }) { vm.selectDate(it); page = null }
         else -> when {
-            p.startsWith("wellbeing:") -> com.raunak.daytimeline.wellbeing.WellbeingHub(p.substringAfter(":").toIntOrNull() ?: 0) { page = null }
-            p.startsWith("prod:") -> FullScreenPage(ProductivityLabels[p.substringAfter(":").toIntOrNull() ?: 0], { page = null }) {
+            p.startsWith("wellbeing:") -> SectionTheme(Palette.sky) { com.raunak.daytimeline.wellbeing.WellbeingHub(p.substringAfter(":").toIntOrNull() ?: 0) { page = null } }
+            p.startsWith("prod:") -> FullScreenPage(ProductivityLabels[p.substringAfter(":").toIntOrNull() ?: 0], { page = null }, accent = Palette.green) {
                 ProductivityScreen(habits, goals, routines, entries, journal, notes, productivity, p.substringAfter(":").toIntOrNull() ?: 0) { dialog = it }
             }
             p.startsWith("tool:") -> runCatching { com.raunak.daytimeline.pro.ProTool.valueOf(p.substringAfter(":")) }.getOrNull()

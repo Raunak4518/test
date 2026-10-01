@@ -1,5 +1,6 @@
 package com.raunak.daytimeline.home
 
+import com.raunak.daytimeline.ui.PillTabs
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -68,9 +69,7 @@ fun PlanScreen(vm: PlannerViewModel, store: OfflineProductivityStore, onEdit: (T
     val agenda by vm.agenda.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
-                Views.forEachIndexed { i, l -> SegmentedButton(view == i, { view = i }, SegmentedButtonDefaults.itemShape(i, Views.size), icon = {}) { Text(l, maxLines = 1) } }
-            }
+            PillTabs(Views, view, Modifier.weight(1f)) { view = it }
             IconButton(onClick = onOpenMonth) { Icon(Icons.Default.CalendarMonth, "Month") }
         }
         AnimatedContent(view, transitionSpec = { fadeIn() togetherWith fadeOut() }, label = "plan") { v ->

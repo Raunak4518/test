@@ -132,14 +132,14 @@ internal fun WakeTab() {
         item {
             SectionCard("Next wake-up", plan?.let { "${it.at.toLocalDate()} at ${it.at.toLocalTime().withSecond(0)}" } ?: "Off") {
                 plan?.let { Text(it.label, fontWeight = FontWeight.SemiBold) }
-                SwitchRow("Automatic alarm before my first class", w.enabled) { save(w.copy(enabled = it)) }
+                SwitchRow("Alarm before first class", w.enabled) { save(w.copy(enabled = it)) }
             }
         }
         item { ReadinessCard(tick) }
         item {
             SectionCard("Alarm") {
                 Stepper("Minutes before first class", hm(w.minutesBeforeFirstClass), { save(w.copy(minutesBeforeFirstClass = (w.minutesBeforeFirstClass - 5).coerceAtLeast(10))) }, { save(w.copy(minutesBeforeFirstClass = w.minutesBeforeFirstClass + 5)) })
-                SwitchRow("Wake early enough for mess breakfast", !w.ignoreBreakfast) { save(w.copy(ignoreBreakfast = !it)) }
+                SwitchRow("Wake for breakfast", !w.ignoreBreakfast) { save(w.copy(ignoreBreakfast = !it)) }
                 if (!w.ignoreBreakfast) Stepper("Time to get ready before the mess", hm(w.readyMinutes.takeIf { it > 0 } ?: 25), { save(w.copy(readyMinutes = ((w.readyMinutes.takeIf { it > 0 } ?: 25) - 5).coerceAtLeast(5))) }, { save(w.copy(readyMinutes = (w.readyMinutes.takeIf { it > 0 } ?: 25) + 5)) })
                 Stepper("Free days (no classes)", w.freeDayWake?.let { clock(it) } ?: "No alarm",
                     { save(w.copy(freeDayWake = w.freeDayWake?.let { if (it <= 5 * 60) null else it - 15 })) },
@@ -251,7 +251,7 @@ internal fun LibraryTab() {
                             if (until > System.currentTimeMillis()) FocusGuardStore(context).update { it.copy(sessionUntil = until) }
                         }
                     }, modifier = Modifier.fillMaxWidth()) { Text("Check in") }
-                    SwitchRow("Block distracting apps while I'm in the library", blockApps) { blockApps = it }
+                    SwitchRow("Block apps in the library", blockApps) { blockApps = it }
                 } else {
                     val mins = ((System.currentTimeMillis() - active.start) / 60_000L).toInt()
                     Text("Checked in for ${hm(mins)}", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
@@ -268,7 +268,7 @@ internal fun LibraryTab() {
             }
         }
         item {
-            SectionCard("Free library slots this week", "Gaps between classes while the library is open") {
+            SectionCard("Free library slots this week") {
                 (0L..6L).map { today.plusDays(it) }.forEach { d ->
                     val windows = LibraryPlanner.freeWindows(data, d, fromMinute = if (d == today) now.hour * 60 + now.minute else 0)
                     Text("${d.dayOfWeek.name.take(3)} · " + if (windows.isEmpty()) "—" else windows.joinToString { "${clock(it.start)}–${clock(it.end)}" } + "  (${hm(windows.sumOf { it.minutes })})", style = MaterialTheme.typography.bodySmall)

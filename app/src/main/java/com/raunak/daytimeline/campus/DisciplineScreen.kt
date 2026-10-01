@@ -141,7 +141,7 @@ private fun DisciplineTab() {
         }
         item {
             SectionCard("Settings") {
-                SwitchRow("Daily ${clock(s.settings.checkInMinute)} check-in (notification says only \"Daily check-in\")", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
+                SwitchRow("Daily check-in at ${clock(s.settings.checkInMinute)}", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
                 DisciplineSettingsEditor(s.settings) { next -> store.update { it.copy(settings = next) }; CampusScheduler.rescheduleAll(context) }
             }
         }

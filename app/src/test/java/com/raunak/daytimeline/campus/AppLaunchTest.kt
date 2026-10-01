@@ -19,8 +19,8 @@ class AppLaunchTest {
     @Test
     fun opens_on_home() {
         compose.waitForIdle()
-        assertThat(compose.onAllNodesWithText("Home").fetchSemanticsNodes()).isNotEmpty()
+        assertThat(compose.onAllNodesWithText("Today").fetchSemanticsNodes()).isNotEmpty()
         assertThat(compose.onAllNodesWithText("Campus").fetchSemanticsNodes()).isNotEmpty()
-        assertThat(compose.onAllNodesWithText("Chronora").fetchSemanticsNodes()).isNotEmpty()
+        assertThat(compose.onAllNodesWithText("Plan").fetchSemanticsNodes()).isNotEmpty()
     }
 }

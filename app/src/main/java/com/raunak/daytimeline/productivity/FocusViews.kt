@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -37,6 +38,7 @@ import com.raunak.daytimeline.data.PomodoroStateEntity
 import com.raunak.daytimeline.domain.PomodoroEngine
 import com.raunak.daytimeline.domain.TaskModel
 import com.raunak.daytimeline.pro.*
+import com.raunak.daytimeline.pro.FocusModeScreen
 import com.raunak.daytimeline.ui.*
 import kotlinx.coroutines.delay
 import java.time.DayOfWeek
@@ -61,11 +63,23 @@ private fun phaseSeconds(p: PomodoroStateEntity) = 60L * when (p.phase) {
 private fun mmss(s: Long) = if (s >= 3600) "%d:%02d:%02d".format(s / 3600, (s / 60) % 60, s % 60) else "%02d:%02d".format(s / 60, s % 60)
 private fun mins(m: Int) = if (m >= 60) "${m / 60}h ${m % 60}m" else "${m}m"
 
-/**
- * Focus timer built to match the best apps: Pomodoro or Flow (count-up) mode, tags and an intention,
- * distraction logging, auto-start choices, daily goal, estimated vs actual pomodoros per task,
- * deep-focus blocking, reflection after each session, zen mode, and full reports.
- */
+/** The Focus tab: the timer, Focus mode and stats, each in one place. */
+@Composable
+fun FocusTab(pomo: PomodoroStateEntity, tasks: List<TaskModel>, allTasks: List<TaskModel>, vm: PlannerViewModel) {
+    var section by androidx.compose.runtime.saveable.rememberSaveable { mutableIntStateOf(0) }
+    val idle = pomo.phase == "IDLE"
+    Column(Modifier.fillMaxSize()) {
+        // While a session runs, the session owns the screen.
+        if (idle) PillTabs(listOf("Timer", "Focus mode", "Stats"), section, Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) { section = it }
+        when (if (idle) section else 0) {
+            0 -> FocusPanel(pomo, tasks, allTasks, vm)
+            1 -> FocusModeScreen()
+            else -> FocusStatsPage(allTasks)
+        }
+    }
+}
+
+/** Pomodoro / Flow timer: a setup screen when idle, a locked session screen while running. */
 @Composable
 fun FocusPanel(pomo: PomodoroStateEntity, tasks: List<TaskModel>, allTasks: List<TaskModel>, vm: PlannerViewModel) {
     val context = LocalContext.current
@@ -77,158 +91,246 @@ fun FocusPanel(pomo: PomodoroStateEntity, tasks: List<TaskModel>, allTasks: List
     val sessions = remember(pomo.phase, pomo.cycleIndex, pomo.running, refresh) { garden.sessions() }
     val today = LocalDate.now()
     val summary = remember(sessions) { FocusGarden.summarize(sessions, today) }
+    val todayReport = remember(sessions) { FocusStats.report(sessions, today, today) }
+    var settings by remember { mutableStateOf(false) }
+    val idle = pomo.phase == "IDLE"
+
+    val view = LocalView.current
+    DisposableEffect(cfg.keepScreenOn, pomo.running) {
+        view.keepScreenOn = cfg.keepScreenOn && pomo.running
+        onDispose { view.keepScreenOn = false }
+    }
+    val pending = remember(sessions, cfg.reflect) {
+        if (!cfg.reflect) null else sessions.lastOrNull { it.completed && it.startedAt > prefs.reflectedUpTo && it.rating == 0 && System.currentTimeMillis() - (it.startedAt + it.minutes * 60_000L) < 2 * 3_600_000L }
+    }
+
+    if (idle) FocusSetup(pomo, tasks, vm, cfg, prefs, todayReport.minutes, summary.focusDayStreak, ::save) { settings = true }
+    else FocusRunning(pomo, allTasks, vm, cfg, prefs)
+
+    pending?.let { s -> ReflectDialog(s, onSave = { rating, note -> garden.update(s.copy(rating = rating, note = note.ifBlank { null })); prefs.reflectedUpTo = s.startedAt; refresh++ }) { prefs.reflectedUpTo = s.startedAt; refresh++ } }
+    if (settings) FullScreenPage("Timer settings", { settings = false }) {
+        LazyColumn(contentPadding = PaddingValues(16.dp)) { item { TimerSettings(pomo, vm, cfg) { save(it) } } }
+    }
+}
+
+private val Presets = listOf(15, 25, 45, 50, 60, 90)
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FocusSetup(pomo: PomodoroStateEntity, tasks: List<TaskModel>, vm: PlannerViewModel, cfg: FocusConfig, prefs: FocusPrefs, todayMinutes: Int, streak: Int, save: ((FocusConfig) -> FocusConfig) -> Unit, openSettings: () -> Unit) {
+    val context = LocalContext.current
     var tag by remember { mutableStateOf(prefs.tag) }
     var intention by remember { mutableStateOf(prefs.intention) }
+    var taskId by remember { mutableStateOf<Long?>(null) }
+    val soundPrefs = remember { FocusSoundPrefs(context) }
+    var sound by remember { mutableStateOf(soundPrefs.sound) }
+    val open = tasks.filter { !it.completed }.sortedBy { it.startMinute }
+    LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                PillTabs(listOf("Pomodoro", "Flow"), if (cfg.flow) 1 else 0, Modifier.weight(1f)) { i -> save { it.copy(mode = if (i == 1) "FLOW" else "POMODORO") } }
+                IconButton(onClick = openSettings) { Icon(Icons.Default.Tune, "Timer settings") }
+            }
+        }
+        item {
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                TimerRing(0f, MaterialTheme.colorScheme.primary, 220.dp) {
+                    Text(FocusGarden.plantFor(if (cfg.flow) cfg.flowMinMinutes else pomo.focusMinutes).emoji, fontSize = 30.sp)
+                    Text(if (cfg.flow) "00:00" else "%02d:00".format(pomo.focusMinutes), style = MaterialTheme.typography.displayMedium)
+                    Text(if (cfg.flow) "count up" else "${pomo.shortBreakMinutes} min break after", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                }
+                if (!cfg.flow) Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
+                    Presets.forEach { m ->
+                        val on = pomo.focusMinutes == m
+                        Box(Modifier.clip(RoundedCornerShape(16.dp)).background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f))
+                            .clickable { vm.configurePomodoro(m, (m / 5).coerceIn(3, 20), (m / 2).coerceIn(10, 30), pomo.cyclesPerRound) }.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Text("$m", style = MaterialTheme.typography.titleMedium, color = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+        }
+        if (open.isNotEmpty()) item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Working on", style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    open.take(8).forEach { t ->
+                        val on = taskId == t.id
+                        Column(Modifier.width(150.dp).clip(RoundedCornerShape(18.dp))
+                            .background(if (on) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                            .clickable { taskId = if (on) null else t.id }.padding(12.dp)) {
+                            Box(Modifier.size(8.dp).clip(CircleShape).background(Color(t.colorHex)))
+                            Text(t.title, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+                            Text("%02d:%02d".format(t.startMinute / 60, t.startMinute % 60), style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cfg.tags.forEach { t -> FilterChip(tag == t, { tag = if (tag == t) "" else t }, label = { Text(t) }, shape = RoundedCornerShape(50)) }
+                }
+                if (taskId == null) OutlinedTextField(intention, { intention = it }, Modifier.fillMaxWidth(), singleLine = true, shape = RoundedCornerShape(16.dp), placeholder = { Text("Intention (optional)") })
+            }
+        }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Sound", style = MaterialTheme.typography.titleMedium)
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    (listOf<AmbientSound?>(null) + AmbientSound.values()).forEach { a ->
+                        val on = sound == a
+                        Column(Modifier.width(68.dp).clip(RoundedCornerShape(16.dp)).clickable { sound = a; soundPrefs.sound = a }.padding(vertical = 6.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(Modifier.size(48.dp).clip(CircleShape).background(if (on) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .7f)), contentAlignment = Alignment.Center) {
+                                Icon(soundIcon(a), null, tint = if (on) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                            }
+                            Text(a?.label?.substringBefore(" ") ?: "Off", style = MaterialTheme.typography.labelSmall, maxLines = 1, modifier = Modifier.padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Button(onClick = {
+                prefs.tag = tag
+                prefs.intention = (open.firstOrNull { it.id == taskId }?.title ?: intention).trim()
+                vm.startPomodoro(taskId)
+            }, modifier = Modifier.fillMaxWidth().height(60.dp), shape = RoundedCornerShape(20.dp)) {
+                Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text(if (cfg.flow) "Start flow" else "Start focus", style = MaterialTheme.typography.titleMedium)
+            }
+        }
+        item {
+            HeroCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Today", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelLarge)
+                        Text("${mins(todayMinutes)} / ${mins(cfg.dailyGoalMinutes)}", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall)
+                    }
+                    Text("🔥 ${streak}d", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge)
+                }
+                LinearProgressIndicator(progress = { (todayMinutes.toFloat() / cfg.dailyGoalMinutes).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .18f))
+            }
+        }
+    }
+}
+
+private fun soundIcon(a: AmbientSound?) = when (a) {
+    null -> Icons.Default.VolumeOff
+    AmbientSound.RAIN -> Icons.Default.WaterDrop
+    AmbientSound.OCEAN -> Icons.Default.Waves
+    AmbientSound.FAN -> Icons.Default.Air
+    AmbientSound.BINAURAL_FOCUS -> Icons.Default.GraphicEq
+    else -> Icons.Default.Grain
+}
+
+@Composable
+private fun TimerRing(progress: Float, color: Color, size: androidx.compose.ui.unit.Dp, content: @Composable ColumnScope.() -> Unit) {
+    val p by androidx.compose.animation.core.animateFloatAsState(progress, androidx.compose.animation.core.tween(900), label = "ring")
+    Box(Modifier.size(size), contentAlignment = Alignment.Center) {
+        val track = MaterialTheme.colorScheme.surfaceVariant
+        Canvas(Modifier.fillMaxSize()) {
+            val stroke = 14.dp.toPx()
+            val arc = Size(this.size.width - stroke, this.size.height - stroke)
+            val tl = Offset(stroke / 2, stroke / 2)
+            drawArc(track, 0f, 360f, false, tl, arc, style = Stroke(stroke))
+            drawArc(color, -90f, 360f * p, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally, content = content)
+    }
+}
+
+/** While a session runs only the session is on screen: nothing to edit, just the timer and its controls. */
+@Composable
+private fun FocusRunning(pomo: PomodoroStateEntity, allTasks: List<TaskModel>, vm: PlannerViewModel, cfg: FocusConfig, prefs: FocusPrefs) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(pomo.running, pomo.phase) { while (true) { now = System.currentTimeMillis(); delay(1000) } }
     var distractions by remember { mutableIntStateOf(prefs.interruptions().size) }
     var zen by remember { mutableStateOf(false) }
-    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(pomo.running, pomo.phase) { while (pomo.running) { now = System.currentTimeMillis(); delay(1000) } ; distractions = prefs.interruptions().size }
-
-    val idle = pomo.phase == "IDLE"
+    var confirmStop by remember { mutableStateOf(false) }
     val flow = pomo.phase == PomodoroEngine.FLOW
     val waiting = PomodoroEngine.waiting(pomo)
     val focusing = pomo.phase == "FOCUS" || flow
     val isBreak = pomo.phase.endsWith("BREAK")
     val total = phaseSeconds(pomo).coerceAtLeast(1)
-    val shown = when {
-        idle -> if (cfg.flow) 0 else total
-        flow -> PomodoroEngine.flowElapsed(pomo, now)
-        else -> pomo.remainingSeconds
-    }
-    val progress = when {
-        idle || waiting -> 0f
-        flow -> ((shown % 3600) / 3600f)
-        else -> (1f - shown.toFloat() / total).coerceIn(0f, 1f)
-    }
-    val ringColor = if (isBreak) Chronora.colors.good else MaterialTheme.colorScheme.primary
+    val shown = if (flow) PomodoroEngine.flowElapsed(pomo, now) else pomo.remainingSeconds
+    val progress = when { waiting -> 0f; flow -> (shown % 3600) / 3600f; else -> (1f - shown.toFloat() / total).coerceIn(0f, 1f) }
+    val color = if (isBreak) Chronora.colors.good else MaterialTheme.colorScheme.primary
     val linked = allTasks.firstOrNull { it.id == pomo.taskId }
-
-    val view = LocalView.current
-    DisposableEffect(cfg.keepScreenOn, pomo.running, focusing) {
-        view.keepScreenOn = cfg.keepScreenOn && pomo.running
-        onDispose { view.keepScreenOn = false }
-    }
-
-    val todayReport = remember(sessions) { FocusStats.report(sessions, today, today) }
-    val pending = remember(sessions, cfg.reflect) {
-        if (!cfg.reflect) null else sessions.lastOrNull { it.completed && it.startedAt > prefs.reflectedUpTo && it.rating == 0 && System.currentTimeMillis() - (it.startedAt + it.minutes * 60_000L) < 2 * 3_600_000L }
-    }
-
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.fillMaxWidth().padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        SingleChoiceSegmentedButtonRow(Modifier.weight(1f)) {
-                            listOf("POMODORO" to "Pomodoro", "FLOW" to "Flow").forEachIndexed { i, (k, l) ->
-                                SegmentedButton(cfg.mode == k, { if (idle) save { it.copy(mode = k) } }, SegmentedButtonDefaults.itemShape(i, 2), enabled = idle || cfg.mode == k) { Text(l) }
-                            }
-                        }
-                        IconButton(onClick = { zen = true }) { Icon(Icons.Default.Fullscreen, "Zen mode") }
-                    }
-                    Text(if (waiting) phaseLabel(pomo) + " · ready" else if (idle && cfg.flow) "Flow — count up, break when you're done" else phaseLabel(pomo), style = MaterialTheme.typography.labelLarge, color = ringColor)
-                    Box(Modifier.size(236.dp), contentAlignment = Alignment.Center) {
-                        val track = MaterialTheme.colorScheme.surfaceVariant
-                        Canvas(Modifier.fillMaxSize()) {
-                            val stroke = 16.dp.toPx()
-                            val arc = Size(size.width - stroke, size.height - stroke)
-                            val tl = Offset(stroke / 2, stroke / 2)
-                            drawArc(track, 0f, 360f, false, tl, arc, style = Stroke(stroke))
-                            drawArc(ringColor, -90f, 360f * progress, false, tl, arc, style = Stroke(stroke, cap = StrokeCap.Round))
-                        }
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            val focusedMin = if (flow) (shown / 60).toInt() else if (pomo.phase == "FOCUS") ((total - shown) / 60).toInt() else 0
-                            Text(if (isBreak) "☕" else FocusGarden.plantFor(if (idle) (if (cfg.flow) cfg.flowMinMinutes else pomo.focusMinutes) else focusedMin).emoji, fontSize = 34.sp)
-                            Text(mmss(shown), style = MaterialTheme.typography.displayMedium, fontWeight = FontWeight.Bold)
-                            Text(linked?.title ?: prefs.intention.takeIf { !idle && it.isNotBlank() } ?: if (idle) (if (cfg.flow) "open-ended focus" else "${pomo.focusMinutes} min focus") else tag.ifBlank { "Free focus" },
-                                style = MaterialTheme.typography.bodySmall, color = Chronora.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 180.dp))
-                        }
-                    }
-                    if (!flow && !cfg.flow || pomo.phase in listOf("FOCUS", "SHORT_BREAK", "LONG_BREAK")) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        (1..pomo.cyclesPerRound.coerceIn(1, 12)).forEach { i ->
-                            val filled = !idle && (i < pomo.cycleIndex || (i == pomo.cycleIndex && isBreak))
-                            val current = !idle && i == pomo.cycleIndex && pomo.phase == "FOCUS"
-                            Box(Modifier.size(if (current) 12.dp else 10.dp).clip(CircleShape).background(if (filled || current) ringColor else MaterialTheme.colorScheme.surfaceVariant))
-                        }
-                    }
-                    if (idle) {
-                        Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            cfg.tags.forEach { t -> FilterChip(tag == t, { tag = if (tag == t) "" else t; prefs.tag = tag }, label = { Text(t) }) }
-                        }
-                        OutlinedTextField(intention, { intention = it; prefs.intention = it }, Modifier.fillMaxWidth(), singleLine = true, placeholder = { Text("What will you get done? (optional)") })
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (!idle) FilledTonalIconButton(onClick = vm::resetPomodoro) { Icon(Icons.Default.Stop, if (focusing) "Give up" else "Stop") }
-                        Button(onClick = {
-                            when {
-                                idle -> { prefs.tag = tag; prefs.intention = intention.trim(); vm.startPomodoro(null) }
-                                pomo.running -> vm.pausePomodoro()
-                                else -> vm.resumePomodoro()
-                            }
-                        }, modifier = Modifier.height(54.dp).widthIn(min = 150.dp)) {
-                            Icon(if (pomo.running) Icons.Default.Pause else Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp))
-                            Text(when {
-                                idle -> if (cfg.flow) "Start flow" else "Start focus"
-                                pomo.running -> "Pause"
-                                waiting -> if (isBreak) "Start break" else "Start focus"
-                                else -> "Resume"
-                            })
-                        }
-                        if (!idle) FilledTonalIconButton(onClick = vm::skipPomodoro) { Icon(if (flow) Icons.Default.Coffee else Icons.Default.SkipNext, if (flow) "Take a break" else "Skip") }
-                    }
-                    if (flow) Text("Break earned so far: ${PomodoroEngine.flowBreakMinutes(shown, cfg.flowBreakDivisor)} min · tap ☕ when your focus fades", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
-                    if (!idle) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                        if (focusing && pomo.running) AssistChip(onClick = { vm.logDistraction(); distractions = prefs.interruptions().size }, leadingIcon = { Icon(Icons.Default.NotificationsPaused, null, Modifier.size(18.dp)) }, label = { Text("Distracted" + if (distractions > 0) " · $distractions" else "") })
-                        if (!flow) AssistChip(onClick = { vm.extendPomodoro(5) }, label = { Text("+5 min") })
-                    }
-                    if (focusing && !idle) Text(if (cfg.strict) "Deep focus on: other apps are blocked until this ends" else "Stopping early withers this plant", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
-                }
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(18.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = .14f)).padding(horizontal = 14.dp, vertical = 6.dp)) {
+                Text(if (waiting) phaseLabel(pomo) + " · ready" else phaseLabel(pomo), color = color, style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.weight(1f))
+            IconButton(onClick = { zen = true }) { Icon(Icons.Default.Fullscreen, "Full screen") }
+        }
+        TimerRing(progress, color, 280.dp) {
+            Text(if (isBreak) "☕" else FocusGarden.plantFor(if (flow) (shown / 60).toInt() else ((total - shown) / 60).toInt()).emoji, fontSize = 36.sp)
+            Text(mmss(shown), style = MaterialTheme.typography.displayLarge)
+            Text(linked?.title ?: prefs.intention.ifBlank { prefs.tag.ifBlank { "Focus" } }, style = MaterialTheme.typography.bodyMedium, color = Chronora.muted, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.widthIn(max = 200.dp))
+        }
+        if (!flow) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            (1..pomo.cyclesPerRound.coerceIn(1, 12)).forEach { i ->
+                val filled = i < pomo.cycleIndex || (i == pomo.cycleIndex && isBreak)
+                val current = i == pomo.cycleIndex && pomo.phase == "FOCUS"
+                Box(Modifier.size(if (current) 12.dp else 10.dp).clip(CircleShape).background(if (filled || current) color else MaterialTheme.colorScheme.surfaceVariant))
             }
         }
+        Row(horizontalArrangement = Arrangement.spacedBy(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            RoundAction(Icons.Default.Stop, "Stop") { if (focusing) confirmStop = true else vm.resetPomodoro() }
+            FilledIconButton(onClick = { if (pomo.running) vm.pausePomodoro() else vm.resumePomodoro() }, modifier = Modifier.size(84.dp), colors = IconButtonDefaults.filledIconButtonColors(containerColor = color)) {
+                Icon(if (pomo.running) Icons.Default.Pause else Icons.Default.PlayArrow, if (pomo.running) "Pause" else "Resume", Modifier.size(40.dp))
+            }
+            RoundAction(if (flow) Icons.Default.Coffee else Icons.Default.SkipNext, if (flow) "Take a break" else "Skip") { vm.skipPomodoro() }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            if (focusing && pomo.running) AssistChip(onClick = { vm.logDistraction(); distractions = prefs.interruptions().size; Feedback.show("Distraction noted") },
+                leadingIcon = { Icon(Icons.Default.NotificationsPaused, null, Modifier.size(18.dp)) }, label = { Text("Distracted" + if (distractions > 0) " · $distractions" else "") }, shape = RoundedCornerShape(50))
+            if (!flow && !waiting) AssistChip(onClick = { vm.extendPomodoro(5); Feedback.show("Added 5 minutes") }, leadingIcon = { Icon(Icons.Default.MoreTime, null, Modifier.size(18.dp)) }, label = { Text("5 min") }, shape = RoundedCornerShape(50))
+        }
+        if (flow) Text("Break earned: ${PomodoroEngine.flowBreakMinutes(shown, cfg.flowBreakDivisor)} min", style = MaterialTheme.typography.bodyMedium, color = Chronora.muted)
+        if (focusing && cfg.strict) Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Lock, null, Modifier.size(16.dp), tint = Chronora.muted); Text("  Other apps are blocked", style = MaterialTheme.typography.labelMedium, color = Chronora.muted)
+        }
+    }
+    if (confirmStop) AlertDialog(onDismissRequest = { confirmStop = false }, icon = { Text("🥀", fontSize = 28.sp) }, title = { Text("Give up this session?") },
+        confirmButton = { TextButton(onClick = { confirmStop = false; vm.resetPomodoro() }) { Text("Give up", color = Chronora.colors.bad) } },
+        dismissButton = { Button(onClick = { confirmStop = false }) { Text("Keep going") } })
+    if (zen) ZenMode(pomo, shown, progress, color, cfg.keepScreenOn) { zen = false }
+}
+
+@Composable
+private fun RoundAction(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(60.dp)) { Icon(icon, label, Modifier.size(28.dp)) }
+}
+
+/** Reports, history and the garden. */
+@Composable
+fun FocusStatsPage(allTasks: List<TaskModel>) {
+    val context = LocalContext.current
+    val garden = remember(context) { GardenStore(context.applicationContext) }
+    val prefs = remember(context) { FocusPrefs(context.applicationContext) }
+    var refresh by remember { mutableIntStateOf(0) }
+    val sessions = remember(refresh) { garden.sessions() }
+    val today = LocalDate.now()
+    val summary = remember(sessions) { FocusGarden.summarize(sessions, today) }
+    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
-            val goal = cfg.dailyGoalMinutes
             HeroCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Today", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelLarge)
-                        Text("${mins(todayReport.minutes)} of ${mins(goal)}", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("Level ${summary.level}", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall)
+                        Text("${summary.plants.size} plants · 🔥 ${summary.focusDayStreak} day streak", color = Chronora.colors.heroMuted)
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("🔥 ${summary.focusDayStreak}d", color = Chronora.colors.onHero, fontWeight = FontWeight.Bold)
-                        Text("Level ${summary.level}", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelSmall)
-                    }
+                    Text(summary.plants.takeLast(3).joinToString("") { it.emoji }.ifBlank { "🌱" }, fontSize = 30.sp)
                 }
-                LinearProgressIndicator(progress = { (todayReport.minutes.toFloat() / goal).coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth().height(6.dp).clip(CircleShape), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .15f))
-                Text("${todayReport.sessions} sessions · ${todayReport.interruptions} distractions" + (todayReport.averageRating?.let { " · rated ${"%.1f".format(it)}/5" } ?: "") + if (todayReport.minutes >= goal) " · goal reached 🎉" else "",
-                    color = Chronora.colors.heroMuted, style = MaterialTheme.typography.bodySmall)
-            }
-        }
-        val open = tasks.filter { !it.completed }.sortedBy { it.startMinute }
-        if (open.isNotEmpty()) item {
-            val done = FocusStats.pomodorosByTask(sessions)
-            SectionCard("Focus on a task", "🍅 done / estimated — set estimates with − +") {
-                open.take(10).forEach { t ->
-                    val est = cfg.estimate(t.id)
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) {
-                            Text(t.title, fontWeight = if (t.id == pomo.taskId) FontWeight.Bold else null, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("🍅 ${done[t.id] ?: 0}" + (if (est > 0) " / $est" else "") + " · %02d:%02d".format(t.startMinute / 60, t.startMinute % 60), style = MaterialTheme.typography.bodySmall,
-                                color = if (est > 0 && (done[t.id] ?: 0) > est) Chronora.colors.warn else Chronora.muted)
-                        }
-                        TextButton(onClick = { save { c -> c.copy(taskEstimates = c.taskEstimates + (t.id.toString() to (est - 1).coerceAtLeast(0))) } }, contentPadding = PaddingValues(0.dp)) { Text("−") }
-                        TextButton(onClick = { save { c -> c.copy(taskEstimates = c.taskEstimates + (t.id.toString() to est + 1)) } }, contentPadding = PaddingValues(0.dp)) { Text("+") }
-                        IconButton(onClick = { prefs.tag = tag; prefs.intention = t.title; vm.startPomodoro(t.id) }, enabled = idle) { Icon(Icons.Default.PlayArrow, "Focus on ${t.title}") }
-                    }
-                }
+                LinearProgressIndicator(progress = { summary.xpIntoLevel.toFloat() / summary.xpForNextLevel.coerceAtLeast(1) }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .18f))
             }
         }
         item { FocusReports(sessions, allTasks, today) }
-        item { FocusHistory(sessions, garden, cfg) { refresh++ } }
-        item { TimerSettings(pomo, vm, cfg, idle) { save(it) } }
+        item { FocusHistory(sessions, garden, prefs.config) { refresh++ } }
     }
-
-    pending?.let { s -> ReflectDialog(s, onSave = { rating, note -> garden.update(s.copy(rating = rating, note = note.ifBlank { null })); prefs.reflectedUpTo = s.startedAt; refresh++ }) { prefs.reflectedUpTo = s.startedAt; refresh++ } }
-    if (zen) ZenMode(pomo, shown, progress, ringColor, cfg.keepScreenOn) { zen = false }
 }
 
 /** Engross/Session-style check-in after a focus session. */
@@ -277,10 +379,8 @@ private fun FocusReports(sessions: List<GardenSession>, tasks: List<TaskModel>, 
     var range by remember { mutableIntStateOf(1) }
     val from = when (range) { 0 -> today; 1 -> today.minusDays(6); else -> today.minusDays(29) }
     val r = remember(sessions, range) { FocusStats.report(sessions, from, today) }
-    SectionCard("Reports") {
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf("Today", "7 days", "30 days").forEachIndexed { i, l -> SegmentedButton(range == i, { range = i }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(l) } }
-        }
+    SectionCard("Reports", icon = Icons.Default.Insights) {
+        PillTabs(listOf("Today", "7 days", "30 days"), range) { range = it }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Stat("Focus", mins(r.minutes), Modifier.weight(1f))
             Stat("Sessions", "${r.sessions}", Modifier.weight(1f))
@@ -363,7 +463,7 @@ private fun FocusHistory(sessions: List<GardenSession>, garden: GardenStore, cfg
     var logging by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
     val list = sessions.reversed().let { if (all) it.take(100) else it.take(8) }
-    SectionCard("History", "Every session, including the ones that withered", action = { TextButton(onClick = { logging = true }) { Text("Log session") } }) {
+    SectionCard("History", icon = Icons.Default.History, action = { TextButton(onClick = { logging = true }) { Text("Log session") } }) {
         if (list.isEmpty()) Text("No sessions yet — start one above.", color = Chronora.muted)
         list.forEach { s ->
             var menu by remember(s) { mutableStateOf(false) }
@@ -391,7 +491,6 @@ private fun FocusHistory(sessions: List<GardenSession>, garden: GardenStore, cfg
         var daysAgo by remember { mutableIntStateOf(0) }
         AlertDialog(onDismissRequest = { logging = false }, title = { Text("Log a focus session") }, text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Forgot to start the timer? Add it here.", style = MaterialTheme.typography.bodySmall)
                 Stepper("Minutes", "$minutes", { minutes = (minutes - 5).coerceAtLeast(5) }, { minutes = (minutes + 5).coerceAtMost(600) })
                 Stepper("When", if (daysAgo == 0) "Today" else if (daysAgo == 1) "Yesterday" else "$daysAgo days ago", { daysAgo = (daysAgo - 1).coerceAtLeast(0) }, { daysAgo = (daysAgo + 1).coerceAtMost(30) })
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) { cfg.tags.forEach { t -> FilterChip(tag == t, { tag = t }, label = { Text(t) }) } }
@@ -407,56 +506,41 @@ private fun FocusHistory(sessions: List<GardenSession>, garden: GardenStore, cfg
 }
 
 @Composable
-private fun TimerSettings(pomo: PomodoroStateEntity, vm: PlannerViewModel, cfg: FocusConfig, idle: Boolean, save: ((FocusConfig) -> FocusConfig) -> Unit) {
+private fun TimerSettings(pomo: PomodoroStateEntity, vm: PlannerViewModel, cfg: FocusConfig, save: ((FocusConfig) -> FocusConfig) -> Unit) {
     val context = LocalContext.current
-    var open by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     val soundPrefs = remember { FocusSoundPrefs(context) }
-    var sound by remember { mutableStateOf(soundPrefs.sound) }
     var volume by remember { mutableFloatStateOf(soundPrefs.volume) }
     fun set(f: Int = pomo.focusMinutes, s: Int = pomo.shortBreakMinutes, l: Int = pomo.longBreakMinutes, c: Int = pomo.cyclesPerRound) = vm.configurePomodoro(f, s, l, c)
-    fun soundChanged() {
-        val running = context.getSystemService(android.app.NotificationManager::class.java)?.activeNotifications?.any { it.id == 7301 } == true
-        if (running) FocusSessionService.send(context, FocusSessionService.ACTION_SOUND_CHANGED)
-    }
-    SectionCard("Timer settings", if (cfg.flow) "Flow · break = focus ÷ ${cfg.flowBreakDivisor}" else "${pomo.focusMinutes}/${pomo.shortBreakMinutes} · long ${pomo.longBreakMinutes} every ${pomo.cyclesPerRound}", action = { TextButton(onClick = { open = !open }) { Text(if (open) "Done" else "Customise") } }) {
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(Triple(25, 5, 15), Triple(50, 10, 20), Triple(90, 20, 30), Triple(15, 3, 10)).forEach { (f, s, l) ->
-                FilterChip(pomo.focusMinutes == f && pomo.shortBreakMinutes == s, { set(f, s, l) }, label = { Text("$f / $s") })
-            }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        SectionCard("Lengths", icon = Icons.Default.Timer) {
+            Stepper("Focus", "${pomo.focusMinutes} min", { set(f = (pomo.focusMinutes - 5).coerceAtLeast(5)) }, { set(f = pomo.focusMinutes + 5) })
+            Stepper("Short break", "${pomo.shortBreakMinutes} min", { set(s = (pomo.shortBreakMinutes - 1).coerceAtLeast(1)) }, { set(s = pomo.shortBreakMinutes + 1) })
+            Stepper("Long break", "${pomo.longBreakMinutes} min", { set(l = (pomo.longBreakMinutes - 5).coerceAtLeast(5)) }, { set(l = pomo.longBreakMinutes + 5) })
+            Stepper("Rounds before long break", "${pomo.cyclesPerRound}", { set(c = (pomo.cyclesPerRound - 1).coerceAtLeast(1)) }, { set(c = pomo.cyclesPerRound + 1) })
+            Stepper("Daily goal", mins(cfg.dailyGoalMinutes), { save { it.copy(dailyGoalMinutes = (cfg.dailyGoalMinutes - 15).coerceAtLeast(15)) } }, { save { it.copy(dailyGoalMinutes = cfg.dailyGoalMinutes + 15) } })
         }
-        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(sound == null, { sound = null; soundPrefs.sound = null; soundChanged() }, label = { Text("Silence") })
-            AmbientSound.values().forEach { a -> FilterChip(sound == a, { sound = a; soundPrefs.sound = a; soundChanged() }, label = { Text(a.label) }) }
+        SectionCard("Flow mode", icon = Icons.Default.AllInclusive) {
+            Stepper("Break = focus ÷", "${cfg.flowBreakDivisor}", { save { it.copy(flowBreakDivisor = (cfg.flowBreakDivisor - 1).coerceAtLeast(2)) } }, { save { it.copy(flowBreakDivisor = (cfg.flowBreakDivisor + 1).coerceAtMost(10)) } })
+            Stepper("Shortest that counts", "${cfg.flowMinMinutes} min", { save { it.copy(flowMinMinutes = (cfg.flowMinMinutes - 5).coerceAtLeast(5)) } }, { save { it.copy(flowMinMinutes = cfg.flowMinMinutes + 5) } })
         }
-        if (sound != null) Slider(volume, { volume = it; soundPrefs.volume = it })
-        if (open) {
-            Text("Lengths", style = MaterialTheme.typography.labelLarge)
-            Stepper("Focus", "${pomo.focusMinutes} min", { set(f = pomo.focusMinutes - 5) }, { set(f = pomo.focusMinutes + 5) })
-            Stepper("Short break", "${pomo.shortBreakMinutes} min", { set(s = pomo.shortBreakMinutes - 1) }, { set(s = pomo.shortBreakMinutes + 1) })
-            Stepper("Long break", "${pomo.longBreakMinutes} min", { set(l = pomo.longBreakMinutes - 5) }, { set(l = pomo.longBreakMinutes + 5) })
-            Stepper("Sessions before a long break", "${pomo.cyclesPerRound}", { set(c = pomo.cyclesPerRound - 1) }, { set(c = pomo.cyclesPerRound + 1) })
-            Stepper("Flow break = focus ÷", "${cfg.flowBreakDivisor}", { save { it.copy(flowBreakDivisor = (cfg.flowBreakDivisor - 1).coerceAtLeast(2)) } }, { save { it.copy(flowBreakDivisor = (cfg.flowBreakDivisor + 1).coerceAtMost(10)) } })
-            Stepper("Shortest flow that counts", "${cfg.flowMinMinutes} min", { save { it.copy(flowMinMinutes = (cfg.flowMinMinutes - 5).coerceAtLeast(5)) } }, { save { it.copy(flowMinMinutes = cfg.flowMinMinutes + 5) } })
-            Stepper("Daily focus goal", mins(cfg.dailyGoalMinutes), { save { it.copy(dailyGoalMinutes = (cfg.dailyGoalMinutes - 30).coerceAtLeast(30)) } }, { save { it.copy(dailyGoalMinutes = cfg.dailyGoalMinutes + 30) } })
-            Text("Flow", style = MaterialTheme.typography.labelLarge)
-            SwitchRow("Start breaks automatically", cfg.autoStartBreaks) { v -> save { it.copy(autoStartBreaks = v) } }
-            SwitchRow("Start the next focus automatically", cfg.autoStartFocus) { v -> save { it.copy(autoStartFocus = v) } }
-            SwitchRow("Ask how it went after each session", cfg.reflect) { v -> save { it.copy(reflect = v) } }
-            Text("Sound & screen", style = MaterialTheme.typography.labelLarge)
-            SwitchRow("Ticking sound while focusing", cfg.tickSound) { v -> save { it.copy(tickSound = v) } }
-            SwitchRow("Vibrate when a phase ends", cfg.vibrate) { v -> save { it.copy(vibrate = v) } }
-            SwitchRow("Keep screen on while the timer runs", cfg.keepScreenOn) { v -> save { it.copy(keepScreenOn = v) } }
-            Text("Deep focus", style = MaterialTheme.typography.labelLarge)
-            SwitchRow("Block every other app during focus", cfg.strict) { v -> save { it.copy(strict = v) } }
-            if (cfg.strict) {
-                Text("Allowed: " + (if (cfg.strictAllowed.isEmpty()) "only phone, launcher and Chronora" else cfg.strictAllowed.joinToString { appLabel(context, it) }), style = MaterialTheme.typography.bodySmall)
-                TextButton(onClick = { picking = true }) { Text("Choose allowed apps") }
-                Text("Uses the App blocker (More → App blocker).", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
-            }
-            ListEditor("Tags", cfg.tags) { v -> save { it.copy(tags = v) } }
-            if (!idle) Text("New lengths apply from the next phase.", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
+        SectionCard("Automation", icon = Icons.Default.AutoMode) {
+            SwitchRow("Auto-start breaks", cfg.autoStartBreaks) { v -> save { it.copy(autoStartBreaks = v) } }
+            SwitchRow("Auto-start next focus", cfg.autoStartFocus) { v -> save { it.copy(autoStartFocus = v) } }
+            SwitchRow("Rate each session", cfg.reflect) { v -> save { it.copy(reflect = v) } }
         }
+        SectionCard("Sound & screen", icon = Icons.Default.VolumeUp) {
+            Text("Volume", style = MaterialTheme.typography.bodyLarge)
+            Slider(volume, { volume = it; soundPrefs.volume = it })
+            SwitchRow("Ticking", cfg.tickSound) { v -> save { it.copy(tickSound = v) } }
+            SwitchRow("Vibrate at phase end", cfg.vibrate) { v -> save { it.copy(vibrate = v) } }
+            SwitchRow("Keep screen on", cfg.keepScreenOn) { v -> save { it.copy(keepScreenOn = v) } }
+        }
+        SectionCard("Deep focus", icon = Icons.Default.Lock) {
+            SwitchRow("Block all other apps", cfg.strict) { v -> save { it.copy(strict = v) } }
+            if (cfg.strict) OutlinedButton(onClick = { picking = true }, shape = RoundedCornerShape(14.dp)) { Text("Allowed apps · ${cfg.strictAllowed.size}") }
+        }
+        SectionCard("Tags", icon = Icons.Default.Sell) { ListEditor("", cfg.tags) { v -> save { it.copy(tags = v) } } }
     }
     if (picking) AllowedAppsDialog(cfg.strictAllowed, { v -> save { it.copy(strictAllowed = v) } }) { picking = false }
 }

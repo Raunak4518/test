@@ -29,7 +29,7 @@ class FocusModeEngineTest {
         val scheduled = base.copy(focusModeSchedules = listOf(BlockSchedule(1, "Study", setOf(3), 9 * 60, 12 * 60)))
         assertThat(decide(scheduled)).isInstanceOf(GuardDecision.Block::class.java)
         assertThat(FocusMode.status(scheduled, ms, now).scheduled).isTrue()
-        assertThat(FocusMode.canTurnOff(scheduled, ms)).isFalse()
+        assertThat(FocusMode.canTurnOff(scheduled, ms, now)).isFalse()
     }
 
     @Test

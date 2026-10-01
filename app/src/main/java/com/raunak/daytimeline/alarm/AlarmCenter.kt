@@ -82,8 +82,11 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
     if (settings) { AlarmSettingsPage(context) { settings = false }; return }
 
     val history = remember(tick, alarms) { AlarmHistoryStore(context).all() }
+    // A running nap is its own locked state: a countdown and Cancel, never an editable alarm card.
+    val nap = alarms.firstOrNull { isNap(it) && it.enabled && AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) != Long.MAX_VALUE }
+    val regular = alarms.filterNot { isNap(it) }
     val next = remember(alarms, tick) {
-        alarms.filter { it.enabled }.map { it to AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }.filter { it.second != Long.MAX_VALUE }.minByOrNull { it.second }
+        regular.filter { it.enabled }.map { it to AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }.filter { it.second != Long.MAX_VALUE }.minByOrNull { it.second }
     }
     Scaffold(
         topBar = { ChronoraTopBar("Alarms", onClose) { IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Alarm settings") } } },
@@ -100,20 +103,21 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                         Text("%02d:%02d".format(at.hour, at.minute), color = Chronora.colors.onHero, fontSize = 48.sp, fontWeight = FontWeight.Light)
                         Text(next.first.label + " · " + com.raunak.daytimeline.productivity.relativeDay(at.toLocalDate()), color = Chronora.colors.heroMuted)
                     }
-                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                    if (nap == null) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text("Nap", color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelLarge)
                         listOf(10, 20, 30, 45, 60, 90).forEach { m ->
-                            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = .12f)).clickable { save(napAlarm(m)) }.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(Color.White.copy(alpha = .12f)).clickable { save(napAlarm(m)); Feedback.show("Nap set · wakes you in ${m} min") }.padding(horizontal = 12.dp, vertical = 8.dp)) {
                                 Text(if (m < 60) "${m}m" else "${m / 60}h${if (m % 60 > 0) " ${m % 60}m" else ""}", color = Chronora.colors.onHero)
                             }
                         }
                     }
                 }
             }
-            if (alarms.isEmpty()) item {
-                EmptyState("No alarms yet", "Tap + Alarm, or start from a preset below.")
+            nap?.let { n -> item(key = "nap") { NapCard(n) { scheduler.cancel(n.id); store.delete(n.id); refresh(); Feedback.show("Nap cancelled") } } }
+            if (regular.isEmpty()) item {
+                EmptyState("No alarms yet", "Tap + Alarm, or pick a preset.")
             }
-            items(alarms.sortedWith(compareBy({ it.hour }, { it.minute })), key = { it.id }) { a ->
+            items(regular.sortedWith(compareBy({ it.hour }, { it.minute })), key = { it.id }) { a ->
                 AlarmCard(a, onToggle = { save(a.copy(enabled = it)) }, onEdit = { editing = AlarmEditorModel.fromPersistent(a) },
                     onPreview = { context.startActivity(Intent(context, AlarmRingingActivity::class.java).putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, a.id).putExtra(AlarmRingingActivity.EXTRA_TEST_MODE, true)) },
                     onSkip = { scheduler.skipNext(a); refresh() },
@@ -128,6 +132,40 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
                 }
             }
             if (history.isNotEmpty()) item { WakeRecordCard(history) }
+        }
+    }
+}
+
+private fun isNap(a: AlarmPersistentConfig) = a.label.startsWith("Nap · ") && a.deleteAfterRinging
+
+/** The nap that's running: a big countdown ring and one button. */
+@Composable
+private fun NapCard(n: AlarmPersistentConfig, onCancel: () -> Unit) {
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(n.id) { while (true) { now = System.currentTimeMillis(); kotlinx.coroutines.delay(1000) } }
+    val at = AlarmSchedulePlanner.nextOccurrence(n, LocalDateTime.now())
+    val total = (at - n.id).coerceAtLeast(60_000L)
+    val left = (at - now).coerceAtLeast(0L)
+    val accent = MaterialTheme.colorScheme.primary
+    val track = MaterialTheme.colorScheme.surfaceVariant
+    Card(shape = RoundedCornerShape(26.dp)) {
+        Row(Modifier.fillMaxWidth().padding(18.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(92.dp), contentAlignment = Alignment.Center) {
+                androidx.compose.foundation.Canvas(Modifier.fillMaxSize()) {
+                    val w = 8.dp.toPx()
+                    val sz = androidx.compose.ui.geometry.Size(size.width - w, size.height - w)
+                    val o = androidx.compose.ui.geometry.Offset(w / 2, w / 2)
+                    drawArc(track, 0f, 360f, false, o, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                    drawArc(accent, -90f, 360f * left / total, false, o, sz, style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                }
+                Icon(Icons.Default.Bedtime, null, tint = accent)
+            }
+            Column(Modifier.weight(1f).padding(horizontal = 16.dp)) {
+                Text("Napping", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
+                Text("%d:%02d".format(left / 60_000, (left / 1000) % 60), style = MaterialTheme.typography.displaySmall)
+                Text("Wakes at %02d:%02d".format(n.hour, n.minute), style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+            }
+            OutlinedButton(onClick = onCancel, shape = RoundedCornerShape(50)) { Text("Cancel") }
         }
     }
 }
@@ -312,7 +350,7 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onDelete:
                     listOf(0 to "Off", 3 to "3 min", 5 to "5 min", 10 to "10 min", 15 to "15 min").forEach { (m, l) -> FilterChip(cur.wakeCheckMinutes == m, { cur = cur.copy(wakeCheckMinutes = m) }, label = { Text(l) }) }
                 }
                 if (cur.wakeCheckMinutes > 0) Text("You'll be asked to confirm you're awake; no answer rings again.", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
-                SwitchRow("Backup alarm if the first is ignored", cur.backupEnabled) { cur = cur.copy(backupEnabled = it) }
+                SwitchRow("Backup alarm", cur.backupEnabled) { cur = cur.copy(backupEnabled = it) }
                 SwitchRow("Good-morning briefing after", cur.briefing) { cur = cur.copy(briefing = it) }
             }
 
@@ -405,7 +443,7 @@ private fun AlarmSettingsPage(context: Context, close: () -> Unit) {
         LazyColumn(Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
                 SectionCard("During missions") {
-                    SwitchRow("Bring the alarm back if I leave it", keepOnTop) { keepOnTop = it; prefs.keepOnTop = it }
+                    SwitchRow("Reopen if I leave it", keepOnTop) { keepOnTop = it; prefs.keepOnTop = it }
                     Stepper("Full volume again after idle", "${idle}s", { idle = (idle - 5).coerceAtLeast(5); prefs.idleSeconds = idle }, { idle = (idle + 5).coerceAtMost(120); prefs.idleSeconds = idle })
                 }
             }

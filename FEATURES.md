@@ -6,24 +6,22 @@ Everything below runs on the phone with no account, server or subscription.
 
 Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others (out of scope for offline core)
 
-## App layout
+## App layout and design
 
-- **Bottom bar:** Home · Plan · Focus · Campus · More. The top bar has only Search and Alarms.
-- **Home:** the day as one animated, scrollable timeline.
-  - Rows: wake-up alarm, classes, mess meals, tasks, deadlines and free gaps, ending at wind-down.
-  - Motion: a live now-line with a breathing dot; the rail fills in as the day passes; the current event pulses; rows fade in one after another; the list scrolls to "now" on open.
-  - Top of the page: a greeting, a task-progress ring, a week strip, and a "Now / Up next" card on a slowly moving gradient.
-  - Tap a free gap to plan something at that time; tick tasks right on the timeline.
-- **Plan:** a real time-blocking planner.
-  - Day grid: classes and meals are fixed blocks; tap empty space to add at that time; long-press a task to drag it (snaps to 15 min); drag its bottom edge to resize; overlapping items sit side by side.
-  - Auto-plan fits open tasks around classes and meals, highest priority first, with buffers. Tasks tagged #fixed stay put.
-  - Week grid: meals shown as quiet bands, and tap a day to open it. Agenda (upcoming days plus overdue) and the priority Matrix are also here; the month calendar sits behind the calendar icon.
-- **Campus:** Today opens first, with a row of icon shortcuts to Classroom, Attendance, Timetable, Sheets, Exams, Wake-up, Library, CGPA, Placements, Discipline and Settings. Each section has a back arrow.
-- **More:** today's screen-time card, then tiles grouped by kind:
-  - Digital wellbeing: Screen time, App blocker, Limits, Web filter.
-  - Life: Habits, Goals, Routines, Notes, Journal, Time log.
-  - Tools: Alarms, Calendar, Search, Quick add, Sounds, Garden, Energy plan, Week review, Places, Private journal.
-  - App: Insights, Command center, Settings & backup, Update app.
+- **Five tabs, each with its own colour:** Today (indigo), Plan (violet), Focus (coral), Campus (teal), You (amber). The top bar holds only Search and Alarms; settings sit behind the gear on You.
+- **Every feature has one home:**
+  - the calendar is in Plan;
+  - the timer, Focus mode, sounds, stats and garden are in Focus;
+  - habits are ticked straight from Today;
+  - wellbeing, habits & goals, writing, tracking and smart tools are grouped as tiles on You.
+- **Today:** a greeting, the week, a Now / Up next card, a Focus mode pill (only while it's on), habit bubbles to tick, and the animated day timeline.
+- **No ± buttons anywhere:** every number opens a picker with a big readout and a ruler you drag, with a haptic tick per step.
+- **Feedback:** actions confirm with a snackbar, many with Undo — habits, attendance, distractions, extra time, naps, Focus mode.
+- **Locked states:**
+  - A running focus session shows only the timer and its controls. Giving up asks first.
+  - Focus mode, while on, shows its countdown and the paused apps but can't be edited. Strict timers and schedules show a lock.
+  - Attendance needs one tap on ✓ or ✗, then locks into a coloured status. Changing it needs a confirmation.
+  - A running nap is a countdown card with only Cancel.
 
 ## Focus mode (Digital Wellbeing-style)
 

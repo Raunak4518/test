@@ -86,9 +86,17 @@ class HomeScreenshotTest {
         compose.onAllNodesWithText("Matrix")[0].performClick(); save("plan-matrix")
         assertThat(compose.onAllNodesWithText("Do first").fetchSemanticsNodes()).isNotEmpty()
         nav("Focus"); save("home-focus")
-        assertThat(compose.onAllNodesWithText("Start focus").fetchSemanticsNodes()).isNotEmpty()
-        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Reports")); save("home-focus-reports")
-        nav("More"); save("more")
+        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Start focus")); save("home-focus-start")
+        compose.onAllNodesWithText("Focus mode")[0].performClick(); save("focus-mode")
+        compose.onAllNodesWithText("Stats")[0].performClick(); save("focus-stats")
+        compose.onAllNodesWithText("Timer")[0].performClick()
+        compose.onAllNodes(androidx.compose.ui.test.hasScrollToIndexAction())[0].performScrollToNode(hasText("Start focus"))
+        compose.onAllNodesWithText("Start focus")[0].performClick(); compose.mainClock.advanceTimeBy(1500); save("focus-running")
+        assertThat(compose.onAllNodesWithText("Start focus").fetchSemanticsNodes()).isEmpty()
+        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Stop"))[0].performClick()
+        compose.onAllNodesWithText("Give up")[0].performClick()
+        nav("Campus"); save("campus")
+        nav("You"); save("you")
         compose.onAllNodesWithText("Habits")[0].performClick(); save("home-habits")
         assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
         listOf("Goals", "Notes", "Journal", "Time log").forEach { t -> compose.onAllNodesWithText(t)[0].performClick(); save("home-" + t.lowercase().replace(' ', '-')) }
@@ -96,7 +104,6 @@ class HomeScreenshotTest {
         compose.onAllNodesWithText("Screen time")[0].performClick(); save("screen-time")
         compose.onAllNodesWithText("Blocker")[0].performClick(); save("screen-blocker")
         back()
-        compose.onAllNodesWithText("Calendar")[0].performClick(); save("home-calendar")
         scenario.close()
     }
 }

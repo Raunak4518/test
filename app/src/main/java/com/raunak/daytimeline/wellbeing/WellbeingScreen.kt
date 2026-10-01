@@ -65,8 +65,8 @@ fun WellbeingScreen() {
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("Protection", fontWeight = FontWeight.Bold)
-                SwitchRow("Strict mode (guard settings & uninstall)", config.strictMode) { save(config.copy(strictMode = it)) }
-                SwitchRow("Do Not Disturb during focus sessions", config.doNotDisturbDuringFocus) { save(config.copy(doNotDisturbDuringFocus = it)) }
+                SwitchRow("Strict mode", config.strictMode) { save(config.copy(strictMode = it)) }
+                SwitchRow("Do Not Disturb in focus", config.doNotDisturbDuringFocus) { save(config.copy(doNotDisturbDuringFocus = it)) }
             } }
         }
     }
@@ -153,21 +153,8 @@ private fun GoalsCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
     Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         Text("Goals & reports", fontWeight = FontWeight.Bold)
         MinutesStepper("Daily screen-time goal", c.screenTimeGoalMinutes, min = 15) { save(c.copy(screenTimeGoalMinutes = it)) }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Pickup goal", Modifier.weight(1f))
-            TextButton(onClick = { save(c.copy(pickupGoal = (c.pickupGoal - 10).coerceAtLeast(10))) }) { Text("−") }
-            Text("${c.pickupGoal}")
-            TextButton(onClick = { save(c.copy(pickupGoal = c.pickupGoal + 10)) }) { Text("+") }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text("Unlock limit")
-                
-            }
-            TextButton(onClick = { save(c.copy(unlockLimit = (c.unlockLimit - 10).coerceAtLeast(0))) }) { Text("−") }
-            Text(if (c.unlockLimit == 0) "Off" else "${c.unlockLimit}")
-            TextButton(onClick = { save(c.copy(unlockLimit = if (c.unlockLimit == 0) 50 else c.unlockLimit + 10)) }) { Text("+") }
-        }
+        Stepper("Pickup goal", "${c.pickupGoal}", { save(c.copy(pickupGoal = (c.pickupGoal - 10).coerceAtLeast(10))) }, { save(c.copy(pickupGoal = c.pickupGoal + 10)) })
+        Stepper("Unlock limit", if (c.unlockLimit == 0) "Off" else "${c.unlockLimit}", { save(c.copy(unlockLimit = (c.unlockLimit - 10).coerceAtLeast(0))) }, { save(c.copy(unlockLimit = if (c.unlockLimit == 0) 50 else c.unlockLimit + 10)) })
         SwitchRow("Daily report", c.dailyReport) { save(c.copy(dailyReport = it)) }
         MinutesStepper("Report time", c.reportMinute, step = 15, min = 15, max = 24 * 60 - 15) { save(c.copy(reportMinute = it)) }
     } }
@@ -347,18 +334,15 @@ internal fun AppDetailDialog(
                 item {
                     MinutesStepper("Weekday timer", g.dailyLimits[pkg] ?: 0) { v -> onSaveGuard(g.copy(dailyLimits = if (v == 0) g.dailyLimits - pkg else g.dailyLimits + (pkg to v))) }
                     MinutesStepper("Weekend timer", c.weekendLimits[pkg] ?: 0, zeroLabel = "Same") { v -> onSave(c.copy(weekendLimits = if (v == 0) c.weekendLimits - pkg else c.weekendLimits + (pkg to v))) }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("Max opens per day", Modifier.weight(1f))
-                        val cur = c.openLimits[pkg] ?: 0
-                        TextButton(onClick = { val v = (cur - 5).coerceAtLeast(0); onSave(c.copy(openLimits = if (v == 0) c.openLimits - pkg else c.openLimits + (pkg to v))) }) { Text("−") }
-                        Text(if (cur == 0) "Off" else "$cur")
-                        TextButton(onClick = { onSave(c.copy(openLimits = c.openLimits + (pkg to cur + 5))) }) { Text("+") }
-                    }
+                    val cur = c.openLimits[pkg] ?: 0
+                    Stepper("Max opens per day", if (cur == 0) "Off" else "$cur",
+                        { val v = (cur - 5).coerceAtLeast(0); onSave(c.copy(openLimits = if (v == 0) c.openLimits - pkg else c.openLimits + (pkg to v))) },
+                        { onSave(c.copy(openLimits = c.openLimits + (pkg to cur + 5))) })
                     val s = c.sessionLimits[pkg]
                     MinutesStepper("Session length", s?.maxMinutes ?: 0, step = 5) { v -> onSave(c.copy(sessionLimits = if (v == 0) c.sessionLimits - pkg else c.sessionLimits + (pkg to SessionLimit(v, s?.cooldownMinutes ?: 30)))) }
                     if (s != null) MinutesStepper("Break after a session", s.cooldownMinutes, step = 5, min = 5) { v -> onSave(c.copy(sessionLimits = c.sessionLimits + (pkg to s.copy(cooldownMinutes = v)))) }
                     SwitchRow("Mindful pause before opening", pkg in g.mindfulPackages) { on -> onSaveGuard(g.copy(mindfulPackages = if (on) g.mindfulPackages + pkg else g.mindfulPackages - pkg)) }
-                    SwitchRow("Block during focus sessions and schedules", pkg in g.blockedPackages) { on -> onSaveGuard(g.copy(blockedPackages = if (on) g.blockedPackages + pkg else g.blockedPackages - pkg)) }
+                    SwitchRow("Block during focus", pkg in g.blockedPackages) { on -> onSaveGuard(g.copy(blockedPackages = if (on) g.blockedPackages + pkg else g.blockedPackages - pkg)) }
                     SwitchRow("Quiet notifications (digest)", pkg in c.quietApps) { on -> onSave(c.copy(quietApps = if (on) c.quietApps + pkg else c.quietApps - pkg)) }
                 }
             }

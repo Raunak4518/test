@@ -278,7 +278,7 @@ fun TaskEditor(vm: PlannerViewModel, initial: TaskModel?, defaultDate: LocalDate
                     FilterChip(reminder == "AT_START", { reminder = "AT_START" }, label = { Text("At start") })
                     listOf(5, 10, 30, 60, 1440).forEach { m -> FilterChip(reminder == "BEFORE" && offset == m, { reminder = "BEFORE"; offset = m }, label = { Text(if (m == 1440) "1 day before" else duration(m) + " before") }) }
                 }
-                SwitchRow("Focus session (Pomodoro) for this task", pomodoro) { pomodoro = it }
+                SwitchRow("Focus session", pomodoro) { pomodoro = it }
                 OutlinedTextField(tags, { tags = it }, label = { Text("Tags (comma separated)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 OutlinedTextField(notes, { notes = it }, label = { Text("Notes") }, minLines = 2, modifier = Modifier.fillMaxWidth())
             }

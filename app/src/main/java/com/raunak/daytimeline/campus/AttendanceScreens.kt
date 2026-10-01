@@ -45,7 +45,7 @@ internal fun AttendanceTab() {
                 val danger = stats.filter { it.mustAttend > 0 }
                 if (danger.isNotEmpty()) Text("Below requirement: " + danger.joinToString { "${it.subject.name} (attend next ${it.mustAttend})" }, color = Chronora.colors.bad, style = MaterialTheme.typography.bodySmall)
                 else if (stats.isNotEmpty()) Text("Every subject is at or above its requirement.", color = Chronora.colors.good, style = MaterialTheme.typography.bodySmall)
-                SwitchRow("Only mark bunks — unmarked classes count as attended", data.settings.assumePresent) { on -> store.update { it.copy(settings = it.settings.copy(assumePresent = on)) } }
+                SwitchRow("Count unmarked as present", data.settings.assumePresent) { on -> store.update { it.copy(settings = it.settings.copy(assumePresent = on)) } }
                 if (stats.isNotEmpty()) TextButton(onClick = { shareAttendance(context, data, stats) }) { Text("Export / share (CSV)") }
             }
         }

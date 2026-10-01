@@ -60,7 +60,10 @@ data class FocusGuardConfig(
     /** Strict: no breaks, no turning off early, no emergency unlocks while Focus mode is on. */
     val focusModeStrict: Boolean = false,
     val focusModeDurations: List<Int> = listOf(30, 60, 120),
-    val focusModeBreaks: List<Int> = listOf(5, 15, 30)
+    val focusModeBreaks: List<Int> = listOf(5, 15, 30),
+    /** When the current Focus mode run and break began, for progress rings. */
+    val focusModeStartedAt: Long = 0,
+    val focusModeBreakStartedAt: Long = 0
 ) {
     /** Fills fields missing from settings saved by an older version. */
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")

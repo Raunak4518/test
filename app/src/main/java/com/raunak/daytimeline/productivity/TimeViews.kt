@@ -83,9 +83,7 @@ fun TimeSection(entries: List<OfflineTimeEntry>, projects: List<OfflineProject>,
                 }
             }
         }
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            listOf("Today", "This week", "This month").forEachIndexed { i, l -> SegmentedButton(range == i, { range = i }, SegmentedButtonDefaults.itemShape(i, 3)) { Text(l) } }
-        }
+        PillTabs(listOf("Today", "Week", "Month"), range) { range = it }
         val byProject = TimeEngine.byProject(entries, projects, from, today, now)
         val total = byProject.sumOf { it.minutes }
         SectionCard("Report · ${hmin(total)}", if (range == 0) null else "Daily average ${hmin(total / (java.time.temporal.ChronoUnit.DAYS.between(from, today) + 1))}") {

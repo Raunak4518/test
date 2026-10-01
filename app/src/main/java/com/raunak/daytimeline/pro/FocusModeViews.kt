@@ -42,33 +42,6 @@ private fun rememberFocusMode(store: FocusGuardStore): Pair<FocusGuardConfig, Fo
 
 private fun durationLabel(m: Int) = if (m % 60 == 0) "${m / 60} h" else if (m > 60) "${m / 60} h ${m % 60} m" else "$m min"
 
-/** Compact switch for Home and the Focus tab; tap the card for the full page. */
-@Composable
-fun FocusModeCard(modifier: Modifier = Modifier, onOpen: () -> Unit) {
-    val context = LocalContext.current
-    val store = remember { FocusGuardStore(context) }
-    val (config, s) = rememberFocusMode(store)
-    val active = s.on && !s.onBreak
-    val bg by animateColorAsState(if (active) Chronora.colors.hero else MaterialTheme.colorScheme.surface, tween(400), label = "fm")
-    val fg = if (active) Chronora.colors.onHero else MaterialTheme.colorScheme.onSurface
-    Card(modifier.fillMaxWidth().clickable(onClick = onOpen), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = bg)) {
-        Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(if (active) Color.White.copy(alpha = .15f) else MaterialTheme.colorScheme.primary.copy(alpha = .12f)), contentAlignment = Alignment.Center) {
-                Icon(Icons.Default.SelfImprovement, null, tint = if (active) fg else MaterialTheme.colorScheme.primary)
-            }
-            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text("Focus mode", fontWeight = FontWeight.Bold, color = fg)
-                Text(if (config.focusModeApps.isEmpty()) "Choose distracting apps" else s.label + if (s.on) " · ${s.apps} paused" else "",
-                    style = MaterialTheme.typography.bodySmall, color = if (active) Chronora.colors.heroMuted else Chronora.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            }
-            Switch(s.on, { on ->
-                if (config.focusModeApps.isEmpty()) onOpen()
-                else if (on) FocusMode.turnOn(context) else FocusMode.turnOff(context)
-            }, enabled = !s.on || FocusMode.canTurnOff(config))
-        }
-    }
-}
-
 /** Full Focus mode page: the big switch, timers, breaks, distracting apps and schedules. */
 @Composable
 fun FocusModeScreen() {
@@ -90,12 +63,17 @@ fun FocusModeScreen() {
         if (!serviceOn) item {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)) {
                 Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Turn on Focus Guard so apps can be paused", Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
+                    Text("Blocking is off", Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.titleSmall)
                     TextButton(onClick = { runCatching { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }) { Text("Turn on") }
                 }
             }
         }
         item { BigSwitch(config, s) }
+        // While Focus mode is on nothing here can be edited: the paused apps are shown, not changed.
+        if (s.on) {
+            item { LockedApps(config.focusModeApps) }
+            return@LazyColumn
+        }
         item { SectionHeader("Distracting apps · ${config.focusModeApps.size}") }
         val shown = ranked.filter { query.isBlank() || it.second.contains(query, true) }.let { l -> if (showAll || query.isNotBlank()) l else l.filter { it.first in config.focusModeApps || (usage[it.first] ?: 0) > 0 }.take(12) }
         item {
@@ -126,46 +104,81 @@ fun FocusModeScreen() {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
+private fun LockedApps(apps: Set<String>) {
+    SectionCard("Paused apps · ${apps.size}", icon = Icons.Default.Lock) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            apps.forEach { pkg ->
+                Box { com.raunak.daytimeline.wellbeing.AppIcon(pkg, 44.dp); Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = .35f))) }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun BigSwitch(config: FocusGuardConfig, s: FocusModeStatus) {
     val context = LocalContext.current
     val active = s.on && !s.onBreak
     val fill by animateColorAsState(if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant, tween(500), label = "fill")
-    val pulse by rememberInfiniteTransition(label = "fm").animateFloat(1f, if (active) 1.12f else 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
-    var denied by remember { mutableStateOf(false) }
+    val pulse by rememberInfiniteTransition(label = "fm").animateFloat(1f, if (active) 1.1f else 1f, infiniteRepeatable(tween(1400, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "pulse")
     val noApps = config.focusModeApps.isEmpty()
-    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Box(Modifier.size(190.dp), contentAlignment = Alignment.Center) {
-            Box(Modifier.size(170.dp).scale(pulse).clip(CircleShape).background(fill.copy(alpha = .18f)))
+    var nowMs by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(s) { while (true) { nowMs = System.currentTimeMillis(); delay(1000) } }
+    val endsAt = if (s.onBreak) s.breakUntil else s.until
+    val leftMin = if (endsAt > nowMs) ((endsAt - nowMs + 59_999) / 60_000).toInt() else 0
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Box(Modifier.size(210.dp), contentAlignment = Alignment.Center) {
+            Box(Modifier.size(180.dp).scale(pulse).clip(CircleShape).background(fill.copy(alpha = .16f)))
+            if (s.on && endsAt > 0) {
+                // Ring empties as the timer (or break) runs down.
+                val started = if (s.onBreak) config.focusModeBreakStartedAt else config.focusModeStartedAt
+                val total = (endsAt - started).takeIf { started > 0 && it > 0 } ?: (endsAt - nowMs).coerceAtLeast(60_000L)
+                val frac = ((endsAt - nowMs).toFloat() / total).coerceIn(0f, 1f)
+                val track = MaterialTheme.colorScheme.surfaceVariant; val col = MaterialTheme.colorScheme.primary
+                androidx.compose.foundation.Canvas(Modifier.size(204.dp)) {
+                    val w = 8.dp.toPx()
+                    drawArc(track, 0f, 360f, false, androidx.compose.ui.geometry.Offset(w / 2, w / 2), androidx.compose.ui.geometry.Size(size.width - w, size.height - w), style = androidx.compose.ui.graphics.drawscope.Stroke(w))
+                    drawArc(col, -90f, 360f * frac, false, androidx.compose.ui.geometry.Offset(w / 2, w / 2), androidx.compose.ui.geometry.Size(size.width - w, size.height - w), style = androidx.compose.ui.graphics.drawscope.Stroke(w, cap = androidx.compose.ui.graphics.StrokeCap.Round))
+                }
+            }
             Box(
-                Modifier.size(150.dp).clip(CircleShape).background(fill)
+                Modifier.size(156.dp).clip(CircleShape).background(fill)
                     .border(3.dp, MaterialTheme.colorScheme.primary.copy(alpha = if (active) 0f else .5f), CircleShape)
-                    .clickable(enabled = !noApps) {
-                        if (s.on) { denied = !FocusMode.turnOff(context) } else FocusMode.turnOn(context)
-                    },
+                    .clickable(enabled = !noApps && !s.on) { FocusMode.turnOn(context); Feedback.show("Focus mode on · ${config.focusModeApps.size} apps paused") },
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.Default.SelfImprovement, null, Modifier.size(44.dp), tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
-                    Text(if (s.on) "On" else "Off", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge,
+                    Icon(if (s.onBreak) Icons.Default.Coffee else Icons.Default.SelfImprovement, null, Modifier.size(44.dp), tint = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary)
+                    Text(when { s.onBreak -> "Break"; s.on && leftMin > 0 -> durationLabel(leftMin); s.on -> "On"; else -> "Off" }, style = MaterialTheme.typography.titleLarge,
                         color = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
                 }
             }
         }
         Text(when {
-            noApps -> "Pick the apps to pause below"
-            s.on -> s.label + " · ${s.apps} apps paused"
-            else -> "Tap to pause ${s.apps} apps"
-        }, textAlign = TextAlign.Center, color = Chronora.muted)
-        if (denied) Text(if (s.scheduled) "Scheduled — take a break instead" else "Strict: wait for the timer", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxWidth()) {
+            noApps -> "Pick apps below"
+            s.on -> s.label
+            else -> "Tap to start"
+        }, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium, color = if (s.on) MaterialTheme.colorScheme.onSurface else Chronora.muted)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally), verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             when {
-                s.onBreak -> FilledTonalButton(onClick = { FocusMode.endBreak(context) }) { Text("End break") }
+                s.onBreak -> Button(onClick = { FocusMode.endBreak(context); Feedback.show("Break over") }, shape = RoundedCornerShape(50)) { Text("End break") }
                 s.on && !config.focusModeStrict -> config.focusModeBreaks.forEach { m ->
-                    AssistChip(onClick = { FocusMode.takeBreak(context, m) }, label = { Text("Break ${durationLabel(m)}") }, leadingIcon = { Icon(Icons.Default.Coffee, null, Modifier.size(16.dp)) })
+                    FilledTonalButton(onClick = { FocusMode.takeBreak(context, m); Feedback.show("Break for ${durationLabel(m)}") }, shape = RoundedCornerShape(50)) {
+                        Icon(Icons.Default.Coffee, null, Modifier.size(16.dp)); Text("  ${durationLabel(m)}")
+                    }
                 }
                 !s.on && !noApps -> config.focusModeDurations.forEach { m ->
-                    AssistChip(onClick = { FocusMode.turnOn(context, m) }, label = { Text("For ${durationLabel(m)}") }, leadingIcon = { Icon(Icons.Default.Timer, null, Modifier.size(16.dp)) })
+                    FilledTonalButton(onClick = { FocusMode.turnOn(context, m); Feedback.show("Focus mode on for ${durationLabel(m)}") }, shape = RoundedCornerShape(50)) {
+                        Icon(Icons.Default.Timer, null, Modifier.size(16.dp)); Text("  ${durationLabel(m)}")
+                    }
                 }
+            }
+        }
+        if (s.on) {
+            if (FocusMode.canTurnOff(config)) OutlinedButton(onClick = { if (FocusMode.turnOff(context)) Feedback.show("Focus mode off") }, shape = RoundedCornerShape(50)) { Text("Turn off") }
+            else Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, null, Modifier.size(16.dp), tint = Chronora.muted)
+                Text(if (s.scheduled) "  Scheduled" else "  Locked until ${FocusModeStatus.clockOf(s.until)}", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
             }
         }
     }
@@ -216,4 +229,18 @@ private fun launchableApps(context: android.content.Context): List<Pair<String, 
         .map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
         .filter { it.packageName != context.packageName && it.packageName !in FocusGuardEngine.alwaysAllowed }
         .map { it.packageName to pm.getApplicationLabel(it).toString() }
+}
+
+/** A small pill that only appears while Focus mode is on; tap to open it. */
+@Composable
+fun FocusModePill(modifier: Modifier = Modifier, onOpen: () -> Unit) {
+    val context = LocalContext.current
+    val store = remember { FocusGuardStore(context) }
+    val (_, s) = rememberFocusMode(store)
+    if (!s.on) return
+    Row(modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primary.copy(alpha = .14f)).clickable(onClick = onOpen).padding(horizontal = 14.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically) {
+        Icon(if (s.onBreak) Icons.Default.Coffee else Icons.Default.SelfImprovement, null, Modifier.size(18.dp), tint = MaterialTheme.colorScheme.primary)
+        Text("  Focus mode · " + s.label.lowercase(), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
 }

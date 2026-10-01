@@ -224,7 +224,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
             ) {
                 classes.forEach { o ->
                     val s = subjectOf[o.subjectId] ?: return@forEach
-                    ClassRow(o, s, data.marks[o.key], past = o.end <= minute) { m -> store.mark(o.key, m) }
+                    ClassRow(o, s, data.marks[o.key], past = o.start <= minute) { m -> store.mark(o.key, m) }
                 }
             }
         }
@@ -248,7 +248,7 @@ private fun TodayTab(goTo: (Int) -> Unit) {
         }
         val pending = AttendanceEngine.unmarked(data, today, minute).filter { it.date != today }
         if (pending.isNotEmpty()) item {
-            SectionCard("Unmarked classes · ${pending.size}", "Mark them so your percentages stay right") {
+            SectionCard("Unmarked classes · ${pending.size}") {
                 pending.take(5).forEach { o -> subjectOf[o.subjectId]?.let { s -> ClassRow(o, s, null, past = true, showDate = true) { m -> store.mark(o.key, m) } } }
                 if (pending.size > 5) TextButton(onClick = { goTo(2) }) { Text("See all") }
             }
@@ -362,25 +362,6 @@ internal fun studyTopics(data: CampusData, sheets: List<StudySheet>, today: Loca
     return out.distinct().ifEmpty { listOf("Deep work") }
 }
 
-@Composable
-internal fun ClassRow(o: ClassOccurrence, s: Subject, mark: Mark?, past: Boolean, showDate: Boolean = false, onMark: (Mark?) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Surface(color = Color(s.colorHex), shape = RoundedCornerShape(4.dp), modifier = Modifier.width(4.dp).height(36.dp)) {}
-        Spacer(Modifier.width(8.dp))
-        Column(Modifier.weight(1f)) {
-            Text(s.name + if (o.type != ClassType.LECTURE) " (${o.type.label})" else "", fontWeight = FontWeight.SemiBold)
-            Text(
-                listOfNotNull(if (showDate) o.date.format(DateTimeFormatter.ofPattern("EEE d MMM")) else null, "${clock(o.start)}–${clock(o.end)}", o.room.ifBlank { null }, o.source.takeIf { it != "Regular" }).joinToString(" · "),
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-        if (past || mark != null) {
-            listOf(Mark.PRESENT to "P", Mark.ABSENT to "A", Mark.NO_CLASS to "–").forEach { (m, short) ->
-                FilterChip(mark == m, { onMark(if (mark == m) null else m) }, label = { Text(short) }, modifier = Modifier.padding(start = 2.dp))
-            }
-        } else Text("upcoming", style = MaterialTheme.typography.labelSmall)
-    }
-}
 
 internal fun nowMinute() = LocalTime.now().let { it.hour * 60 + it.minute }
 

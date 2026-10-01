@@ -47,13 +47,13 @@ object FocusMode {
     /** Turns Focus mode on, for [minutes] or until turned off (null). */
     fun turnOn(context: Context, minutes: Int? = null) {
         val now = System.currentTimeMillis()
-        FocusGuardStore(context).update { it.copy(focusModeOn = true, focusModeUntil = minutes?.let { m -> now + m * 60_000L } ?: 0L, focusModeBreakUntil = 0L) }
+        FocusGuardStore(context).update { it.copy(focusModeOn = true, focusModeUntil = minutes?.let { m -> now + m * 60_000L } ?: 0L, focusModeBreakUntil = 0L, focusModeStartedAt = now) }
         refresh(context)
     }
 
     /** Can the user switch it off now? Not inside a schedule, and not before a strict timer ends. */
-    fun canTurnOff(c: FocusGuardConfig, nowMillis: Long = System.currentTimeMillis()): Boolean {
-        val s = status(c, nowMillis)
+    fun canTurnOff(c: FocusGuardConfig, nowMillis: Long = System.currentTimeMillis(), now: LocalDateTime = LocalDateTime.now()): Boolean {
+        val s = status(c, nowMillis, now)
         return !s.scheduled && !(c.focusModeStrict && s.until > nowMillis)
     }
 
@@ -70,7 +70,8 @@ object FocusMode {
     fun takeBreak(context: Context, minutes: Int): Boolean {
         val store = FocusGuardStore(context)
         if (store.config.focusModeStrict) return false
-        store.update { it.copy(focusModeBreakUntil = System.currentTimeMillis() + minutes * 60_000L) }
+        val now = System.currentTimeMillis()
+        store.update { it.copy(focusModeBreakUntil = now + minutes * 60_000L, focusModeBreakStartedAt = now) }
         refresh(context)
         return true
     }
