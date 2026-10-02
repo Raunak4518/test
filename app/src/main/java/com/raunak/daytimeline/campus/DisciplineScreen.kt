@@ -106,6 +106,7 @@ private fun DisciplineTab() {
                 Text("I'm having an urge — help me now", style = MaterialTheme.typography.titleMedium)
             }
         }
+        item { Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { CommitmentCard(s, store) } }
         item {
             val today = LocalDate.now()
             SectionCard("Today", s.checkIns[today.toString()]?.let { if (it) "Checked in: stayed on track" else "Checked in: slipped" } ?: "Not checked in yet") {

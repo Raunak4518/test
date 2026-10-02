@@ -98,7 +98,7 @@ private fun Modifier.composedEnter(index: Int, key: Any): Modifier = composed {
 
 /** The front page: a greeting, the week, what's on now, and the whole day as an animated timeline. */
 @Composable
-fun HomeScreen(vm: PlannerViewModel, onEdit: (TaskModel) -> Unit, onAddAt: (LocalDate, Int) -> Unit, onOpenFocusMode: () -> Unit = {}, onOpenHabits: () -> Unit = {}, onOpenFocus: () -> Unit) {
+fun HomeScreen(vm: PlannerViewModel, onEdit: (TaskModel) -> Unit, onAddAt: (LocalDate, Int) -> Unit, onOpenFocusMode: () -> Unit = {}, onOpenHabits: () -> Unit = {}, onOpenTrackers: () -> Unit = {}, onOpenFocus: () -> Unit) {
     val context = LocalContext.current
     val tasks by vm.tasks.collectAsStateWithLifecycle()
     val agenda by vm.agenda.collectAsStateWithLifecycle()
@@ -126,7 +126,8 @@ fun HomeScreen(vm: PlannerViewModel, onEdit: (TaskModel) -> Unit, onAddAt: (Loca
             Column {
                 if (isToday) NowCard(events, nowMinute, onOpenFocus, Modifier.padding(bottom = 12.dp))
                 com.raunak.daytimeline.pro.FocusModePill(Modifier.padding(bottom = 12.dp), onOpenFocusMode)
-                if (isToday) HabitStrip(Modifier.padding(bottom = 18.dp), onOpenHabits)
+                if (isToday) HabitStrip(Modifier.padding(bottom = 14.dp), onOpenHabits)
+                if (isToday) com.raunak.daytimeline.trackers.TrackerStrip(Modifier.padding(bottom = 18.dp), onOpenTrackers)
             }
         }
         itemsIndexed(events, key = { _, e -> e.key }) { i, e ->

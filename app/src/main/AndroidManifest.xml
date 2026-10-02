@@ -98,6 +98,7 @@
         <receiver android:name=".productivity.QuickAddReceiver" android:exported="false" />
         <receiver android:name=".update.UpdateInstallReceiver" android:exported="false" />
         <receiver android:name=".pro.FocusModeReceiver" android:exported="false" />
+        <receiver android:name=".trackers.TrackerReceiver" android:exported="false" />
         <receiver android:name=".classroom.ClassroomReceiver" android:exported="false" />
         <receiver android:name=".productivity.HabitWidget" android:exported="true" android:label="Chronora Habits">
             <intent-filter><action android:name="android.appwidget.action.APPWIDGET_UPDATE" /></intent-filter>

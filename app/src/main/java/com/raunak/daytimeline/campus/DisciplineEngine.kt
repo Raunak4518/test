@@ -56,12 +56,16 @@ data class DisciplineState(
     val riskGuard: Boolean = true,
     val checkIns: Map<String, Boolean> = emptyMap(),
     val dailyCheckIn: Boolean = true,
-    val settings: DisciplineSettings = DisciplineSettings()
+    val settings: DisciplineSettings = DisciplineSettings(),
+    val commit: CommitLock = CommitLock(),
+    /** Times something was blocked by the lock, per day. */
+    val shieldLog: Map<String, Int> = emptyMap()
 ) {
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
     fun normalized() = copy(
         resets = resets ?: emptyList(), urges = urges ?: emptyList(), reasons = reasons ?: emptyList(),
-        checkIns = checkIns ?: emptyMap(), settings = (settings ?: DisciplineSettings()).normalized()
+        checkIns = checkIns ?: emptyMap(), settings = (settings ?: DisciplineSettings()).normalized(),
+        commit = (commit ?: CommitLock()).normalized(), shieldLog = shieldLog ?: emptyMap()
     )
 }
 

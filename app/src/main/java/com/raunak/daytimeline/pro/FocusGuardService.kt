@@ -78,6 +78,7 @@ class FocusGuardService : AccessibilityService() {
         event ?: return
         val pkg = event.packageName?.toString() ?: return
         if (pkg in browserUrlBars) checkBrowser(pkg)
+        if (commitGuard(pkg)) return
         if (strictGuard(pkg)) return
         checkShortForm(pkg)
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
@@ -118,6 +119,12 @@ class FocusGuardService : AccessibilityService() {
         val effective = config.copy(dailyLimits = emptyMap())
             .let { if ((focusBlocking || deepFocus) && !FocusGuardEngine.sessionActive(it, nowMillis)) it.copy(sessionUntil = nowMillis + 1) else it }
             .let { if (deepFocus) it.copy(allowlistMode = true, allowedPackages = it.allowedPackages + focusCfg.strictAllowed, lockedMode = true) else it }
+        lockDecision(pkg, now)?.let { reason ->
+            store.runtime = FocusGuardEngine.recordBlocked(store.runtime, pkg, LocalDate.now())
+            logShield()
+            show(pkg, BlockActivity.MODE_BLOCK, reason, false, 0, note = commit().letter)
+            return
+        }
         val decision = FocusGuardEngine.decide(effective, store.runtime, pkg, now, nowMillis, extraAllowed = launchers + inputMethods())
         when (decision) {
             is GuardDecision.Block -> {
@@ -160,6 +167,102 @@ class FocusGuardService : AccessibilityService() {
             }
             WellbeingDecision.Allow -> Unit
         }
+    }
+
+    // ------------------------------------------------------------------ commitment lock
+
+    private val discipline by lazy { com.raunak.daytimeline.campus.DisciplineStore.get(this) }
+    private fun commit() = discipline.state.value.commit
+    private fun committed() = com.raunak.daytimeline.campus.Commitment.active(commit())
+    private var lastPrivateCheck = 0L
+    private var lastContentCheck = 0L
+    private var wordsCache: Pair<Long, List<String>>? = null
+    private var browsersCache: Set<String>? = null
+    private var alarmCache: Pair<Long, Int?>? = null
+
+    private fun words(): List<String> {
+        val nowMillis = System.currentTimeMillis()
+        wordsCache?.let { (at, w) -> if (nowMillis - at < 300_000) return w }
+        val w = runCatching { com.raunak.daytimeline.filter.WebFilterStore(this).effectiveKeywords() }.getOrDefault(emptyList())
+        wordsCache = nowMillis to w
+        return w
+    }
+
+    private fun browsers(): Set<String> = browsersCache ?: runCatching {
+        packageManager.queryIntentActivities(Intent(Intent.ACTION_VIEW, android.net.Uri.parse("https://example.com")), android.content.pm.PackageManager.MATCH_ALL)
+            .map { it.activityInfo.packageName }.toSet() + browserUrlBars.keys
+    }.getOrDefault(browserUrlBars.keys).also { browsersCache = it }
+
+    /** Minute of the next enabled alarm (cached for 10 minutes), so the night ends when you wake. */
+    private fun nextAlarmMinute(): Int? {
+        val nowMillis = System.currentTimeMillis()
+        alarmCache?.let { (at, m) -> if (nowMillis - at < 600_000) return m }
+        val m = runCatching {
+            com.raunak.daytimeline.alarm.AlarmPersistentStore(this).all().filter { it.enabled && !it.label.startsWith("Nap") }
+                .map { it to com.raunak.daytimeline.alarm.AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }
+                .filter { it.second != Long.MAX_VALUE && it.second - nowMillis < 24 * 3_600_000L }
+                .minByOrNull { it.second }?.first?.let { it.hour * 60 + it.minute }
+        }.getOrNull()
+        alarmCache = nowMillis to m
+        return m
+    }
+
+    private fun logShield() {
+        val day = LocalDate.now().toString()
+        discipline.update { it.copy(shieldLog = (it.shieldLog + (day to (it.shieldLog[day] ?: 0) + 1)).toList().takeLast(120).toMap()) }
+    }
+
+    /** Night shield and one-browser rule: returns why [pkg] is blocked, or null. */
+    private fun lockDecision(pkg: String, now: LocalDateTime): String? {
+        if (!committed()) return null
+        val c = commit()
+        if (pkg == packageName || pkg in launchers || pkg in FocusGuardEngine.alwaysAllowed || pkg in inputMethods() || pkg in clockApps) return null
+        if (c.nightShield) {
+            val sleepGoal = runCatching { com.raunak.daytimeline.campus.CampusStore.get(this).data.value.settings.sleepGoalMinutes }.getOrDefault(450)
+            val window = com.raunak.daytimeline.campus.Commitment.nightWindow(c, nextAlarmMinute(), sleepGoal)
+            if (com.raunak.daytimeline.campus.Commitment.inWindow(window, now.hour * 60 + now.minute) && pkg !in c.nightAllowed)
+                return "Night shield · sleep until %02d:%02d".format(window.second / 60, window.second % 60)
+        }
+        if (c.oneBrowser && pkg in browsers() && pkg != c.browser) return "Only one browser is allowed during your commitment"
+        return null
+    }
+
+    /** Private tabs and on-screen explicit words while the lock is on. Returns true when it acted. */
+    private fun commitGuard(pkg: String): Boolean {
+        if (!committed() || pkg == packageName || pkg in launchers || isNeutral(pkg) || pkg in FocusGuardEngine.alwaysAllowed) return false
+        val c = commit()
+        val nowMillis = System.currentTimeMillis()
+        val root = rootInActiveWindow ?: return false
+        if (c.noPrivateTabs && pkg in browsers() && nowMillis - lastPrivateCheck > 800) {
+            lastPrivateCheck = nowMillis
+            val hit = com.raunak.daytimeline.campus.Commitment.privateMarkers.any { m -> runCatching { root.findAccessibilityNodeInfosByText(m) }.getOrNull()?.any { it.isVisibleToUser } == true }
+            if (hit) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                performGlobalAction(GLOBAL_ACTION_HOME)
+                logShield()
+                toast("Private tabs are off")
+                return true
+            }
+        }
+        if (c.contentShield && nowMillis - lastContentCheck > 1200) {
+            lastContentCheck = nowMillis
+            val texts = ArrayList<String>()
+            val queue = ArrayDeque<android.view.accessibility.AccessibilityNodeInfo>()
+            queue.add(root)
+            var seen = 0
+            while (queue.isNotEmpty() && seen < 500) {
+                val n = queue.removeFirst(); seen++
+                if (n.isVisibleToUser) { n.text?.let { texts += it.toString() }; n.contentDescription?.let { texts += it.toString() } }
+                for (i in 0 until n.childCount) n.getChild(i)?.let(queue::add)
+            }
+            if (com.raunak.daytimeline.campus.Commitment.explicitHits(texts, words()) >= 2) {
+                performGlobalAction(GLOBAL_ACTION_BACK)
+                logShield()
+                show(pkg, BlockActivity.MODE_BLOCK, "Content shield", false, 0, reopenAfterUnlock = false, note = c.letter)
+                return true
+            }
+        }
+        return false
     }
 
     private var bubble: android.widget.TextView? = null
@@ -209,6 +312,8 @@ class FocusGuardService : AccessibilityService() {
             return
         }
         runCatching { updateBubble(foreground) }
+        if (committed() && commit().keepFilterOn && !com.raunak.daytimeline.filter.WebFilterVpnService.running && android.net.VpnService.prepare(this) == null)
+            runCatching { com.raunak.daytimeline.filter.WebFilterVpnService.start(this) }
         if (foreground == null) rootInActiveWindow?.packageName?.toString()?.let { onForeground(it); return }
         val fg = foreground ?: return
         if (fg == packageName || fg in launchers || System.currentTimeMillis() - lastShownAt < 5_000) return
@@ -217,7 +322,8 @@ class FocusGuardService : AccessibilityService() {
 
     /** Backs out of blocked short-video screens (Shorts, Reels, Spotlight) while the rest of the app works. */
     private fun checkShortForm(pkg: String) {
-        val blocked = wellbeing.config.blockedShortForm.filter { it.packageName == pkg }
+        val forms = if (committed() && commit().noShortVideos) com.raunak.daytimeline.wellbeing.ShortForm.values().toSet() else wellbeing.config.blockedShortForm
+        val blocked = forms.filter { it.packageName == pkg }
         if (blocked.isEmpty()) return
         val nowMillis = System.currentTimeMillis()
         if (nowMillis - lastShortCheck < 600) return
@@ -231,12 +337,12 @@ class FocusGuardService : AccessibilityService() {
 
     /** Strict mode: while blocks are active, cover pages that could uninstall or disable Chronora. */
     private fun strictGuard(pkg: String): Boolean {
-        if (pkg !in strictPackages || !wellbeing.config.strictMode) return false
+        if (pkg !in strictPackages || !(wellbeing.config.strictMode || committed())) return false
         val nowMillis = System.currentTimeMillis()
         if (nowMillis - lastStrictCheck < 500) return false
         lastStrictCheck = nowMillis
         val now = LocalDateTime.now()
-        val active = FocusGuardEngine.anyFocus(store.config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(this, nowMillis) ||
+        val active = committed() || FocusGuardEngine.anyFocus(store.config, now, nowMillis) || PomodoroFocusFlag.isFocusRunning(this, nowMillis) ||
             WellbeingEngine.bedtimeActive(wellbeing.config.bedtime, now) || wellbeing.cooldowns().values.any { it > nowMillis }
         if (!active) return false
         val root = rootInActiveWindow ?: return false
@@ -274,7 +380,7 @@ class FocusGuardService : AccessibilityService() {
         }
     }
 
-    private fun show(pkg: String, mode: String, reason: String, canUnlock: Boolean, seconds: Int, reopenAfterUnlock: Boolean = true) {
+    private fun show(pkg: String, mode: String, reason: String, canUnlock: Boolean, seconds: Int, reopenAfterUnlock: Boolean = true, note: String = "") {
         lastPackage = pkg
         lastShownAt = System.currentTimeMillis()
         startActivity(
@@ -286,6 +392,7 @@ class FocusGuardService : AccessibilityService() {
                 .putExtra(BlockActivity.EXTRA_CAN_UNLOCK, canUnlock)
                 .putExtra(BlockActivity.EXTRA_SECONDS, seconds)
                 .putExtra(BlockActivity.EXTRA_REOPEN, reopenAfterUnlock)
+                .putExtra(BlockActivity.EXTRA_NOTE, note)
         )
     }
 
@@ -296,6 +403,7 @@ class FocusGuardService : AccessibilityService() {
     override fun onInterrupt() = Unit
 
     companion object {
+        private val clockApps = setOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage", "com.oneplus.deskclock", "com.miui.clock", "com.coloros.alarmclock")
         private val strictPackages = setOf(
             "com.android.settings", "com.android.packageinstaller", "com.google.android.packageinstaller",
             "com.android.permissioncontroller", "com.google.android.permissioncontroller", "com.samsung.android.lool", "com.miui.securitycenter"

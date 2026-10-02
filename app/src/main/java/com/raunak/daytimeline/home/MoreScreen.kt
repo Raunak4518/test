@@ -36,6 +36,7 @@ val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
         MoreItem("Web filter", Icons.Default.Shield, 0xFF7C5CE6, "wellbeing:4")
     ),
     "Habits & goals" to listOf(
+        MoreItem("Trackers", Icons.Default.DonutLarge, 0xFF0E9F9A, "trackers"),
         MoreItem("Habits", Icons.Default.Loop, 0xFF22A06B, "prod:0"),
         MoreItem("Goals", Icons.Default.Flag, 0xFFEF6A45, "prod:1"),
         MoreItem("Routines", Icons.Default.Checklist, 0xFF7C5CE6, "prod:2")

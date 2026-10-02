@@ -36,12 +36,16 @@ data class AlarmPersistentConfig(
     val wakeCheckConfirmationWindowMinutes: Int = 5,
     val deleteAfterRinging: Boolean = false,
     /** Alarm volume 10–100 % (set on the alarm stream while ringing, restored afterwards). */
-    val volume: Int = 90,
+    val volume: Int = 100,
     /** PULSE, HEARTBEAT, STRONG or OFF. */
     val vibrationPattern: String = "PULSE",
     /** Show the good-morning briefing after dismissing. */
     val briefing: Boolean = true,
-    val soundName: String? = null
+    val soundName: String? = null,
+    /** Volume can't be turned down while ringing: keys are ignored and the level is restored at once. */
+    val volumeLock: Boolean = true,
+    /** Loudness boost above 100 %: 0 off, 1 loud, 2 louder, 3 max. */
+    val boost: Int = 2
 ) {
     fun advancedRepeat(): AdvancedRepeatRule {
         val mode = runCatching { AlarmScheduleMode.valueOf(scheduleMode) }.getOrDefault(AlarmScheduleMode.WEEKLY)
@@ -94,7 +98,7 @@ data class AlarmPersistentConfig(
         longPressMs = longPressMs.coerceIn(500, 5000),
         repeatDays = repeatDays.filter { it in 1..7 }.toSet(),
         missionChain = missionChain.take(10),
-        volume = volume.coerceIn(10, 100),
+        volume = volume.coerceIn(10, 100), boost = boost.coerceIn(0, 3),
         scheduleMode = runCatching { AlarmScheduleMode.valueOf(scheduleMode) }.getOrDefault(AlarmScheduleMode.WEEKLY).name,
         intervalDays = intervalDays.coerceIn(1, 16),
         snoozeMaxTotalMinutes = snoozeMaxTotalMinutes.coerceIn(0, 240),
@@ -145,7 +149,7 @@ class AlarmPersistentStore(context: Context) {
         put("snoozeMaxTotal", a.snoozeMaxTotalMinutes); put("snoozeHalve", a.snoozeHalveEachTime); put("snoozeAfterScheduled", a.snoozeAllowAfterScheduled)
         put("snoozeOptions", JSONArray(a.snoozeOptionsMinutes)); put("wakeRetries", a.wakeCheckRetries); put("wakeRetryDelay", a.wakeCheckRetryDelayMinutes)
         put("wakeWindow", a.wakeCheckConfirmationWindowMinutes); put("deleteAfterRinging", a.deleteAfterRinging)
-        put("volume", a.volume); put("vibrationPattern", a.vibrationPattern); put("briefing", a.briefing); put("soundName", a.soundName)
+        put("volume", a.volume); put("volumeLock", a.volumeLock); put("boost", a.boost); put("vibrationPattern", a.vibrationPattern); put("briefing", a.briefing); put("soundName", a.soundName)
         put("missions", JSONArray(a.missionChain.map { JSONObject().apply { put("type", it.type.name); put("difficulty", it.difficulty); put("target", it.target); put("payload", it.payload) } }))
     }
 
@@ -198,7 +202,9 @@ class AlarmPersistentStore(context: Context) {
             wakeCheckRetryDelayMinutes = o.optInt("wakeRetryDelay", 5),
             wakeCheckConfirmationWindowMinutes = o.optInt("wakeWindow", 5),
             deleteAfterRinging = o.optBoolean("deleteAfterRinging", false),
-            volume = o.optInt("volume", 90),
+            volume = o.optInt("volume", 100),
+            volumeLock = o.optBoolean("volumeLock", true),
+            boost = o.optInt("boost", 2),
             vibrationPattern = o.optString("vibrationPattern", "PULSE"),
             briefing = o.optBoolean("briefing", true),
             soundName = o.optString("soundName").takeIf { it.isNotBlank() && it != "null" }

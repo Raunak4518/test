@@ -1,5 +1,9 @@
 package com.raunak.daytimeline.filter
 
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.background
 import com.raunak.daytimeline.ui.*
 
 import android.app.Activity
@@ -84,6 +88,12 @@ fun WebFilterScreen() {
     }
 
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (config.commitUntil > System.currentTimeMillis()) item {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onErrorContainer)
+                Text("  Locked until ${com.raunak.daytimeline.campus.Commitment.dateText(config.commitUntil)} · only stricter changes", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.labelLarge)
+            }
+        }
         item {
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {

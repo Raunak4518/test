@@ -32,9 +32,11 @@ data class AlarmEditorModel(
     val deleteAfterRinging: Boolean = false,
     val soundUri: String? = null,
     val soundName: String? = null,
-    val volume: Int = 90,
+    val volume: Int = 100,
     val vibrationPattern: String = "PULSE",
-    val briefing: Boolean = true
+    val briefing: Boolean = true,
+    val volumeLock: Boolean = true,
+    val boost: Int = 2
 ) {
     fun validate(): List<String> = buildList {
         if (hour !in 0..23) add("Hour must be 0–23")
@@ -73,6 +75,8 @@ data class AlarmEditorModel(
             volume = volume,
             vibrationPattern = vibrationPattern,
             briefing = briefing,
+            volumeLock = volumeLock,
+            boost = boost,
             vibration = vibration,
             fullscreen = fullscreen,
             snoozeMinutes = snoozeMinutes,
@@ -134,7 +138,9 @@ data class AlarmEditorModel(
             soundName = a.soundName,
             volume = a.volume,
             vibrationPattern = a.vibrationPattern,
-            briefing = a.briefing
+            briefing = a.briefing,
+            volumeLock = a.volumeLock,
+            boost = a.boost
         )
     }
 }

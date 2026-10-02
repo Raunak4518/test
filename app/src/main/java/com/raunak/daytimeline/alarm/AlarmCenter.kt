@@ -324,6 +324,9 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onDelete:
                     Slider(cur.volume.toFloat(), { cur = cur.copy(volume = it.toInt()) }, valueRange = 10f..100f, modifier = Modifier.weight(1f).padding(horizontal = 8.dp))
                     Text("${cur.volume}%", style = MaterialTheme.typography.labelLarge)
                 }
+                Text("Loudness boost", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
+                PillTabs(listOf("Off", "Loud", "Louder", "Max"), cur.boost) { cur = cur.copy(boost = it) }
+                SwitchRow("Lock volume while ringing", cur.volumeLock) { cur = cur.copy(volumeLock = it) }
                 Text("Gradually louder", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(0 to "Off", 30 to "30s", 60 to "1 min", 120 to "2 min", 300 to "5 min").forEach { (s, l) -> FilterChip(cur.gentleVolumeSeconds == s, { cur = cur.copy(gentleVolumeSeconds = s) }, label = { Text(l) }) }

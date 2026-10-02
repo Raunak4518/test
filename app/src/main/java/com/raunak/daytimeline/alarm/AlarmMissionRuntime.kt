@@ -35,39 +35,78 @@ class AlarmMissionRuntime(private val context: Context) {
     private var savedAlarmVolume = -1
     private var baseVolume = 1f
 
+    private var player: android.media.MediaPlayer? = null
+    private var enhancer: android.media.audiofx.LoudnessEnhancer? = null
+    private val lockHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var lockedLevel = -1
+
+    /** Puts the alarm stream back to the locked level whenever anything lowers it. */
+    private val volumeGuard = object : Runnable {
+        override fun run() {
+            if (lockedLevel < 0) return
+            runCatching { if (audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM) < lockedLevel) audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, lockedLevel, 0) }
+            lockHandler.postDelayed(this, 300L)
+        }
+    }
+
+    /** Re-applies the locked volume right away (called when a volume key is pressed). */
+    fun enforceVolume() { if (lockedLevel >= 0) runCatching { audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, lockedLevel, 0) } }
+
+    private fun setLevel(f: Float) {
+        val v = (f * quietFactor).coerceIn(0f, 1f)
+        player?.let { runCatching { it.setVolume(v, v) } } ?: run { if (Build.VERSION.SDK_INT >= 28) runCatching { ringtone?.volume = v } }
+    }
+
     fun startAlarmSound(config: AlarmPersistentConfig) {
         stopSound()
         // Ring at the alarm's own volume on the alarm stream (works in silent mode), restored afterwards.
         runCatching {
             val max = audio.getStreamMaxVolume(android.media.AudioManager.STREAM_ALARM)
             savedAlarmVolume = audio.getStreamVolume(android.media.AudioManager.STREAM_ALARM)
-            audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, (max * config.volume / 100f).toInt().coerceIn(1, max), 0)
+            val level = (max * config.volume / 100f).toInt().coerceIn(1, max)
+            audio.setStreamVolume(android.media.AudioManager.STREAM_ALARM, level, 0)
+            if (config.volumeLock) { lockedLevel = level; lockHandler.post(volumeGuard) }
         }
         val uri = config.soundUri?.let { runCatching { Uri.parse(it) }.getOrNull() }
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
             ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-        ringtone = (RingtoneManager.getRingtone(context, uri) ?: RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)))?.also { tone ->
-            tone.audioAttributes = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_ALARM).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+        val attrs = android.media.AudioAttributes.Builder().setUsage(android.media.AudioAttributes.USAGE_ALARM).setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build()
+        // A MediaPlayer lets a LoudnessEnhancer push the sound past 100 %; the Ringtone path is the fallback.
+        player = runCatching {
+            android.media.MediaPlayer().apply {
+                setAudioAttributes(attrs)
+                setDataSource(context, uri)
+                isLooping = true
+                prepare()
+                start()
+            }
+        }.getOrNull()
+        player?.let { mp ->
+            val gain = when (config.boost) { 1 -> 800; 2 -> 1500; 3 -> 2400; else -> 0 }
+            if (gain > 0) enhancer = runCatching { android.media.audiofx.LoudnessEnhancer(mp.audioSessionId).apply { setTargetGain(gain); enabled = true } }.getOrNull()
+        }
+        if (player == null) ringtone = (RingtoneManager.getRingtone(context, uri) ?: RingtoneManager.getRingtone(context, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)))?.also { tone ->
+            tone.audioAttributes = attrs
             if (Build.VERSION.SDK_INT >= 28) tone.isLooping = true
             tone.play()
-            if (Build.VERSION.SDK_INT >= 28 && config.gentleVolumeSeconds > 0) {
-                val start = SystemClock.elapsedRealtime()
-                val duration = config.gentleVolumeSeconds.coerceAtMost(300) * 1000L
-                val handler = android.os.Handler(android.os.Looper.getMainLooper())
-                val tick = object : Runnable {
-                    override fun run() {
-                        if (volumeRunnable !== this) return
-                        val elapsed = SystemClock.elapsedRealtime() - start
-                        val fraction = (elapsed.toFloat() / duration).coerceIn(0f, 1f)
-                        baseVolume = 0.12f + 0.88f * fraction
-                        runCatching { tone.volume = baseVolume * quietFactor }
-                        if (fraction < 1f) handler.postDelayed(this, 250L)
-                    }
+        }
+        baseVolume = 1f
+        if (config.gentleVolumeSeconds > 0) {
+            val start = SystemClock.elapsedRealtime()
+            val duration = config.gentleVolumeSeconds.coerceAtMost(300) * 1000L
+            val handler = android.os.Handler(android.os.Looper.getMainLooper())
+            val tick = object : Runnable {
+                override fun run() {
+                    if (volumeRunnable !== this) return
+                    val fraction = ((SystemClock.elapsedRealtime() - start).toFloat() / duration).coerceIn(0f, 1f)
+                    baseVolume = 0.12f + 0.88f * fraction
+                    setLevel(baseVolume)
+                    if (fraction < 1f) handler.postDelayed(this, 250L)
                 }
-                volumeRunnable = tick
-                handler.post(tick)
             }
+            volumeRunnable = tick
+            handler.post(tick)
         }
         if (config.vibration && config.vibrationPattern != "OFF") vibrate(config.vibrationPattern)
     }
@@ -77,7 +116,7 @@ class AlarmMissionRuntime(private val context: Context) {
     /** Quieter while you're actively doing a mission; full volume again when you stop. */
     fun setQuiet(quiet: Boolean) {
         quietFactor = if (quiet) 0.25f else 1f
-        if (Build.VERSION.SDK_INT >= 28) runCatching { ringtone?.volume = baseVolume * quietFactor }
+        setLevel(baseVolume)
         if (quiet) runCatching { vibrator.cancel() }
     }
 
@@ -101,6 +140,12 @@ class AlarmMissionRuntime(private val context: Context) {
 
     fun stopSound() {
         volumeRunnable = null
+        lockedLevel = -1
+        lockHandler.removeCallbacks(volumeGuard)
+        enhancer?.runCatching { release() }
+        enhancer = null
+        player?.runCatching { stop(); release() }
+        player = null
         ringtone?.runCatching { stop() }
         ringtone = null
         if (vibrator.hasVibrator()) vibrator.cancel()

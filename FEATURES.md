@@ -23,6 +23,37 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
   - Attendance needs one tap on ✓ or ✗, then locks into a coloured status. Changing it needs a confirmation.
   - A running nap is a countdown card with only Cancel.
 
+## Trackers (You → Trackers, rings on Today)
+
+- **Track anything, each in its own way:**
+  - ticks;
+  - counts (fruit servings);
+  - amounts with units (water in ml);
+  - minutes (walk);
+  - 1–5 ratings (mood);
+  - options with "good" answers (a meal can be Healthy, Okay, Junk or Skipped).
+- **Every tracker has its own target and rules:**
+  - "at least", "at most" or "just log";
+  - per day, week or month;
+  - which days it's due;
+  - a time window, e.g. breakfast 08:00–09:00, with entries outside it marked;
+  - reminders, colour, emoji and group.
+- **Ready-made packs:**
+  - Food: breakfast, lunch and dinner timed to your mess hours, plus water and fruits.
+  - Morning walk, sleep, workout (3× a week), mood and reading.
+- **Automatic trackers:** screen time, chosen apps' usage (e.g. short videos ≤ 30 min) and focus minutes, read from the phone.
+- **Logging:**
+  - one tap on Today or on a tracker card, with Undo;
+  - from the reminder notification ("+250 ml", "Healthy", "Done");
+  - past days are editable.
+- **History:** each tracker has a progress ring, a streak (days off skipped), a 30-day chart and its entries.
+
+## Alarm loudness
+
+- **Loud by default:** alarms ring at 100% on the alarm stream.
+- **Loudness boost:** Off, Loud, Louder or Max. The sound plays through a media player with Android's loudness enhancer, which pushes it past normal maximum volume.
+- **Volume lock (on by default):** volume keys do nothing while it rings, and anything that lowers the alarm volume is reset within a third of a second.
+
 ## Focus mode (Digital Wellbeing-style)
 
 - **One tap:** pauses the distracting apps you picked. Turn it on from the Home card, the Focus tab, More → Focus mode or the "Focus mode" Quick Settings tile.
@@ -33,6 +64,20 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 - **App picker:** lists your most-used apps first, with today's time, plus search.
 - **Notification:** an ongoing one shows the status, with Break and Turn off buttons.
 - **Separate from the App blocker:** it has its own app list. Websites and Do Not Disturb follow it too.
+
+## Commitment lock (private section)
+
+- **Can't be undone early:** you choose 3–90 days and confirm by typing "I commit". Until the end date nothing can be loosened or shortened; you can only add time or turn more on.
+- **Web filter stays on:** it is locked at its strictest. Unlock requests are refused, and it restarts by itself if it stops.
+- **Shields:**
+  - on-screen word detection in any app (two different listed words, so ordinary text isn't caught);
+  - private and incognito tabs are closed;
+  - only one chosen browser may open;
+  - every short-video feed is blocked;
+  - Night shield: only the phone, clock and chosen apps work, ending at your next alarm and starting your sleep goal earlier.
+- **While locked:** strict mode is forced on, so settings, uninstall and the accessibility page are covered.
+- **Make it airtight:** a checklist opens each relevant setting — blocking service, uninstall protection, always-on VPN, Private DNS off.
+- **Block screen:** shows your own line to your future self. Blocks are counted per day.
 
 ## Screen time (YourHour-style)
 

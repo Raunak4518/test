@@ -23,6 +23,8 @@ data class WebFilterConfig(
     /** Commitment lock: turning protection down requires waiting this many minutes. */
     val lockDelayMinutes: Int = 0,
     val pendingUnlockAt: Long = 0,
+    /** While in the future nothing may be loosened at all, not even after the waiting period. */
+    val commitUntil: Long = 0,
     val importedSources: List<String> = emptyList(),
     /** Your changes to the bundled lists, keyed by category name. */
     val categoryAdded: Map<String, Set<String>> = emptyMap(),
@@ -156,7 +158,7 @@ object FilterLock {
             (old.blockBypass && !new.blockBypass) ||
             !new.customBlocked.containsAll(old.customBlocked) ||
             !old.allowed.containsAll(new.allowed) ||
-            new.lockDelayMinutes < old.lockDelayMinutes ||
+            new.lockDelayMinutes < old.lockDelayMinutes || new.commitUntil < old.commitUntil ||
             (old.upstream.name.contains("FAMILY") && !new.upstream.name.contains("FAMILY")) ||
             new.categoryRemoved.any { (k, v) -> !(old.categoryRemoved[k] ?: emptySet()).containsAll(v) } ||
             old.categoryAdded.any { (k, v) -> !(new.categoryAdded[k] ?: emptySet()).containsAll(v) } ||
@@ -165,9 +167,9 @@ object FilterLock {
 
     /** True when a loosening change may be applied now. */
     fun canLoosen(config: WebFilterConfig, now: Long): Boolean =
-        config.lockDelayMinutes == 0 || (config.pendingUnlockAt in 1..now && now - config.pendingUnlockAt < 10 * 60_000L)
+        config.commitUntil <= now && (config.lockDelayMinutes == 0 || (config.pendingUnlockAt in 1..now && now - config.pendingUnlockAt < 10 * 60_000L))
 
-    fun requestUnlock(config: WebFilterConfig, now: Long) = config.copy(pendingUnlockAt = now + config.lockDelayMinutes * 60_000L)
+    fun requestUnlock(config: WebFilterConfig, now: Long) = if (config.commitUntil > now) config else config.copy(pendingUnlockAt = now + config.lockDelayMinutes * 60_000L)
 
     /** Firewall decision for an app's DNS lookup given the current network. */
     fun appBlocked(rule: AppRule?, onWifi: Boolean): Boolean = when (rule) {

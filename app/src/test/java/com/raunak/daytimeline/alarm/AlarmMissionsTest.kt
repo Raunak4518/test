@@ -72,7 +72,13 @@ class AlarmMissionsTest {
         // Old saved alarms (no mission key) still get a math mission
         ctx.getSharedPreferences("offline_alarms", 0).edit().putString("alarms", "[{\"id\":7,\"hour\":7,\"minute\":0}]").commit()
         assertThat(store.find(7)!!.missionChain.single().type).isEqualTo(AlarmMissionType.MATH)
-        assertThat(store.find(7)!!.volume).isEqualTo(90)
+        // Old alarms ring at full volume, locked, with the loudness boost on.
+        assertThat(store.find(7)!!.volume).isEqualTo(100)
+        assertThat(store.find(7)!!.volumeLock).isTrue()
+        assertThat(store.find(7)!!.boost).isEqualTo(2)
+        store.save(AlarmPersistentConfig(43, 7, 0, volumeLock = false, boost = 0))
+        assertThat(store.find(43)!!.volumeLock).isFalse()
+        assertThat(store.find(43)!!.boost).isEqualTo(0)
     }
 
     @Test

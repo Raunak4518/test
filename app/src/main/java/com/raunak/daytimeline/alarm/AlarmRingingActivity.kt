@@ -83,6 +83,14 @@ class AlarmRingingActivity : ComponentActivity() {
     }
 
     /** Leaving the alarm while it's unfinished brings it back (camera missions excepted). */
+    /** Volume keys do nothing while the alarm rings; the locked level is re-applied at once. */
+    override fun onKeyDown(keyCode: Int, event: android.view.KeyEvent?): Boolean {
+        if (keyCode == android.view.KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_UP || keyCode == android.view.KeyEvent.KEYCODE_VOLUME_MUTE) {
+            if (activeConfig?.volumeLock != false && ::runtime.isInitialized) { runtime.enforceVolume(); return true }
+        }
+        return super.onKeyDown(keyCode, event)
+    }
+
     override fun onUserLeaveHint() {
         super.onUserLeaveHint()
         if (!finished && !launchingCamera && phase != Phase.BRIEFING && AlarmPrefs(this).keepOnTop && !testMode) {

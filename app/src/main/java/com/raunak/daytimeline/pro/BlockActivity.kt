@@ -37,6 +37,7 @@ class BlockActivity : ComponentActivity() {
         val canUnlock = intent.getBooleanExtra(EXTRA_CAN_UNLOCK, false)
         val seconds = intent.getIntExtra(EXTRA_SECONDS, 10)
         val reopenApp = intent.getBooleanExtra(EXTRA_REOPEN, true)
+        val note = intent.getStringExtra(EXTRA_NOTE).orEmpty()
         val store = FocusGuardStore(this)
         val label = runCatching { packageManager.getApplicationLabel(packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg)
 
@@ -61,6 +62,10 @@ class BlockActivity : ComponentActivity() {
                     Text(if (mode == MODE_INTERVENE) "Pause before $label" else "$label is blocked", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
                     Spacer(Modifier.height(8.dp))
                     Text(reason, color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
+                    if (note.isNotBlank()) {
+                        Spacer(Modifier.height(16.dp))
+                        Text("“$note”", color = Chronora.colors.onHero, textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                    }
                     Spacer(Modifier.height(36.dp))
                     Box(Modifier.size(200.dp), contentAlignment = Alignment.Center) {
                         Box(Modifier.size(200.dp).scale(scale).background(Palette.sage, CircleShape))
@@ -97,7 +102,7 @@ class BlockActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(if (remaining > 0) "Emergency unlock in ${remaining}s" else "Emergency unlock ${config.emergencyUnlockMinutes} min ($emergencyLeft left today)") }
                     } else {
-                        Text("Locked mode is on. This block ends with the session.", color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
+                        Text(if (note.isNotBlank() || reason.startsWith("Night") || reason.startsWith("Content") || reason.startsWith("Only one")) "You chose this. It passes." else "Locked mode is on. This block ends with the session.", color = Chronora.colors.heroMuted, textAlign = TextAlign.Center)
                     }
                 }
             }
@@ -121,6 +126,7 @@ class BlockActivity : ComponentActivity() {
         const val EXTRA_CAN_UNLOCK = "canUnlock"
         const val EXTRA_SECONDS = "seconds"
         const val EXTRA_REOPEN = "reopen"
+        const val EXTRA_NOTE = "note"
         const val MODE_BLOCK = "block"
         const val MODE_INTERVENE = "intervene"
     }

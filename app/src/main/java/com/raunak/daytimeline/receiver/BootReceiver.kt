@@ -23,6 +23,7 @@ class BootReceiver : BroadcastReceiver() {
             com.raunak.daytimeline.pro.LocationReminderManager(context.applicationContext).registerAll()
             com.raunak.daytimeline.wellbeing.WellbeingAlarmReceiver.schedule(context.applicationContext)
             com.raunak.daytimeline.campus.CampusScheduler.onBoot(context.applicationContext)
+            runCatching { com.raunak.daytimeline.trackers.TrackerReminders.scheduleAll(context.applicationContext) }
             runCatching { com.raunak.daytimeline.classroom.ClassroomSync.schedule(context.applicationContext) }
             val filter = com.raunak.daytimeline.filter.WebFilterStore(context).config
             if (filter.enabled && filter.startOnBoot) runCatching { com.raunak.daytimeline.filter.WebFilterVpnService.start(context.applicationContext) }
