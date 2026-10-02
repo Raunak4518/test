@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -40,6 +41,39 @@ import java.time.LocalDate
 
 private val Durations = listOf(3, 7, 14, 30, 60, 90)
 
+/** End time of an active commitment lock, or null; settings screens use it to hide anything that could undo it. */
+@Composable
+fun rememberLockedUntil(): Long? {
+    val context = LocalContext.current
+    val state by remember { DisciplineStore.get(context.applicationContext).state }.collectAsState()
+    var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) { while (true) { delay(60_000); now = System.currentTimeMillis() } }
+    return state.commit.until.takeIf { Commitment.active(state.commit, now) }
+}
+
+/** Shown instead of settings while the lock is on. */
+@Composable
+fun LockedPanel(until: Long, modifier: Modifier = Modifier) {
+    Column(modifier.fillMaxWidth().padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Box(Modifier.size(72.dp).clip(CircleShape).background(MaterialTheme.colorScheme.errorContainer), contentAlignment = Alignment.Center) {
+            Icon(Icons.Default.Lock, null, Modifier.size(34.dp), tint = MaterialTheme.colorScheme.onErrorContainer)
+        }
+        Text("Locked", style = MaterialTheme.typography.headlineSmall)
+        Text("Until ${Commitment.dateText(until)}", color = Chronora.muted)
+    }
+}
+
+/** Social, video, games and news apps that are installed: the default all-day block list. */
+private fun distractingApps(context: android.content.Context): List<Pair<String, String>> {
+    val pm = context.packageManager
+    val known = setOf("com.instagram.android", "com.google.android.youtube", "com.zhiliaoapp.musically", "com.snapchat.android", "com.twitter.android", "com.reddit.frontpage",
+        "com.facebook.katana", "com.pinterest", "com.tumblr", "com.discord", "com.netflix.mediaclient", "in.startv.hotstar", "com.mxtech.videoplayer.ad", "com.sharechat.app", "in.mohalla.video", "com.moj.app")
+    val cats = setOf(android.content.pm.ApplicationInfo.CATEGORY_SOCIAL, android.content.pm.ApplicationInfo.CATEGORY_VIDEO, android.content.pm.ApplicationInfo.CATEGORY_GAME, android.content.pm.ApplicationInfo.CATEGORY_NEWS)
+    return pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
+        .filter { it.packageName != context.packageName && (it.packageName in known || it.category in cats) }
+        .map { it.packageName to pm.getApplicationLabel(it).toString() }.sortedBy { it.second.lowercase() }
+}
+
 /**
  * The commitment lock: pick shields and a length, confirm, and nothing can be loosened until the end date.
  * While it runs, the card shows the countdown and lets you only add time.
@@ -52,6 +86,7 @@ internal fun CommitmentCard(s: DisciplineState, store: DisciplineStore) {
     if (Commitment.active(s.commit, now)) LockedView(s, store, now) else SetupView(s, store)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun LockedView(s: DisciplineState, store: DisciplineStore, now: Long) {
     val context = LocalContext.current
@@ -71,6 +106,11 @@ private fun LockedView(s: DisciplineState, store: DisciplineStore, now: Long) {
         val all = s.shieldLog.values.sum()
         Text("Blocked $today today · $all in total", color = Chronora.colors.onHero, style = MaterialTheme.typography.labelLarge)
         if (c.letter.isNotBlank()) Text("“${c.letter}”", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleMedium, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+    }
+    if (c.blockedApps.isNotEmpty()) SectionCard("Blocked all day · ${c.blockedApps.size}", icon = Icons.Default.Block) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            c.blockedApps.forEach { pkg -> Box { com.raunak.daytimeline.wellbeing.AppIcon(pkg, 40.dp); Box(Modifier.matchParentSize().clip(RoundedCornerShape(10.dp)).background(Color.Black.copy(alpha = .4f))) } }
+        }
     }
     SectionCard("Active shields", icon = Icons.Default.Shield) {
         Shields(c).forEach { (icon, label, on) -> if (on) Row(verticalAlignment = Alignment.CenterVertically) {
@@ -110,7 +150,8 @@ private fun Shields(c: CommitLock): List<Triple<ImageVector, String, Boolean>> =
 @Composable
 private fun SetupView(s: DisciplineState, store: DisciplineStore) {
     val context = LocalContext.current
-    var c by remember { mutableStateOf(s.commit.copy(nightStart = s.riskStart, nightEnd = s.riskEnd)) }
+    val suggested = remember { distractingApps(context) }
+    var c by remember { mutableStateOf(s.commit.copy(nightStart = s.riskStart, nightEnd = s.riskEnd, blockedApps = s.commit.blockedApps.ifEmpty { suggested.map { it.first }.toSet() })) }
     var days by remember { mutableIntStateOf(30) }
     var confirming by remember { mutableStateOf(false) }
     var pickNight by remember { mutableStateOf(false) }
@@ -139,6 +180,13 @@ private fun SetupView(s: DisciplineState, store: DisciplineStore) {
 
     SectionCard("Commitment lock", icon = Icons.Default.Lock) {
         Text("Turn it on once. It can't be undone until the date you pick.", style = MaterialTheme.typography.bodyMedium)
+        Text("Block all day · ${c.blockedApps.size}", style = MaterialTheme.typography.labelLarge)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            suggested.forEach { (pkg, label) ->
+                FilterChip(pkg in c.blockedApps, { c = c.copy(blockedApps = if (pkg in c.blockedApps) c.blockedApps - pkg else c.blockedApps + pkg) }, label = { Text(label) },
+                    leadingIcon = { com.raunak.daytimeline.wellbeing.AppIcon(pkg, 18.dp) })
+            }
+        }
         SwitchRow("Content shield", c.contentShield) { c = c.copy(contentShield = it) }
         SwitchRow("No private tabs", c.noPrivateTabs) { c = c.copy(noPrivateTabs = it) }
         SwitchRow("One browser only", c.oneBrowser) { c = c.copy(oneBrowser = it) }

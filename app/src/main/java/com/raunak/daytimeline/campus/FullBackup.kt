@@ -59,8 +59,11 @@ object FullBackup {
         require(root.get("app")?.asString == "Chronora") { "Not a Chronora backup" }
         val prefs = root.getAsJsonObject("prefs")
         var files = 0
+        val locked = Commitment.active(DisciplineStore.get(context).state.value.commit)
+        val guarded = setOf(PRIVATE_FILE, "chronora_web_filter", "chronora_focus_guard", "chronora_wellbeing")
         prefs.entrySet().forEach { (name, obj) ->
             if (name !in prefFiles && name != PRIVATE_FILE) return@forEach
+            if (locked && name in guarded) return@forEach
             val editor = context.getSharedPreferences(name, Context.MODE_PRIVATE).edit().clear()
             obj.asJsonObject.entrySet().forEach { (k, e) ->
                 val o = e.asJsonObject

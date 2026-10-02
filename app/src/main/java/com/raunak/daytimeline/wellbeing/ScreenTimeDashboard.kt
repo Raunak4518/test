@@ -153,7 +153,8 @@ fun ScreenTimeDashboard(timelineMode: Boolean = false) {
         }
     }
 
-    detail?.let { pkg ->
+    val locked = com.raunak.daytimeline.campus.rememberLockedUntil() != null
+    if (!locked) detail?.let { pkg ->
         AppDetailDialog(pkg, name(pkg), week ?: emptyMap(), config, guardConfig,
             onSave = { store.config = it; config = it; WellbeingAlarmReceiver.schedule(context) },
             onSaveGuard = { guard.config = it; guardConfig = it }) { detail = null }

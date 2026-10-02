@@ -55,7 +55,7 @@ private fun BackupCard() {
         SwitchRow("Include private Discipline data", includePrivate) { includePrivate = it }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { exporter.launch("chronora-backup-${java.time.LocalDate.now()}.json") }) { Text("Back up") }
-            OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore") }
+            if (rememberLockedUntil() == null) OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Restore") }
         }
         if (status.isNotBlank()) Text(status, color = MaterialTheme.colorScheme.primary)
         if (restored) Button(onClick = {

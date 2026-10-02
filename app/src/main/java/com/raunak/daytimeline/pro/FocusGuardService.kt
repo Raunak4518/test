@@ -223,16 +223,24 @@ class FocusGuardService : AccessibilityService() {
             if (com.raunak.daytimeline.campus.Commitment.inWindow(window, now.hour * 60 + now.minute) && pkg !in c.nightAllowed)
                 return "Night shield · sleep until %02d:%02d".format(window.second / 60, window.second % 60)
         }
+        if (pkg in c.blockedApps) return "Blocked until " + com.raunak.daytimeline.campus.Commitment.dateText(c.until)
         if (c.oneBrowser && pkg in browsers() && pkg != c.browser) return "Only one browser is allowed during your commitment"
         return null
     }
 
     /** Private tabs and on-screen explicit words while the lock is on. Returns true when it acted. */
     private fun commitGuard(pkg: String): Boolean {
-        if (!committed() || pkg == packageName || pkg in launchers || isNeutral(pkg) || pkg in FocusGuardEngine.alwaysAllowed) return false
+        if (!committed() || pkg == packageName || pkg in launchers || isNeutral(pkg)) return false
         val c = commit()
         val nowMillis = System.currentTimeMillis()
         val root = rootInActiveWindow ?: return false
+        // Settings pages that could undo the lock (DNS, clock, developer options, reset) close at once.
+        if (pkg in strictPackages && nowMillis - lastPrivateCheck > 500) {
+            lastPrivateCheck = nowMillis
+            val hit = com.raunak.daytimeline.campus.Commitment.settingsMarkers.any { m -> runCatching { root.findAccessibilityNodeInfosByText(m) }.getOrNull()?.any { it.isVisibleToUser } == true }
+            if (hit) { performGlobalAction(GLOBAL_ACTION_HOME); logShield(); toast("Locked until " + com.raunak.daytimeline.campus.Commitment.dateText(c.until)); return true }
+        }
+        if (pkg in FocusGuardEngine.alwaysAllowed) return false
         if (c.noPrivateTabs && pkg in browsers() && nowMillis - lastPrivateCheck > 800) {
             lastPrivateCheck = nowMillis
             val hit = com.raunak.daytimeline.campus.Commitment.privateMarkers.any { m -> runCatching { root.findAccessibilityNodeInfosByText(m) }.getOrNull()?.any { it.isVisibleToUser } == true }
@@ -312,6 +320,10 @@ class FocusGuardService : AccessibilityService() {
             return
         }
         runCatching { updateBubble(foreground) }
+        if (committed()) {
+            val guarded = com.raunak.daytimeline.campus.Commitment.guardClock(commit(), System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
+            if (guarded != commit()) discipline.update { it.copy(commit = guarded) }
+        }
         if (committed() && commit().keepFilterOn && !com.raunak.daytimeline.filter.WebFilterVpnService.running && android.net.VpnService.prepare(this) == null)
             runCatching { com.raunak.daytimeline.filter.WebFilterVpnService.start(this) }
         if (foreground == null) rootInActiveWindow?.packageName?.toString()?.let { onForeground(it); return }

@@ -78,6 +78,14 @@ Legend: ✅ available · 🆕 added in this change · ⛔ needs internet/others 
 - **While locked:** strict mode is forced on, so settings, uninstall and the accessibility page are covered.
 - **Make it airtight:** a checklist opens each relevant setting — blocking service, uninstall protection, always-on VPN, Private DNS off.
 - **Block screen:** shows your own line to your future self. Blocks are counted per day.
+- **Distracting apps blocked all day:** social, video, games and news apps are picked automatically and can be adjusted before locking. The list can only grow while locked.
+- **The way back disappears:**
+  - the Blocker, Limits and Web filter tabs and their tiles are hidden;
+  - the private section's protection and settings cards are hidden;
+  - per-app limit editing and backup Restore are gone;
+  - a restore can't overwrite the lock or blocking settings.
+- **System settings that could undo it close instantly:** Private DNS, date & time, developer options, reset.
+- **Moving the phone's date forward pushes the end date by the same amount.**
 
 ## Screen time (YourHour-style)
 

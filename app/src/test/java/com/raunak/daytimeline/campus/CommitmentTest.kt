@@ -47,4 +47,24 @@ class CommitmentTest {
         assertThat(FilterLock.requestUnlock(cfg.copy(lockDelayMinutes = 60), now).pendingUnlockAt).isEqualTo(0L)
         assertThat(FilterLock.canLoosen(cfg.copy(commitUntil = now - 1), now)).isTrue()
     }
+
+    @Test
+    fun moving_the_date_forward_does_not_end_the_lock() {
+        var c = CommitLock(until = now + day, started = now)
+        c = Commitment.guardClock(c, now, 1_000L)
+        // One minute of real time passes but the clock is pushed 10 days ahead.
+        c = Commitment.guardClock(c, now + 60_000L + 10 * day, 61_000L)
+        assertThat(c.until).isEqualTo(now + day + 10 * day)
+        // Normal time passing changes nothing.
+        val before = c.until
+        c = Commitment.guardClock(c, c.lastWall + 3_600_000L, c.lastElapsed + 3_600_000L)
+        assertThat(c.until).isEqualTo(before)
+    }
+
+    @Test
+    fun blocked_apps_can_only_be_added() {
+        val on = CommitLock(until = now + day, started = now, blockedApps = setOf("insta", "yt"))
+        assertThat(Commitment.tighten(on, on.copy(blockedApps = setOf("insta")), now).blockedApps).containsExactly("insta", "yt")
+        assertThat(Commitment.tighten(on, on.copy(blockedApps = setOf("reddit")), now).blockedApps).containsExactly("insta", "yt", "reddit")
+    }
 }

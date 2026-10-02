@@ -60,9 +60,11 @@ val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
 
 @Composable
 fun MoreScreen(onOpen: (String) -> Unit) {
+    val locked = com.raunak.daytimeline.campus.rememberLockedUntil() != null
+    val lockedRoutes = setOf("wellbeing:2", "wellbeing:3", "wellbeing:4")
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { com.raunak.daytimeline.wellbeing.TodayUsageStrip { onOpen("wellbeing:0") } }
-        MoreSections.forEach { (title, items) ->
+        MoreSections.map { (t, list) -> t to if (locked) list.filterNot { it.route in lockedRoutes } else list }.forEach { (title, items) ->
             item(key = title) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(title, style = MaterialTheme.typography.titleMedium)

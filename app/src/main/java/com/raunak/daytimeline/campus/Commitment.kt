@@ -29,10 +29,15 @@ data class CommitLock(
     val nightFromAlarm: Boolean = true,
     val nightAllowed: Set<String> = emptySet(),
     /** Keep the web filter running: restart it if it stops. */
-    val keepFilterOn: Boolean = true
+    val keepFilterOn: Boolean = true,
+    /** Distracting apps blocked all day, every day, until the lock ends. */
+    val blockedApps: Set<String> = emptySet(),
+    /** Last wall-clock / uptime pair seen, to catch the date being moved forward. */
+    val lastWall: Long = 0,
+    val lastElapsed: Long = 0
 ) {
     @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
-    fun normalized() = copy(letter = letter ?: "", browser = browser ?: "com.android.chrome", nightAllowed = nightAllowed ?: emptySet())
+    fun normalized() = copy(letter = letter ?: "", browser = browser ?: "com.android.chrome", nightAllowed = nightAllowed ?: emptySet(), blockedApps = blockedApps ?: emptySet())
 }
 
 object Commitment {
@@ -49,6 +54,8 @@ object Commitment {
             oneBrowser = old.oneBrowser || next.oneBrowser, browser = if (old.oneBrowser) old.browser else next.browser,
             noShortVideos = old.noShortVideos || next.noShortVideos, nightShield = old.nightShield || next.nightShield,
             keepFilterOn = old.keepFilterOn || next.keepFilterOn,
+            blockedApps = old.blockedApps + next.blockedApps,
+            lastWall = old.lastWall, lastElapsed = old.lastElapsed,
             // Night hours may only grow and the allowed list only shrink.
             nightAllowed = if (old.nightShield) old.nightAllowed.intersect(next.nightAllowed) else next.nightAllowed,
             nightStart = old.nightStart, nightEnd = old.nightEnd, nightFromAlarm = old.nightFromAlarm
@@ -72,6 +79,19 @@ object Commitment {
         val blob = texts.joinToString(" ").lowercase()
         return words.count { w -> w.length >= 3 && wordCache.getOrPut(w) { Regex("(^|[^a-z0-9])" + Regex.escape(w) + "s?([^a-z0-9]|$)") }.containsMatchIn(blob) }
     }
+
+    /**
+     * Moving the phone's date forward doesn't end the lock: if the wall clock advanced more than real
+     * uptime did (beyond [tolerance]), the end date moves by the same amount.
+     */
+    fun guardClock(c: CommitLock, wall: Long, elapsed: Long, tolerance: Long = 5 * 60_000L): CommitLock {
+        if (c.lastWall == 0L || elapsed < c.lastElapsed) return c.copy(lastWall = wall, lastElapsed = elapsed)
+        val jump = (wall - c.lastWall) - (elapsed - c.lastElapsed)
+        return c.copy(until = if (jump > tolerance) c.until + jump else c.until, lastWall = wall, lastElapsed = elapsed)
+    }
+
+    /** System settings pages that could get around the lock (DNS, date & time, developer options). */
+    val settingsMarkers = listOf("Private DNS", "Date & time", "Date and time", "Set time", "Automatic date", "Developer options", "Reset options", "Factory reset", "Erase all data")
 
     /** Words that mark a private/incognito browser tab. */
     val privateMarkers = listOf("Incognito", "InPrivate", "Private browsing", "Private tab", "New private tab", "You've gone incognito")

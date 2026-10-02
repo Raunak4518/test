@@ -117,7 +117,8 @@ private fun DisciplineTab() {
                 Text("${ins.cleanDaysThisMonth} clean days this month. A slip resets the counter, not your progress — your best and your insights stay.", style = MaterialTheme.typography.bodySmall)
             }
         }
-        item { ProtectionCard(s, store) }
+        val locked = Commitment.active(s.commit)
+        if (!locked) item { ProtectionCard(s, store) }
         item {
             SectionCard("Why I'm doing this", "Shown to you during every urge") {
                 s.reasons.forEach { r ->
@@ -140,7 +141,7 @@ private fun DisciplineTab() {
                 s.resets.takeLast(3).reversed().filter { it.lesson.isNotBlank() }.forEach { Text("Lesson: ${it.lesson}", style = MaterialTheme.typography.bodySmall) }
             }
         }
-        item {
+        if (!locked) item {
             SectionCard("Settings") {
                 SwitchRow("Daily check-in at ${clock(s.settings.checkInMinute)}", s.dailyCheckIn) { v -> store.update { it.copy(dailyCheckIn = v) }; CampusScheduler.rescheduleAll(context) }
                 DisciplineSettingsEditor(s.settings) { next -> store.update { it.copy(settings = next) }; CampusScheduler.rescheduleAll(context) }
