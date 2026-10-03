@@ -39,6 +39,28 @@ jobs:
           # Rises with every run so the app's updater sees each build as newer.
           echo "CHRONORA_VERSION_CODE=$(( ${{ github.run_number }} + 100 ))" >> "$GITHUB_ENV"
 
+      # The signing key lives only in GitHub secrets, never in the repository.
+      - name: Signing key
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.CHRONORA_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.CHRONORA_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.CHRONORA_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ] || [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_ALIAS" ]; then
+            echo "::error::Signing secrets are missing. Add CHRONORA_KEYSTORE_BASE64, CHRONORA_KEYSTORE_PASSWORD and CHRONORA_KEY_ALIAS in Settings > Secrets and variables > Actions."
+            exit 1
+          fi
+          KEYSTORE="$RUNNER_TEMP/chronora-release.jks"
+          echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE"
+          {
+            echo "CHRONORA_KEYSTORE_FILE=$KEYSTORE"
+            echo "CHRONORA_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD"
+            echo "CHRONORA_KEY_ALIAS=$KEY_ALIAS"
+            echo "CHRONORA_KEY_PASSWORD=$KEYSTORE_PASSWORD"
+          } >> "$GITHUB_ENV"
+
       - name: Make Gradle wrapper executable
         run: chmod +x ./gradlew
 
