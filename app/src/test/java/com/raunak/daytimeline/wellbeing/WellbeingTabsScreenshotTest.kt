@@ -54,4 +54,28 @@ class WellbeingTabsScreenshotTest {
     }
 
     @Test fun webFilter() { shot("tab-webfilter") { com.raunak.daytimeline.filter.WebFilterScreen() }; assertThat(compose.onAllNodesWithText("What to block").fetchSemanticsNodes()).isNotEmpty() }
+
+    @Test fun trackers() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val store = com.raunak.daytimeline.trackers.TrackerStore.get(ctx)
+        val today = java.time.LocalDate.now()
+        val created = today.minusDays(30).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val read = com.raunak.daytimeline.trackers.Tracker(created, "Reading", "📖", 0xFF7C5CE6, "Mind", why = "Become a better engineer")
+        val walk = com.raunak.daytimeline.trackers.Tracker(created + 1, "Morning walk", "🚶", 0xFF0E9F9A, "Health")
+        store.saveAll(listOf(read, walk))
+        (1L..8L).forEach { store.log(read, today.minusDays(it), 1.0) }
+        (2L..5L).forEach { store.log(walk, today.minusDays(it), 1.0) }
+        shot("tab-trackers") { SectionTheme(Palette.teal) { com.raunak.daytimeline.trackers.TrackersScreen() } }
+        // Reading has an 8-day streak at risk today; the walk missed yesterday and can be rescued.
+        assertThat(compose.onAllNodesWithText("🔥 Do it today to keep your 8-day streak").fetchSemanticsNodes()).isNotEmpty()
+        assertThat(compose.onAllNodesWithText("Use a freeze").fetchSemanticsNodes()).isNotEmpty()
+    }
+
+    @Test fun webFilterOn() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val store = com.raunak.daytimeline.filter.WebFilterStore(ctx)
+        store.config = store.config.copy(enabled = true)
+        shot("tab-webfilter-on") { com.raunak.daytimeline.filter.WebFilterScreen() }
+        assertThat(compose.onAllNodesWithText("ON", substring = true).fetchSemanticsNodes()).isNotEmpty()
+    }
 }

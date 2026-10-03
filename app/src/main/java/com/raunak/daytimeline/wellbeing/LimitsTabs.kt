@@ -44,14 +44,14 @@ internal fun LimitsTab() {
     val apps = rememberLauncherApps()
     val name = rememberAppNamer(apps)
     val usage = rememberTodayUsage()
-    val confirm = rememberConfirm()
+    val offGuard = rememberOffGuard()
     var chooser by remember { mutableStateOf(false) }
     var newGroup by remember { mutableStateOf(false) }
     val total = usage.values.sum()
     val usageOn = remember(usage) { UsageAccess.granted(context) }
 
     ScreenList {
-        item { SetupBanner(listOf(SetupStep("Usage access, so limits can count time", usageOn) { openSettings(context, Settings.ACTION_USAGE_ACCESS_SETTINGS) })) }
+        item { SetupBanner(listOf(SetupStep("Usage access", usageOn) { openSettings(context, Settings.ACTION_USAGE_ACCESS_SETTINGS) })) }
         item {
             val cap = if (c.totalDailyLimitMinutes > 0) c.totalDailyLimitMinutes else c.screenTimeGoalMinutes
             HeroCard {
@@ -64,8 +64,8 @@ internal fun LimitsTab() {
         }
 
         item {
-            SectionCard("App timers", subtitle = "Blocked for the day once used up", icon = Icons.Default.Timer, action = { TextButton(onClick = { chooser = true }) { Text("Add") } }) {
-                if (g.dailyLimits.isEmpty()) Text("Give an app a daily time budget", color = Chronora.muted)
+            SectionCard("App timers", icon = Icons.Default.Timer, action = { TextButton(onClick = { chooser = true }) { Text("Add") } }) {
+                if (g.dailyLimits.isEmpty()) Text("None", color = Chronora.muted)
                 g.dailyLimits.entries.sortedByDescending { usage[it.key] ?: 0 }.forEach { (pkg, limit) ->
                     val used = usage[pkg] ?: 0
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -73,18 +73,18 @@ internal fun LimitsTab() {
                         Column(Modifier.weight(1f).padding(start = 12.dp)) {
                             Stepper(name(pkg), hmText(limit),
                                 { guard.update { it.copy(dailyLimits = it.dailyLimits + (pkg to (limit - 5).coerceAtLeast(5))) } },
-                                { guard.update { it.copy(dailyLimits = it.dailyLimits + (pkg to (limit + 5).coerceAtMost(12 * 60))) } })
+                                { offGuard.ask("part of the ${name(pkg)} timer") { guard.update { it.copy(dailyLimits = it.dailyLimits + (pkg to (limit + 15).coerceAtMost(12 * 60))) } } })
                             UsageBar(used, limit)
                             Text(if (used >= limit) "Used up for today" else "${hmText(limit - used)} left", style = MaterialTheme.typography.labelSmall, color = if (used >= limit) Chronora.colors.bad else Chronora.muted)
                         }
-                        IconButton(onClick = { confirm.ask("the timer for ${name(pkg)}") { guard.update { it.copy(dailyLimits = it.dailyLimits - pkg) } } }) { Icon(Icons.Default.Close, "Remove timer for ${name(pkg)}") }
+                        IconButton(onClick = { offGuard.ask("the ${name(pkg)} timer") { guard.update { it.copy(dailyLimits = it.dailyLimits - pkg) } } }) { Icon(Icons.Default.Close, "Remove timer for ${name(pkg)}") }
                     }
                 }
             }
         }
 
         item {
-            SectionCard("Group limits", subtitle = "One budget shared by several apps", icon = Icons.Default.Category) {
+            SectionCard("Group limits", icon = Icons.Default.Category) {
                 c.groupLimits.forEach { grp ->
                     val used = grp.packages.sumOf { usage[it] ?: 0 }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -92,9 +92,9 @@ internal fun LimitsTab() {
                             Box(Modifier.weight(1f)) {
                                 Stepper(grp.name, hmText(grp.minutes),
                                     { save(c.copy(groupLimits = c.groupLimits.map { if (it.id == grp.id) it.copy(minutes = (it.minutes - 5).coerceAtLeast(5)) else it })) },
-                                    { save(c.copy(groupLimits = c.groupLimits.map { if (it.id == grp.id) it.copy(minutes = (it.minutes + 5).coerceAtMost(12 * 60)) else it })) })
+                                    { offGuard.ask("part of the ${grp.name} limit") { save(c.copy(groupLimits = c.groupLimits.map { if (it.id == grp.id) it.copy(minutes = (it.minutes + 15).coerceAtMost(12 * 60)) else it })) } })
                             }
-                            IconButton(onClick = { confirm.ask("the group ${grp.name}") { save(c.copy(groupLimits = c.groupLimits.filterNot { it.id == grp.id })) } }) { Icon(Icons.Default.Close, "Remove ${grp.name}") }
+                            IconButton(onClick = { offGuard.ask("the ${grp.name} limit") { save(c.copy(groupLimits = c.groupLimits.filterNot { it.id == grp.id })) } }) { Icon(Icons.Default.Close, "Remove ${grp.name}") }
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             grp.packages.take(8).forEach { AppIcon(it, 22.dp) }
@@ -118,7 +118,10 @@ internal fun LimitsTab() {
 
         item {
             SectionCard("Whole phone", icon = Icons.Default.PhoneAndroid) {
-                MinutesRow("Daily screen-time limit", c.totalDailyLimitMinutes, step = 15, zero = "Off") { save(c.copy(totalDailyLimitMinutes = it)) }
+                MinutesRow("Daily screen-time limit", c.totalDailyLimitMinutes, step = 15, zero = "Off") { v ->
+                    if (c.totalDailyLimitMinutes == 0 || (v in 1 until c.totalDailyLimitMinutes)) save(c.copy(totalDailyLimitMinutes = v))
+                    else offGuard.ask(if (v == 0) "the daily limit" else "part of the daily limit") { save(c.copy(totalDailyLimitMinutes = v)) }
+                }
                 MinutesRow("Warn before a limit", c.warnMinutesBefore, step = 1, max = 15, zero = "Never") { save(c.copy(warnMinutesBefore = it)) }
                 Stepper("Unlock limit", if (c.unlockLimit == 0) "Off" else "${c.unlockLimit}",
                     { save(c.copy(unlockLimit = (c.unlockLimit - 10).coerceAtLeast(0))) },
@@ -174,6 +177,7 @@ internal fun BedtimeTab() {
     val apps = rememberLauncherApps()
     val name = rememberAppNamer(apps)
     val confirm = rememberConfirm()
+    val offGuard = rememberOffGuard()
     var chooser by remember { mutableStateOf<String?>(null) }
     var addTime by remember { mutableStateOf(false) }
     var held by remember { mutableStateOf(store.held()) }
@@ -183,22 +187,15 @@ internal fun BedtimeTab() {
     ScreenList {
         item {
             SetupBanner(listOf(
-                SetupStep("Accessibility, to block apps at bedtime", perms.accessibility || !b.blockApps) { openSettings(context, Settings.ACTION_ACCESSIBILITY_SETTINGS) },
+                SetupStep("Accessibility", perms.accessibility || !b.blockApps) { openSettings(context, Settings.ACTION_ACCESSIBILITY_SETTINGS) },
                 SetupStep("Do Not Disturb access", perms.dnd || !b.doNotDisturb) { openSettings(context, Settings.ACTION_NOTIFICATION_POLICY_ACCESS_SETTINGS) },
-                SetupStep("Notification access, to hold notifications", perms.notifications || c.quietApps.isEmpty()) { openSettings(context, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
+                SetupStep("Notification access", perms.notifications || c.quietApps.isEmpty()) { openSettings(context, Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS) }
             ))
         }
         item {
-            HeroCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Bedtime", style = MaterialTheme.typography.labelLarge, color = Chronora.colors.heroMuted)
-                        Text("${clockText(b.startMinute)} → ${clockText(b.endMinute)}", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                        Text(if (b.enabled) dayText(b.days) else "Off", color = Chronora.colors.heroMuted)
-                    }
-                    Switch(b.enabled, { bed(b.copy(enabled = it)) }, colors = SwitchDefaults.colors(checkedTrackColor = Color.White.copy(alpha = .35f), checkedThumbColor = Color.White))
-                }
-            }
+            ModeHero(on = b.enabled, title = "Bedtime", icon = Icons.Default.Bedtime,
+                status = "${clockText(b.startMinute)} → ${clockText(b.endMinute)} · ${dayText(b.days)}",
+                onToggle = { if (b.enabled) offGuard.ask("bedtime") { bed(b.copy(enabled = false)) } else { bed(b.copy(enabled = true)); Feedback.show("🌙 Bedtime is on. Sleep well tonight.") } })
         }
         item {
             SectionCard("When", icon = Icons.Default.Bedtime) {
@@ -209,26 +206,24 @@ internal fun BedtimeTab() {
         }
         item {
             SectionCard("During bedtime", icon = Icons.Default.NightsStay) {
-                SwitchRow("Block apps", b.blockApps) { bed(b.copy(blockApps = it)) }
+                SwitchRow("Block apps", b.blockApps) { v -> if (v) bed(b.copy(blockApps = true)) else offGuard.ask("bedtime blocking") { bed(b.copy(blockApps = false)) } }
                 if (b.blockApps) {
                     Text("Still allowed", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
-                    AppChips(b.allowedPackages, name, emptyText = "Phone, clock and messages stay open", onRemove = { bed(b.copy(allowedPackages = b.allowedPackages - it)) }, onAdd = { chooser = "allowed" })
+                    AppChips(b.allowedPackages, name, emptyText = "Calls and the clock stay open", onRemove = { bed(b.copy(allowedPackages = b.allowedPackages - it)) }, onAdd = { chooser = "allowed" })
                 }
-                SwitchRow("Do Not Disturb", b.doNotDisturb) { bed(b.copy(doNotDisturb = it)) }
-                SwitchRow("Grayscale screen", b.grayscale) { bed(b.copy(grayscale = it)) }
-                if (b.grayscale && !perms.grayscale) Text("Grayscale needs a one-time permission from a computer (adb).", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                SwitchRow("Do Not Disturb", b.doNotDisturb) { v -> if (v) bed(b.copy(doNotDisturb = true)) else offGuard.ask("bedtime Do Not Disturb") { bed(b.copy(doNotDisturb = false)) } }
+                SwitchRow("Grayscale screen", b.grayscale) { v -> if (v) bed(b.copy(grayscale = true)) else offGuard.ask("grayscale") { bed(b.copy(grayscale = false)) } }
+                if (b.grayscale && !perms.grayscale) Text("Needs a one-time adb permission", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
             }
         }
         item {
-            SectionCard("Quiet notifications", subtitle = "Held and delivered together", icon = Icons.Default.NotificationsPaused) {
+            SectionCard("Quiet notifications", icon = Icons.Default.NotificationsPaused) {
                 AppChips(c.quietApps, name, emptyText = "No apps held", onRemove = { save(c.copy(quietApps = c.quietApps - it)) }, onAdd = { chooser = "quiet" })
                 SwitchRow("Only during focus and bedtime", c.quietOnlyDuringFocus) { save(c.copy(quietOnlyDuringFocus = it)) }
                 Text("Delivered at", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
                 FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     c.digestTimes.sorted().forEach { t ->
-                        InputChip(selected = false, onClick = {}, label = { Text(clockText(t)) }, trailingIcon = {
-                            IconButton(onClick = { save(c.copy(digestTimes = c.digestTimes - t)) }, Modifier.size(24.dp)) { Icon(Icons.Default.Close, "Remove ${clockText(t)}", Modifier.size(16.dp)) }
-                        })
+                        TextChip(clockText(t)) { save(c.copy(digestTimes = c.digestTimes - t)) }
                     }
                     AssistChip(onClick = { addTime = true }, label = { Text("Add time") }, leadingIcon = { Icon(Icons.Default.Add, null, Modifier.size(18.dp)) })
                 }
@@ -248,7 +243,9 @@ internal fun BedtimeTab() {
     chooser?.let { mode ->
         val current = if (mode == "quiet") c.quietApps else b.allowedPackages
         AppChooser(if (mode == "quiet") "Hold notifications from" else "Allowed at bedtime", current, { chooser = null }) { picked ->
-            if (mode == "quiet") save(c.copy(quietApps = picked)) else bed(b.copy(allowedPackages = picked))
+            if (mode == "quiet") save(c.copy(quietApps = picked))
+            else if ((picked - b.allowedPackages).isNotEmpty()) offGuard.ask("bedtime for these apps") { bed(b.copy(allowedPackages = picked)) }
+            else bed(b.copy(allowedPackages = picked))
             chooser = null
         }
     }

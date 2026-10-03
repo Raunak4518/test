@@ -49,7 +49,17 @@ data class Tracker(
     val source: TrackerSource = TrackerSource.MANUAL,
     val packages: Set<String> = emptySet(),
     val archived: Boolean = false,
-    val order: Int = 0
+    val order: Int = 0,
+    /** Why it matters; shown in reminders and when a streak is at risk. */
+    val why: String = "",
+    /** Missed days that can be covered each month without losing the streak. */
+    val freezesPerMonth: Int = 2,
+    /** Days covered by a freeze. */
+    val frozen: Set<String> = emptySet(),
+    /** Evening nudge when today isn't done yet and a streak would break; -1 = off. */
+    val saverMinute: Int = -1,
+    /** Celebrate streak milestones (3, 7, 14, 30… days). */
+    val celebrate: Boolean = true
 ) {
     val auto: Boolean get() = source != TrackerSource.MANUAL
 
@@ -58,7 +68,7 @@ data class Tracker(
         emoji = emoji ?: "✅", group = group ?: "", unit = unit ?: "", type = type ?: TrackerType.CHECK, goal = goal ?: TrackerGoal.AT_LEAST,
         period = period ?: TrackerPeriod.DAY, days = (days ?: emptySet()).ifEmpty { (1..7).toSet() }, quickAmounts = quickAmounts ?: emptyList(),
         choices = choices ?: emptyList(), goodChoices = goodChoices ?: emptySet(), reminders = reminders ?: emptyList(),
-        source = source ?: TrackerSource.MANUAL, packages = packages ?: emptySet()
+        source = source ?: TrackerSource.MANUAL, packages = packages ?: emptySet(), why = why ?: "", frozen = frozen ?: emptySet()
     )
 }
 
@@ -128,12 +138,84 @@ object TrackerEngine {
         repeat(400) {
             val end = lastDayOf(t, d, today)
             if (end.isBefore(since)) return n
-            if (t.period == TrackerPeriod.DAY && !scheduled(t, d)) { d = previous(t, d); return@repeat }
+            // Days off and frozen days neither count nor break the streak.
+            if (t.period == TrackerPeriod.DAY && (!scheduled(t, d) || d.toString() in t.frozen)) { d = previous(t, d); return@repeat }
             if (met(t, valueOf(end))) n++ else if (!current) return n
             current = false
             d = previous(t, d)
         }
         return n
+    }
+
+    /** The longest run ever, scanning back up to [days] periods. */
+    fun bestStreak(t: Tracker, all: List<TrackerEntry>, today: LocalDate, valueOf: (LocalDate) -> Double = { periodValue(t, all, it) }): Int {
+        val since = created(t)
+        var d = periodStart(t.period, today)
+        var run = 0; var best = 0
+        repeat(400) {
+            val end = lastDayOf(t, d, today)
+            if (end.isBefore(since)) return maxOf(best, run)
+            val skip = t.period == TrackerPeriod.DAY && (!scheduled(t, d) || d.toString() in t.frozen)
+            if (!skip) { if (met(t, valueOf(end))) { run++; best = maxOf(best, run) } else if (d != periodStart(t.period, today)) run = 0 }
+            d = previous(t, d)
+        }
+        return maxOf(best, run)
+    }
+
+    /** Freezes still available this month. */
+    fun freezesLeft(t: Tracker, today: LocalDate): Int =
+        (t.freezesPerMonth - t.frozen.count { runCatching { LocalDate.parse(it) }.getOrNull()?.let { d -> d.year == today.year && d.month == today.month } == true }).coerceAtLeast(0)
+
+    /** Daily tracker due today, not done yet, with a streak that breaks at midnight. */
+    fun atRisk(t: Tracker, all: List<TrackerEntry>, today: LocalDate, valueOf: (LocalDate) -> Double = { periodValue(t, all, it) }): Int {
+        if (t.period != TrackerPeriod.DAY || t.goal == TrackerGoal.AT_MOST || !scheduled(t, today) || met(t, valueOf(today))) return 0
+        return streak(t, all, today, valueOf)
+    }
+
+    /**
+     * Yesterday was missed but the run before it can still be saved with a freeze: returns that run's length,
+     * or 0 when there is nothing to save.
+     */
+    fun rescuable(t: Tracker, all: List<TrackerEntry>, today: LocalDate, valueOf: (LocalDate) -> Double = { periodValue(t, all, it) }): Int {
+        if (t.period != TrackerPeriod.DAY || t.auto) return 0
+        val y = today.minusDays(1)
+        if (!scheduled(t, y) || y.toString() in t.frozen || met(t, valueOf(y)) || y.isBefore(created(t))) return 0
+        if (freezesLeft(t, today) <= 0) return 0
+        val before = streak(t.copy(frozen = t.frozen + y.toString()), all, y.minusDays(1), valueOf)
+        return before
+    }
+
+    /** The last seven days, oldest first, for the chain under each tracker. */
+    enum class Dot { DONE, MISSED, FROZEN, OFF, TODAY_OPEN, BEFORE }
+    fun chain(t: Tracker, all: List<TrackerEntry>, today: LocalDate, valueOf: (LocalDate) -> Double = { value(t, dayEntries(t, all, it)) }): List<Pair<LocalDate, Dot>> =
+        (6L downTo 0L).map { today.minusDays(it) }.map { d ->
+            d to when {
+                d.isBefore(created(t)) -> Dot.BEFORE
+                d.toString() in t.frozen -> Dot.FROZEN
+                t.period == TrackerPeriod.DAY && !scheduled(t, d) -> Dot.OFF
+                (if (t.period == TrackerPeriod.DAY) met(t, valueOf(d)) else valueOf(d) > 0) -> Dot.DONE
+                d == today -> Dot.TODAY_OPEN
+                else -> Dot.MISSED
+            }
+        }
+
+    val milestones = listOf(3, 7, 14, 21, 30, 50, 75, 100, 150, 200, 365)
+
+    /** A cheering line for a streak length. */
+    fun cheer(streak: Int, name: String): String = when {
+        streak in milestones -> listOf("🏆 $streak days of $name! That's real discipline.", "🎉 $streak-day milestone! Look how far you've come.", "🔥 $streak in a row. You're building who you want to be.").random()
+        streak >= 30 -> "🔥 $streak days. This is who you are now."
+        streak >= 7 -> listOf("🔥 $streak days strong. Keep the chain going!", "🔥 $streak and counting. Proud of you.").random()
+        streak >= 2 -> listOf("🔥 $streak days in a row. Nice!", "🔥 $streak! Tomorrow makes it ${streak + 1}.").random()
+        streak == 1 -> listOf("✅ Day one. Every streak starts here.", "✅ Done! Come back tomorrow for day 2.").random()
+        else -> "✅ Logged. Small steps count."
+    }
+
+    /** A nudge for a reminder that hasn't been done yet. */
+    fun nudge(t: Tracker, streak: Int): String = when {
+        streak >= 2 -> "🔥 Keep your $streak-day streak alive" + if (t.why.isNotBlank()) ". ${t.why}" else ""
+        t.why.isNotBlank() -> "Remember why: ${t.why}"
+        else -> listOf("A small step now still counts.", "Two minutes is enough to start.", "Future you will be glad you did this.", "Start a streak today.").random()
     }
 
     private fun previous(t: Tracker, d: LocalDate) = when (t.period) { TrackerPeriod.DAY -> d.minusDays(1); TrackerPeriod.WEEK -> d.minusWeeks(1); TrackerPeriod.MONTH -> d.minusMonths(1) }
