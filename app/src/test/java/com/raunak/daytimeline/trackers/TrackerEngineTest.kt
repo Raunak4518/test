@@ -50,4 +50,35 @@ class TrackerEngineTest {
         assertThat(breakfast.reminders).containsExactly(8 * 60 + 15)
         assertThat(food.map { it.name }).containsAtLeast("Water", "Fruits", "Lunch", "Dinner")
     }
+
+    @Test
+    fun freezes_save_a_streak_and_best_is_remembered() {
+        val read = Tracker(createdLongAgo, "Read", type = TrackerType.CHECK, freezesPerMonth = 2)
+        // Done the 5 days before yesterday, missed yesterday, today still open.
+        val list = (2L..6L).map { e(read, today.minusDays(it), 1.0) }
+        assertThat(TrackerEngine.streak(read, list, today)).isEqualTo(0)
+        assertThat(TrackerEngine.rescuable(read, list, today)).isEqualTo(5)
+        val frozen = read.copy(frozen = setOf(today.minusDays(1).toString()))
+        // The frozen day keeps the run alive without adding to it, and today is at risk.
+        assertThat(TrackerEngine.streak(frozen, list, today)).isEqualTo(5)
+        assertThat(TrackerEngine.atRisk(frozen, list, today)).isEqualTo(5)
+        assertThat(TrackerEngine.freezesLeft(frozen, today)).isEqualTo(1)
+        assertThat(TrackerEngine.rescuable(frozen, list, today)).isEqualTo(0)
+        // An older, longer run is the best streak.
+        val older = list + (10L..19L).map { e(read, today.minusDays(it), 1.0) }
+        assertThat(TrackerEngine.bestStreak(read, older, today)).isEqualTo(10)
+        // Nothing to rescue once freezes run out.
+        assertThat(TrackerEngine.rescuable(read.copy(freezesPerMonth = 0), list, today)).isEqualTo(0)
+    }
+
+    @Test
+    fun chain_marks_done_missed_frozen_and_today() {
+        val t = Tracker(createdLongAgo, "Walk", type = TrackerType.CHECK, frozen = setOf(today.minusDays(2).toString()))
+        val list = listOf(e(t, today.minusDays(1), 1.0))
+        val dots = TrackerEngine.chain(t, list, today).map { it.second }
+        assertThat(dots.last()).isEqualTo(TrackerEngine.Dot.TODAY_OPEN)
+        assertThat(dots[5]).isEqualTo(TrackerEngine.Dot.DONE)
+        assertThat(dots[4]).isEqualTo(TrackerEngine.Dot.FROZEN)
+        assertThat(dots[3]).isEqualTo(TrackerEngine.Dot.MISSED)
+    }
 }

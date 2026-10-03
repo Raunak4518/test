@@ -150,6 +150,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
                 ?.let { com.raunak.daytimeline.pro.ProToolPage(vm, it) { page = null } }
         }
     }
+    com.raunak.daytimeline.trackers.CelebrationHost()
     if (updateRequested) com.raunak.daytimeline.update.UpdateDialog { com.raunak.daytimeline.update.UpdateNav.requested.value = false }
     if (dialog?.startsWith("editHabit:") == true) {
         val id = dialog!!.substringAfter(":").toLongOrNull()

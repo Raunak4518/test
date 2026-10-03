@@ -52,24 +52,30 @@ fun WebFilterScreen() {
 
     LaunchedEffect(Unit) { while (true) { running = WebFilterVpnService.running; now = System.currentTimeMillis(); delay(1000) } }
 
-    fun commit(next: WebFilterConfig) {
-        val old = store.config
-        if (FilterLock.isLoosening(old, next) && !FilterLock.canLoosen(old, System.currentTimeMillis())) {
-            Feedback.show(if (old.commitUntil > System.currentTimeMillis()) "Locked: only stricter changes" else "Locked: request an unlock and wait ${old.lockDelayMinutes} min")
-            return
-        }
+    val offGuard = rememberOffGuard()
+    fun apply(next: WebFilterConfig) {
         store.config = next
         config = next
         if (next.enabled) WebFilterVpnService.start(context, reload = true) else WebFilterVpnService.stop(context)
     }
+    /** Stricter changes apply at once; anything looser waits out the lock and then the turn-off protection. */
+    fun commit(next: WebFilterConfig) {
+        val old = store.config
+        val loosening = FilterLock.isLoosening(old, next)
+        if (loosening && !FilterLock.canLoosen(old, System.currentTimeMillis())) {
+            Feedback.show(if (old.commitUntil > System.currentTimeMillis()) "Locked: only stricter changes" else "Locked: request an unlock and wait ${old.lockDelayMinutes} min")
+            return
+        }
+        if (loosening) offGuard.ask(if (old.enabled && !next.enabled) "the web filter" else "this protection") { apply(next) } else apply(next)
+    }
 
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) commit(config.copy(enabled = true)) else Feedback.show("The filter needs VPN permission to work")
+        if (result.resultCode == Activity.RESULT_OK) { commit(config.copy(enabled = true)); Feedback.show("🛡️ Web filter is on. You're protected.") } else Feedback.show("The filter needs VPN permission to work")
     }
 
     fun turnOn() {
         val intent = VpnService.prepare(context)
-        if (intent != null) consent.launch(intent) else commit(config.copy(enabled = true))
+        if (intent != null) consent.launch(intent) else { commit(config.copy(enabled = true)); Feedback.show("🛡️ Web filter is on. You're protected.") }
     }
 
     val fileImport = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -89,25 +95,13 @@ fun WebFilterScreen() {
     val locked = config.commitUntil > now
     ScreenList {
         item {
-            HeroCard {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(if (config.enabled) Icons.Default.Shield else Icons.Default.RemoveModerator, null, Modifier.size(44.dp))
-                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
-                        Text("Web filter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text(when {
-                            !config.enabled -> "Off"
-                            !running -> "Starting…"
-                            else -> "On · ${store.blockedToday()} blocked today"
-                        }, color = Chronora.colors.heroMuted)
-                    }
-                    Switch(config.enabled, { on -> if (on) turnOn() else commit(config.copy(enabled = false)) },
-                        colors = SwitchDefaults.colors(checkedTrackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = .35f), checkedThumbColor = androidx.compose.ui.graphics.Color.White))
-                }
-                if (locked) Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.Lock, null, Modifier.size(16.dp))
-                    Text("  Locked until ${com.raunak.daytimeline.campus.Commitment.dateText(config.commitUntil)} · only stricter changes", style = MaterialTheme.typography.labelLarge)
-                }
-            }
+            ModeHero(on = config.enabled, title = "Web filter", icon = Icons.Default.Shield, onLabel = if (locked) "LOCKED" else "ON",
+                status = when {
+                    !config.enabled -> "Tap to block harmful sites"
+                    !running -> "Starting…"
+                    else -> "${store.blockedToday()} blocked today"
+                } + if (locked) "\n🔒 Until ${com.raunak.daytimeline.campus.Commitment.dateText(config.commitUntil)}" else "",
+                onToggle = { if (config.enabled) commit(config.copy(enabled = false)) else turnOn() })
         }
         item {
             SectionCard("What to block", icon = Icons.Default.Block) {
@@ -118,51 +112,40 @@ fun WebFilterScreen() {
         }
         item {
             SectionCard("Safe browsing", icon = Icons.Default.VerifiedUser) {
-                SwitchRow("SafeSearch on Google, Bing, DuckDuckGo", config.safeSearch) { commit(config.copy(safeSearch = it)) }
-                SwitchRow("YouTube Restricted Mode", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
-                SwitchRow("Block sites by keyword", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
+                SwitchRow("SafeSearch", config.safeSearch) { commit(config.copy(safeSearch = it)) }
+                SwitchRow("YouTube Restricted", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
+                SwitchRow("Keyword blocking", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
                 SwitchRow("Block VPNs and proxies", config.blockBypass) { commit(config.copy(blockBypass = it)) }
             }
         }
         item { SitesCard(config, ::commit) }
         item { FilterInsights(store, running, now) }
         item {
-            var test by remember { mutableStateOf("") }
-            val verdict = remember(test, config) { if (test.contains('.')) store.buildFilter(config).decide(test) else null }
-            SectionCard("Test a site", icon = Icons.Default.TravelExplore) {
-                OutlinedTextField(test, { test = it.trim() }, placeholder = { Text("example.com") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small)
-                verdict?.let {
-                    StatusText(
-                        when (it) {
-                            is FilterVerdict.Block -> "Blocked · ${it.reason}"
-                            is FilterVerdict.Rewrite -> "Allowed in safe mode"
-                            FilterVerdict.Allow -> "Allowed"
-                        },
-                        ok = it !is FilterVerdict.Block
-                    )
-                }
-            }
-        }
-        item { BlockLogCard(store, config, running, now) { commit(it) } }
-        item {
-            SectionCard("Hard to switch off", icon = Icons.Default.Lock) {
-                Step(1, "Private DNS: set to Off or Automatic") { runCatching { context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                Step(2, "Always-on VPN and Block connections without VPN") { runCatching { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
-                Text("Wait before loosening", style = MaterialTheme.typography.bodyLarge)
-                val delays = listOf(0, 5, 30, 120, 1440)
-                PillTabs(delays.map { m -> if (m == 0) "None" else if (m >= 60) "${m / 60}h" else "${m}m" }, delays.indexOf(config.lockDelayMinutes).coerceAtLeast(0)) { i -> commit(config.copy(lockDelayMinutes = delays[i])) }
-                if (config.lockDelayMinutes > 0) {
-                    val at = config.pendingUnlockAt
-                    when {
-                        FilterLock.canLoosen(config, now) -> StatusText("Unlocked for ${((at + 10 * 60_000L - now) / 60_000L).coerceAtLeast(0)} more minutes", ok = true)
-                        at > now -> StatusText("Unlocks in ${formatWait(at - now)}", ok = null)
-                        !locked -> OutlinedButton(onClick = { commit(FilterLock.requestUnlock(config, System.currentTimeMillis())) }) { Text("Request unlock") }
-                    }
-                }
-            }
-        }
-        item {
             SectionCard("Advanced", icon = Icons.Default.Tune) {
+                Expandable("Make it hard to switch off") {
+                    Step(1, "Private DNS: Off or Automatic") { runCatching { context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                    Step(2, "Always-on VPN + block without VPN") { runCatching { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                    Text("Extra wait before changes", style = MaterialTheme.typography.bodyLarge)
+                    val delays = listOf(0, 5, 30, 120, 1440)
+                    PillTabs(delays.map { m -> if (m == 0) "None" else if (m >= 60) "${m / 60}h" else "${m}m" }, delays.indexOf(config.lockDelayMinutes).coerceAtLeast(0)) { i -> commit(config.copy(lockDelayMinutes = delays[i])) }
+                    if (config.lockDelayMinutes > 0) {
+                        val at = config.pendingUnlockAt
+                        when {
+                            FilterLock.canLoosen(config, now) -> StatusText("Unlocked for ${((at + 10 * 60_000L - now) / 60_000L).coerceAtLeast(0)} min", ok = true)
+                            at > now -> StatusText("Unlocks in ${formatWait(at - now)}", ok = null)
+                            !locked -> OutlinedButton(onClick = { commit(FilterLock.requestUnlock(config, System.currentTimeMillis())) }) { Text("Request unlock") }
+                        }
+                    }
+                    Text("Turn-off protection", style = MaterialTheme.typography.bodyLarge)
+                    com.raunak.daytimeline.wellbeing.OffGuardSettings { what, action -> offGuard.ask(what, action) }
+                }
+                Expandable("Test a site") {
+                    var test by remember { mutableStateOf("") }
+                    val verdict = remember(test, config) { if (test.contains('.')) store.buildFilter(config).decide(test) else null }
+                    OutlinedTextField(test, { test = it.trim() }, placeholder = { Text("example.com") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small)
+                    verdict?.let { StatusText(when (it) { is FilterVerdict.Block -> "Blocked · ${it.reason}"; is FilterVerdict.Rewrite -> "Allowed in safe mode"; FilterVerdict.Allow -> "Allowed" }, ok = it !is FilterVerdict.Block) }
+                }
+                Expandable("Blocked log") { BlockLogCard(store, config, running, now) { commit(it) } }
                 Expandable("DNS server") {
                     UpstreamDns.values().forEach { u ->
                         Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { commit(config.copy(upstream = u)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -228,12 +211,10 @@ private fun SitesCard(config: WebFilterConfig, commit: (WebFilterConfig) -> Unit
     val list = if (tab == 0) config.customBlocked else config.allowed
     SectionCard("Your sites", icon = Icons.Default.Language) {
         PillTabs(listOf("Always block", "Always allow"), tab) { tab = it }
-        if (list.isEmpty()) Text(if (tab == 0) "Sites you add are blocked with all their subdomains" else "Sites here are never blocked", color = Chronora.muted)
+        if (list.isEmpty()) Text("None", color = Chronora.muted)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             list.sorted().forEach { d ->
-                InputChip(selected = false, onClick = {}, label = { Text(d) }, trailingIcon = {
-                    IconButton(onClick = { commit(if (tab == 0) config.copy(customBlocked = config.customBlocked - d) else config.copy(allowed = config.allowed - d)) }, Modifier.size(24.dp)) { Icon(Icons.Default.Close, "Remove $d", Modifier.size(16.dp)) }
-                })
+                TextChip(d) { commit(if (tab == 0) config.copy(customBlocked = config.customBlocked - d) else config.copy(allowed = config.allowed - d)) }
             }
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -285,7 +266,8 @@ private fun BlockLogCard(store: WebFilterStore, config: WebFilterConfig, running
     val log = remember(running, now / 10_000, cleared) { store.log() }
     val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale.getDefault()) }
     val shown = log.filter { query.isBlank() || it.domain.contains(query, true) || it.app.contains(query, true) || it.reason.contains(query, true) }.take(80)
-    SectionCard("Blocked log", "Tap a site to allow it", icon = Icons.Default.History, action = { TextButton(onClick = { confirm.ask("the blocked log") { store.clearLog(); cleared++ } }) { Text("Clear") } }) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (log.isNotEmpty()) TextButton(onClick = { confirm.ask("the blocked log") { store.clearLog(); cleared++ } }) { Text("Clear log") }
         OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small)
         if (shown.isEmpty()) Text(if (log.isEmpty()) "Nothing blocked yet" else "No matches", style = MaterialTheme.typography.bodySmall)
         var limit by remember { mutableIntStateOf(10) }

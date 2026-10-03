@@ -108,15 +108,17 @@ fun TrackerStrip(modifier: Modifier = Modifier, onOpen: () -> Unit) {
                 val v = valueFor(t, entries, auto, today)
                 Column(Modifier.width(68.dp).clip(MaterialTheme.shapes.small).clickable {
                     val a = TrackerReminders.actions(t).firstOrNull()
+                    val before = TrackerEngine.streak(t, entries, today)
                     when {
                         t.auto || t.type == TrackerType.CHOICE || t.type == TrackerType.RATING || a == null -> onOpen()
-                        t.type == TrackerType.CHECK -> { val done = store.toggle(t, today); Feedback.show(if (done) "${t.name} ✓" else "${t.name} unticked") }
-                        else -> { val e = store.log(t, today, a.second); Feedback.show("${t.name} ${a.first}", undo = { store.remove(e.id) }) }
+                        t.type == TrackerType.CHECK -> { val done = store.toggle(t, today); if (done) afterLog(store, t, before, today, "${t.name} ✓") else Feedback.show("${t.name} unticked") }
+                        else -> { val e = store.log(t, today, a.second); afterLog(store, t, before, today, "${t.name} ${a.first}") { store.remove(e.id) } }
                     }
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                 }.padding(vertical = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     TrackerRing(t, TrackerEngine.progress(t, v), TrackerEngine.met(t, v))
                     Text(t.name, style = MaterialTheme.typography.labelSmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 4.dp))
+                    if (!t.auto) { val st = TrackerEngine.streak(t, entries, today); if (st > 1) Text("🔥 $st", style = MaterialTheme.typography.labelSmall, color = Color(0xFFFF7A1A), fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -136,6 +138,7 @@ fun TrackersScreen() {
     var editing by remember { mutableStateOf<Tracker?>(null) }
     var detail by remember { mutableStateOf<Long?>(null) }
     var custom by remember { mutableStateOf(false) }
+    var askReminders by remember { mutableStateOf<List<Tracker>?>(null) }
     val active = trackers.filter { !it.archived }
     val due = active.filter { TrackerEngine.scheduled(it, date) }
     val onTrack = due.count { TrackerEngine.met(it, valueFor(it, entries, auto, date)) }
@@ -150,14 +153,21 @@ fun TrackersScreen() {
                 }
             }
             if (due.isNotEmpty()) item {
+                val today = LocalDate.now()
+                val streaks = active.filter { !it.auto }.map { it to TrackerEngine.streak(it, entries, today) }
+                val top = streaks.maxByOrNull { it.second }
+                val left = due.size - onTrack
                 HeroCard {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Column(Modifier.weight(1f)) {
-                            Text("$onTrack of ${due.size}", color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineMedium)
-                            Text("on track", color = Chronora.colors.heroMuted)
+                            Text(when { left == 0 -> "Perfect day! 🎉"; onTrack == 0 -> "Let's start"; else -> "$left to go" }, color = Chronora.colors.onHero, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                            Text(when { left == 0 -> "Every tracker done. Enjoy it."; onTrack == 0 -> "One small win starts the chain."; else -> "$onTrack of ${due.size} done · you've got this" }, color = Chronora.colors.heroMuted)
                         }
-                        val best = active.filter { !it.auto }.maxOfOrNull { t -> TrackerEngine.streak(t, entries, LocalDate.now()) } ?: 0
-                        if (best > 1) Text("🔥 $best", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge)
+                        if (top != null && top.second > 0) Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("🔥", fontSize = 34.sp)
+                            Text("${top.second}", color = Chronora.colors.onHero, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                            Text(top.first.name, color = Chronora.colors.heroMuted, style = MaterialTheme.typography.labelSmall, maxLines = 1)
+                        }
                     }
                     LinearProgressIndicator(progress = { onTrack.toFloat() / due.size }, Modifier.fillMaxWidth().height(8.dp).clip(CircleShape), color = Chronora.colors.heroAccent, trackColor = Color.White.copy(alpha = .18f))
                 }
@@ -179,12 +189,20 @@ fun TrackersScreen() {
         }.getOrDefault(emptyMap())
         val made = pack.trackers(System.currentTimeMillis(), meals)
         store.saveAll(made); TrackerReminders.scheduleAll(context)
-        Feedback.show("Added ${made.size} tracker${if (made.size > 1) "s" else ""}")
         adding = false
+        askReminders = made.filter { !it.auto }.ifEmpty { null }
+        if (askReminders == null) Feedback.show("Added ${made.size} tracker${if (made.size > 1) "s" else ""}")
     }
-    if (custom) TrackerEditor(null, existingGroups = trackers.map { it.group }.filter { it.isNotBlank() }.distinct(), onClose = { custom = false }) { t -> store.save(t); TrackerReminders.scheduleAll(context); custom = false }
+    if (custom) TrackerEditor(null, existingGroups = trackers.map { it.group }.filter { it.isNotBlank() }.distinct(), onClose = { custom = false }) { t -> store.save(t); TrackerReminders.scheduleAll(context); custom = false; if (!t.auto && t.reminders.isEmpty()) askReminders = listOf(t) else Feedback.show("${t.emoji} ${t.name} added. Day one starts now!") }
     editing?.let { e -> TrackerEditor(e, trackers.map { it.group }.filter { it.isNotBlank() }.distinct(), onClose = { editing = null }, onDelete = { TrackerReminders.cancelAll(context, e); store.delete(e.id); editing = null; detail = null }) { t ->
         TrackerReminders.cancelAll(context, e); store.save(t); TrackerReminders.scheduleAll(context); editing = null } }
+    askReminders?.let { list ->
+        ReminderPrompt(list, close = { askReminders = null; Feedback.show("Added. Day one starts now! 💪") }) { updated ->
+            list.forEach { TrackerReminders.cancelAll(context, it) }
+            store.saveAll(updated); TrackerReminders.scheduleAll(context); askReminders = null
+            Feedback.show("⏰ Reminders set. Day one starts now!")
+        }
+    }
     detail?.let { id -> trackers.firstOrNull { it.id == id }?.let { t -> TrackerDetail(t, entries, store, auto[t.id], date, onEdit = { editing = t }) { detail = null } } }
 }
 
@@ -192,6 +210,10 @@ fun TrackersScreen() {
 private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerStore, entries: List<TrackerEntry>, date: LocalDate, onOpen: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val met = TrackerEngine.met(t, value)
+    val today = LocalDate.now()
+    val streak = if (t.auto) 0 else TrackerEngine.streak(t, entries, today)
+    val atRisk = if (t.auto || date != today) 0 else TrackerEngine.atRisk(t, entries, today)
+    val rescue = if (t.auto || date != today) 0 else TrackerEngine.rescuable(t, entries, today)
     Card(Modifier.fillMaxWidth().clickable(onClick = onOpen), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
         Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -202,13 +224,23 @@ private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerS
                     Text(TrackerEngine.format(t, value) + (if (target.isNotBlank()) " / $target" else "") + (if (!due) " · day off" else "") + (if (t.auto) " · auto" else ""),
                         style = MaterialTheme.typography.bodySmall, color = if (t.goal == TrackerGoal.AT_MOST && !met) Chronora.colors.bad else Chronora.muted)
                 }
+                if (!t.auto) StreakBadge(streak, atRisk > 0, Modifier.padding(end = 8.dp))
                 if (t.type == TrackerType.CHECK && !t.auto) {
                     val c = Color(t.color)
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(if (value > 0) c else Color.Transparent).border(2.dp, c, CircleShape)
-                        .clickable { val done = store.toggle(t, date); haptics.performHapticFeedback(HapticFeedbackType.LongPress); Feedback.show(if (done) "${t.name} ✓" else "${t.name} unticked") }, contentAlignment = Alignment.Center) {
+                    Box(Modifier.size(44.dp).clip(CircleShape).background(if (value > 0) c else Color.Transparent).border(2.dp, c, CircleShape)
+                        .clickable {
+                            val before = TrackerEngine.streak(t, entries, today)
+                            val done = store.toggle(t, date); haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            if (done) afterLog(store, t, before, date, "${t.name} ✓") else Feedback.show("${t.name} unticked")
+                        }, contentAlignment = Alignment.Center) {
                         if (value > 0) Icon(Icons.Default.Check, "Done", tint = Color.White)
                     }
                 }
+            }
+            if (!t.auto) StreakChain(t, TrackerEngine.chain(t, entries, today))
+            StreakNote(t, streak, atRisk, rescue) {
+                store.save(t.copy(frozen = t.frozen + today.minusDays(1).toString()))
+                Feedback.show("❄️ Streak saved! ${TrackerEngine.freezesLeft(t, today) - 1} freezes left this month")
             }
             if (!t.auto && t.type != TrackerType.CHECK) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 val logged = TrackerEngine.dayEntries(t, entries, date)
@@ -218,11 +250,12 @@ private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerS
                     FilterChip(picked, {
                         if (t.type == TrackerType.CHOICE && picked) logged.filter { it.choice == choice }.forEach { store.remove(it.id) }
                         else {
+                            val before = TrackerEngine.streak(t, entries, today)
                             // A meal gets one answer: picking another replaces it.
                             if (t.type == TrackerType.CHOICE || t.type == TrackerType.RATING) logged.forEach { store.remove(it.id) }
                             val e = store.log(t, date, v, choice)
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            Feedback.show("${t.name} · $label", undo = { store.remove(e.id) })
+                            afterLog(store, t, before, date, "${t.name} · $label") { store.remove(e.id) }
                         }
                     }, label = { Text(label) }, shape = RoundedCornerShape(50),
                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = (if (good) Color(t.color) else Chronora.colors.bad).copy(alpha = .2f)))
@@ -253,7 +286,15 @@ private fun TrackerDetail(t: Tracker, entries: List<TrackerEntry>, store: Tracke
                     Text(TrackerEngine.format(t, v), style = MaterialTheme.typography.headlineMedium)
                     val target = TrackerEngine.targetText(t)
                     if (target.isNotBlank()) Text("${t.goal.label.lowercase()} $target ${t.period.label.lowercase()}", color = Chronora.muted)
-                    if (streak > 0) Text("🔥 $streak ${if (t.period == TrackerPeriod.DAY) "day" else t.period.name.lowercase()} streak", style = MaterialTheme.typography.titleMedium)
+                    if (!t.auto) {
+                        val best = TrackerEngine.bestStreak(t, entries, today)
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            StatTile("Streak", "🔥 $streak", Modifier.weight(1f))
+                            StatTile("Best", "🏆 ${maxOf(best, streak)}", Modifier.weight(1f))
+                            if (t.period == TrackerPeriod.DAY) StatTile("Freezes", "❄️ ${TrackerEngine.freezesLeft(t, today)}", Modifier.weight(1f))
+                        }
+                        if (t.why.isNotBlank()) Text("“${t.why}”", style = MaterialTheme.typography.titleMedium, textAlign = TextAlign.Center)
+                    }
                 }
             }
             item {
@@ -419,6 +460,19 @@ private fun TrackerEditor(initial: Tracker?, existingGroups: List<String>, onClo
                             IconButton(onClick = { t = t.copy(windowStart = -1, windowEnd = -1) }) { Icon(Icons.Default.Close, "Clear window") }
                         }
                     }
+                }
+            }
+            if (!t.auto) item {
+                SectionCard("Streak & motivation", icon = Icons.Default.LocalFireDepartment) {
+                    OutlinedTextField(t.why, { t = t.copy(why = it.take(120)) }, Modifier.fillMaxWidth(), placeholder = { Text("Why this matters to you") }, shape = RoundedCornerShape(14.dp))
+                    if (t.period == TrackerPeriod.DAY) {
+                        Text("Streak freezes a month", style = MaterialTheme.typography.bodyLarge)
+                        val opts = listOf(0, 1, 2, 3, 5)
+                        PillTabs(opts.map { if (it == 0) "None" else "$it" }, opts.indexOf(t.freezesPerMonth).coerceAtLeast(0)) { t = t.copy(freezesPerMonth = opts[it]) }
+                    }
+                    SwitchRow("Streak saver reminder", t.saverMinute >= 0) { t = t.copy(saverMinute = if (it) 21 * 60 else -1) }
+                    if (t.saverMinute >= 0) com.raunak.daytimeline.wellbeing.ClockRow("At", t.saverMinute) { m -> t = t.copy(saverMinute = m) }
+                    SwitchRow("Celebrate milestones", t.celebrate) { t = t.copy(celebrate = it) }
                 }
             }
             if (onDelete != null) item {
