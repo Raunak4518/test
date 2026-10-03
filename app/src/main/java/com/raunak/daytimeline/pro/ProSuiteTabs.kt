@@ -230,6 +230,7 @@ internal fun EnergyTab(vm: PlannerViewModel) {
 
 @Composable
 internal fun PrivateJournalTab() {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val store = remember { PrivateJournalStore(context) }
     var entries by remember { mutableStateOf(runCatching { store.entries() }.getOrDefault(emptyList())) }
@@ -253,7 +254,7 @@ internal fun PrivateJournalTab() {
             Card { Column(Modifier.padding(12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(date, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                    IconButton(onClick = { store.delete(id); entries = store.entries() }) { Icon(Icons.Default.Delete, "Delete entry") }
+                    IconButton(onClick = { confirm.ask("this entry") { store.delete(id); entries = store.entries() } }) { Icon(Icons.Default.Delete, "Delete entry") }
                 }
                 Text(body)
             } }

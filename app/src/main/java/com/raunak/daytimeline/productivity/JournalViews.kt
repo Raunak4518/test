@@ -130,6 +130,7 @@ fun JournalSection(entries: List<OfflineJournalEntry>, settings: OfflineSettings
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun JournalEditor(initial: OfflineJournalEntry, settings: OfflineSettings, onSave: (OfflineJournalEntry) -> Unit, onDelete: (() -> Unit)?, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var mood by remember { mutableIntStateOf(initial.mood.coerceIn(1, 5)) }
     var energy by remember { mutableIntStateOf(initial.energy.coerceIn(1, 5)) }
     var acts by remember { mutableStateOf(JournalEngine.activities(initial).toSet()) }
@@ -154,7 +155,7 @@ fun JournalEditor(initial: OfflineJournalEntry, settings: OfflineSettings, onSav
             OutlinedTextField(gratitude, { gratitude = it }, label = { Text("Grateful for") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(blockers, { blockers = it }, label = { Text("What got in the way") }, modifier = Modifier.fillMaxWidth())
             OutlinedTextField(note, { note = it }, label = { Text("Anything else") }, minLines = 2, modifier = Modifier.fillMaxWidth())
-            if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete entry", color = Chronora.colors.bad) }
+            if (onDelete != null) TextButton(onClick = { confirm.ask("this entry", onDelete) }) { Text("Delete entry", color = Chronora.colors.bad) }
         }
     }, confirmButton = { Button(onClick = { onSave(initial.copy(mood = mood, energy = energy, activities = acts.toList(), answer = answer, wins = wins, gratitude = gratitude, blockers = blockers, note = note)) }) { Text("Save") } },
         dismissButton = { TextButton(onClick = close) { Text("Cancel") } })

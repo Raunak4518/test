@@ -128,6 +128,7 @@ private fun NewSheetDialog(store: CampusStore, data: CampusData, close: () -> Un
 
 @Composable
 private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val today = LocalDate.now()
     val st = SheetEngine.stats(sheet, today)
@@ -201,7 +202,7 @@ private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit)
             if (item.section != lastSection) { val sec = item.section; item(key = "h$index") { Text(sec, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, modifier = Modifier.padding(top = 6.dp)) }; lastSection = sec }
             item(key = "i${item.id}") { ItemRow(sheet, item, store, onEdit = { editing = item }) { openUrl(context, item.url) } }
         }
-        item { TextButton(onClick = { store.updateSheets { l -> l.filterNot { it.id == sheet.id } }; back() }) { Text("Delete sheet", color = MaterialTheme.colorScheme.error) } }
+        item { TextButton(onClick = { confirm.ask("this sheet") { store.updateSheets { l -> l.filterNot { it.id == sheet.id } }; back() } }) { Text("Delete sheet", color = MaterialTheme.colorScheme.error) } }
     }
     if (adding) AddItemsDialog(sheet, store) { adding = false }
     editing?.let { ItemDialog(sheet, it, store) { editing = null } }
@@ -238,6 +239,7 @@ private fun ItemRow(sheet: StudySheet, item: SheetItem, store: CampusStore, onEd
 
 @Composable
 private fun ItemDialog(sheet: StudySheet, item: SheetItem, store: CampusStore, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var title by remember { mutableStateOf(item.title) }
     var url by remember { mutableStateOf(item.url) }
     var notes by remember { mutableStateOf(item.notes) }
@@ -254,7 +256,7 @@ private fun ItemDialog(sheet: StudySheet, item: SheetItem, store: CampusStore, c
     }, confirmButton = {
         Button(onClick = { store.updateItem(sheet.id, item.id) { it.copy(title = title.trim().ifBlank { it.title }, url = url.trim(), notes = notes, minutes = minutes.toIntOrNull() ?: 0, difficulty = diff) }; close() }) { Text("Save") }
     }, dismissButton = {
-        TextButton(onClick = { store.updateSheet(sheet.id) { s -> s.copy(items = s.items.filterNot { it.id == item.id }) }; close() }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
+        TextButton(onClick = { confirm.ask("this item") { store.updateSheet(sheet.id) { s -> s.copy(items = s.items.filterNot { it.id == item.id }) }; close() } }) { Text("Delete", color = MaterialTheme.colorScheme.error) }
     })
 }
 

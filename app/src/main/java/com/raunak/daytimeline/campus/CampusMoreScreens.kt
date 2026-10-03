@@ -77,6 +77,7 @@ internal fun DeadlinesTab() {
 
 @Composable
 private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: CampusStore) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val overdue = !d.done && (daysUntil(d.date, today) ?: 0) < 0
     Row(verticalAlignment = Alignment.CenterVertically) {
         val ctx = LocalContext.current
@@ -85,7 +86,7 @@ private fun DeadlineRow(d: Deadline, data: CampusData, today: LocalDate, store: 
             Text(d.title, fontWeight = FontWeight.SemiBold)
             Text("${d.label} · ${dueLabel(d, today)} · ${d.date}" + (d.subjectId?.let { id -> " · " + (data.subjects.firstOrNull { it.id == id }?.name ?: "") } ?: ""), style = MaterialTheme.typography.bodySmall, color = if (overdue) Chronora.colors.bad else MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        IconButton(onClick = { store.update { c -> c.copy(deadlines = c.deadlines.filterNot { it.id == d.id }) } }) { Icon(Icons.Default.Delete, "Delete") }
+        IconButton(onClick = { confirm.ask("this deadline") { store.update { c -> c.copy(deadlines = c.deadlines.filterNot { it.id == d.id }) } } }) { Icon(Icons.Default.Delete, "Delete") }
     }
 }
 
@@ -103,7 +104,7 @@ private fun DeadlineDialog(data: CampusData, store: CampusStore, close: () -> Un
             Text("Edit these types in Campus → Settings.", style = MaterialTheme.typography.labelSmall)
             if (data.subjects.isNotEmpty()) LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp)) { items(data.subjects) { s -> FilterChip(subjectId == s.id, { subjectId = if (subjectId == s.id) null else s.id }, label = { Text(s.name) }) } }
             DateButton("Due", date) { date = it }
-            OutlinedTextField(time, { time = it }, label = { Text("Time") }, singleLine = true, isError = parseClock(time) == null)
+            com.raunak.daytimeline.ui.PickerField("Time", time, { time = it }, date = false, time = true)
         }
     }, confirmButton = {
         Button(enabled = title.isNotBlank() && parseClock(time) != null, onClick = {
@@ -415,6 +416,7 @@ private fun GradeScaleDialog(scale: List<GradePoint>, onSave: (List<GradePoint>)
 
 @Composable
 private fun SemesterDialog(sem: SemesterResult, store: CampusStore, scale: List<GradePoint>, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var courses by remember { mutableStateOf(sem.courses) }
     AlertDialog(onDismissRequest = close, title = { Text("Semester ${sem.number} · SGPA ${Cgpa.sgpa(courses, scale)?.let { "%.2f".format(it) } ?: "—"}") }, text = {
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.heightIn(max = 480.dp)) {
@@ -432,7 +434,7 @@ private fun SemesterDialog(sem: SemesterResult, store: CampusStore, scale: List<
                 }
             }
             item { TextButton(onClick = { courses = courses + Course("", 4, null) }) { Text("Add course") } }
-            item { TextButton(onClick = { store.updateSemesters { l -> l.filterNot { it.number == sem.number } }; close() }) { Text("Delete semester", color = MaterialTheme.colorScheme.error) } }
+            item { TextButton(onClick = { confirm.ask("this semester") { store.updateSemesters { l -> l.filterNot { it.number == sem.number } }; close() } }) { Text("Delete semester", color = MaterialTheme.colorScheme.error) } }
         }
     }, confirmButton = {
         Button(onClick = { store.updateSemesters { l -> l.map { if (it.number == sem.number) it.copy(courses = courses.filter { c -> c.name.isNotBlank() }) else it } }; close() }) { Text("Save") }
@@ -530,6 +532,7 @@ private fun CompanyCard(c: Company, cgpa: Double?, today: LocalDate, onOpen: () 
 
 @Composable
 private fun CompanyDialog(c: Company, store: CampusStore, stages: List<String>, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     var name by remember { mutableStateOf(c.name) }
     var role by remember { mutableStateOf(c.role) }
@@ -574,7 +577,7 @@ private fun CompanyDialog(c: Company, store: CampusStore, stages: List<String>, 
             item { OutlinedTextField(notes, { notes = it }, label = { Text("Notes: questions asked, contacts…") }, minLines = 3, modifier = Modifier.fillMaxWidth()) }
             val history = PlacementStats.history(c)
             if (history.isNotEmpty()) item { Text("History: " + history.joinToString(" → ") { "${it.stage} (${it.date})" }, style = MaterialTheme.typography.bodySmall, color = Chronora.muted) }
-            if (c.name.isNotBlank()) item { TextButton(onClick = { store.updateCompanies { l -> l.filterNot { it.id == c.id } }; close() }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }
+            if (c.name.isNotBlank()) item { TextButton(onClick = { confirm.ask("this company") { store.updateCompanies { l -> l.filterNot { it.id == c.id } }; close() } }) { Text("Delete", color = MaterialTheme.colorScheme.error) } }
         }
     }, confirmButton = {
         Button(enabled = name.isNotBlank(), onClick = {

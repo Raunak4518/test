@@ -268,6 +268,7 @@ private fun ShortFormCard(c: WellbeingConfig, save: (WellbeingConfig) -> Unit) {
 
 @Composable
 private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (String) -> String, save: (WellbeingConfig) -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     var held by remember { mutableStateOf(store.held()) }
     var picking by remember { mutableStateOf(false) }
@@ -306,7 +307,7 @@ private fun NotificationsCard(c: WellbeingConfig, store: WellbeingStore, name: (
             NotificationDigest.summary(held).take(6).forEach { Text(it, style = MaterialTheme.typography.bodySmall) }
             Row {
                 TextButton(onClick = { WellbeingAlarmReceiver.deliverDigest(context); held = store.held() }) { Text("Deliver now") }
-                TextButton(onClick = { store.clearHeld(); held = emptyList() }) { Text("Clear") }
+                TextButton(onClick = { confirm.ask("held notifications") { store.clearHeld(); held = emptyList() } }) { Text("Clear") }
             }
         }
     } }

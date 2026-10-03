@@ -459,6 +459,7 @@ private fun ReportBar(label: String, minutes: Int, total: Int, color: Color) {
 
 @Composable
 private fun FocusHistory(sessions: List<GardenSession>, garden: GardenStore, cfg: FocusConfig, changed: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var all by remember { mutableStateOf(false) }
     var logging by remember { mutableStateOf(false) }
     val zone = ZoneId.systemDefault()
@@ -479,7 +480,7 @@ private fun FocusHistory(sessions: List<GardenSession>, garden: GardenStore, cfg
                     if (s.rating > 0) Text("★".repeat(s.rating), color = Chronora.colors.warn, fontSize = 12.sp)
                 }
                 DropdownMenu(menu, { menu = false }) {
-                    DropdownMenuItem(text = { Text("Delete session") }, onClick = { menu = false; garden.delete(s); changed() })
+                    DropdownMenuItem(text = { Text("Delete session") }, onClick = { menu = false; confirm.ask("this session") { garden.delete(s); changed() } })
                 }
             }
         }
@@ -530,7 +531,7 @@ private fun TimerSettings(pomo: PomodoroStateEntity, vm: PlannerViewModel, cfg: 
             SwitchRow("Rate each session", cfg.reflect) { v -> save { it.copy(reflect = v) } }
         }
         SectionCard("Sound & screen", icon = Icons.Default.VolumeUp) {
-            Text("Volume", style = MaterialTheme.typography.bodyLarge)
+            Text("Volume ${(volume * 100).toInt()}%", style = MaterialTheme.typography.bodyLarge)
             Slider(volume, { volume = it; soundPrefs.volume = it })
             SwitchRow("Ticking", cfg.tickSound) { v -> save { it.copy(tickSound = v) } }
             SwitchRow("Vibrate at phase end", cfg.vibrate) { v -> save { it.copy(vibrate = v) } }

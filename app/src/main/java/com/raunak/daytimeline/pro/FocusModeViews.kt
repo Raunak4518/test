@@ -186,6 +186,7 @@ private fun BigSwitch(config: FocusGuardConfig, s: FocusModeStatus) {
 
 @Composable
 private fun SchedulesCard(config: FocusGuardConfig, store: FocusGuardStore) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var adding by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("Study") }
     var start by remember { mutableStateOf("09:00") }
@@ -201,7 +202,7 @@ private fun SchedulesCard(config: FocusGuardConfig, store: FocusGuardStore) {
                         style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
                 }
                 Switch(sc.enabled, { v -> store.update { c -> c.copy(focusModeSchedules = c.focusModeSchedules.map { if (it.id == sc.id) it.copy(enabled = v) else it }) } })
-                IconButton(onClick = { store.update { c -> c.copy(focusModeSchedules = c.focusModeSchedules.filterNot { it.id == sc.id }) } }) { Icon(Icons.Default.Delete, "Delete schedule") }
+                IconButton(onClick = { confirm.ask("this schedule") { store.update { c -> c.copy(focusModeSchedules = c.focusModeSchedules.filterNot { it.id == sc.id }) } } }) { Icon(Icons.Default.Delete, "Delete schedule") }
             }
         }
         if (config.focusModeSchedules.isEmpty() && !adding) Text("None", color = Chronora.muted, style = MaterialTheme.typography.bodySmall)

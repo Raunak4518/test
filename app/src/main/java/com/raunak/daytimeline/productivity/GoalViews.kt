@@ -138,6 +138,7 @@ private fun Sparkline(values: List<Int>, target: Int, color: Color) {
 
 @Composable
 fun GoalEditor(initial: OfflineGoal?, onSave: (OfflineGoal) -> Unit, onDelete: (() -> Unit)? = null, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val base = initial ?: OfflineGoal(0, "", 0, 10, null, emptyList(), false)
     var title by remember { mutableStateOf(base.title) }
     var why by remember { mutableStateOf(base.why) }
@@ -157,14 +158,14 @@ fun GoalEditor(initial: OfflineGoal?, onSave: (OfflineGoal) -> Unit, onDelete: (
                 OutlinedTextField(target, { target = it.filter(Char::isDigit) }, label = { Text("Target") }, singleLine = true, modifier = Modifier.weight(1f))
                 OutlinedTextField(unit, { unit = it }, label = { Text("Unit (pages, km…)") }, singleLine = true, modifier = Modifier.weight(1f))
             } else OutlinedTextField(milestones, { milestones = it }, label = { Text("Milestones, one per line") }, minLines = 4, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD (optional)") }, singleLine = true, isError = !deadlineOk, modifier = Modifier.fillMaxWidth())
+            com.raunak.daytimeline.ui.PickerField("Deadline (optional)", deadline, { deadline = it }, clearable = true)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf(7L, 30L, 90L, 180L).forEach { d -> AssistChip(onClick = { deadline = LocalDate.now().plusDays(d).toString() }, label = { Text(if (d < 30) "${d}d" else "${d / 30}mo") }) }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 HabitColors.forEach { c -> Box(Modifier.size(24.dp).clip(CircleShape).background(Color(c)).border(if (c == color) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape).clickable { color = c }) }
             }
-            if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete goal", color = Chronora.colors.bad) }
+            if (onDelete != null) TextButton(onClick = { confirm.ask("this goal", onDelete) }) { Text("Delete goal", color = Chronora.colors.bad) }
         }
     }, confirmButton = {
         Button(enabled = title.isNotBlank() && deadlineOk && (kind == GoalKind.PROJECT || (target.toIntOrNull() ?: 0) > 0), onClick = {

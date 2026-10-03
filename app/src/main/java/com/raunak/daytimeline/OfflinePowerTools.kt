@@ -28,9 +28,9 @@ import java.time.format.DateTimeFormatter
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val projects by store.projects.collectAsStateWithLifecycle()
-    val entries by store.timeEntries.collectAsStateWithLifecycle()
     val challenges by store.challenges.collectAsStateWithLifecycle()
     val achievements by store.achievements.collectAsStateWithLifecycle()
     val settings by store.settings.collectAsStateWithLifecycle()
@@ -38,23 +38,14 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     val adminComponent = remember(context) { ComponentName(context, DayTimelineDeviceAdminReceiver::class.java) }
     val protectionEnabled = devicePolicyManager?.isAdminActive(adminComponent) == true
     var newProject by remember { mutableStateOf("") }
-    var timerLabel by remember { mutableStateOf("") }
     var selectedProject by remember { mutableLongStateOf(-1L) }
     var status by remember { mutableStateOf("") }
     var challengeEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineChallenge?>(null) }
     var newChallenge by remember { mutableStateOf(false) }
     var projectEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineProject?>(null) }
     var newProjectDialog by remember { mutableStateOf(false) }
-    val exporter = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri -> if (uri != null) runCatching { context.contentResolver.openOutputStream(uri)?.bufferedWriter()?.use { it.write(store.exportJson()) } ?: error("Unable to write backup") }.onSuccess { status = "Backup saved" }.onFailure { status = "Export failed" } }
-    val importer = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
-        if (uri != null) runCatching {
-            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() } ?: error("Unable to read backup")
-        }.onSuccess { json -> store.importJson(json).onSuccess { status = "Backup imported successfully" }.onFailure { status = "Import failed" } }
-            .onFailure { status = "Import failed: cannot read file" }
-    }
-    Scaffold(topBar = { ChronoraTopBar("Power tools", onClose) }) { padding ->
+    Scaffold(topBar = { ChronoraTopBar("Settings", onClose) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Text("Settings & backup", style = MaterialTheme.typography.headlineSmall) }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Tamper protection", style = MaterialTheme.typography.titleMedium)
                 Text(if (protectionEnabled) "Android device-admin protection is active. It must be explicitly disabled before normal uninstall can proceed." else "Optional Android-managed protection. This does not bypass Android security or make the app permanently undeletable.")
@@ -70,13 +61,6 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Time tracker", style = MaterialTheme.typography.titleMedium)
-                val active = entries.firstOrNull { it.endEpochMillis == null }
-                if (active != null) { Text(active.label, style = MaterialTheme.typography.titleLarge); Text("Started " + formatEpoch(active.startEpochMillis)); Button(onClick = { store.stopTimeEntry(active.id); status = "Timer stopped" }) { Text("Stop") } }
-                else { OutlinedTextField(timerLabel, { timerLabel = it }, label = { Text("What are you working on?") }, modifier = Modifier.fillMaxWidth()); Button(onClick = { store.startTimeEntry(timerLabel, selectedProject.takeIf { it > 0L }); timerLabel = ""; status = "Timer started" }, enabled = timerLabel.isNotBlank()) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(6.dp)); Text("Start timer") } }
-                Text("Today: " + store.todayTrackedMinutes() + " minutes tracked", style = MaterialTheme.typography.labelLarge)
-            } } }
-            item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Projects", style = MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { OutlinedTextField(newProject, { newProject = it }, label = { Text("Project name") }, modifier = Modifier.weight(1f)); Button(onClick = { store.addProject(newProject); newProject = "" }, enabled = newProject.isNotBlank()) { Text("Add") }; OutlinedButton(onClick = { newProjectDialog = true }) { Text("Advanced") } }
                 projects.forEach { project -> Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) { FilterChip(selectedProject == project.id, { selectedProject = if (selectedProject == project.id) -1L else project.id }, label = { Text(project.name) }); Row { IconButton(onClick = { projectEditor = project }) { Icon(Icons.Default.Edit, "Edit project") }; IconButton(onClick = { store.deleteProject(project.id) }) { Icon(Icons.Default.Delete, "Delete project") } } } }
@@ -89,11 +73,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
                 Text("Achievements", style = MaterialTheme.typography.titleMedium)
                 if (achievements.isEmpty()) Text("No achievements unlocked yet.") else achievements.sortedByDescending { it.unlockedAt }.forEach { ListItem(headlineContent = { Text(it.title) }, supportingContent = { Text(it.description) }, leadingContent = { Icon(Icons.Default.EmojiEvents, null) }) }
             } } }
-            item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Backup & restore", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { Button(onClick = { exporter.launch("chronora-backup.json") }) { Icon(Icons.Default.Save, null); Spacer(Modifier.width(6.dp)); Text("Save JSON") }
-                OutlinedButton(onClick = { val send = Intent(Intent.ACTION_SEND).apply { type = "application/json"; putExtra(Intent.EXTRA_TEXT, store.exportJson()) }; context.startActivity(Intent.createChooser(send, "Share productivity backup")) }) { Icon(Icons.Default.Share, null); Spacer(Modifier.width(6.dp)); Text("Share") }; OutlinedButton(onClick = { importer.launch("application/json") }) { Icon(Icons.Default.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Import") } }
-            } } }
+            item { com.raunak.daytimeline.campus.BackupCard() }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Appearance & accessibility", style = MaterialTheme.typography.titleMedium)
                 
@@ -105,7 +85,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Data safety", style = MaterialTheme.typography.titleMedium)
-                OutlinedButton(onClick = { store.resetAll(); status = "Secondary productivity data reset" }) { Text("Reset secondary data") }
+                OutlinedButton(onClick = { confirm.ask("all habits, goals, notes, journal and time logs") { store.resetAll(); status = "Data reset" } }) { Text("Reset habits, notes & logs", color = com.raunak.daytimeline.ui.Chronora.colors.bad) }
             } } }
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Local behavior", style = MaterialTheme.typography.titleMedium); SettingSwitch("Haptics", settings.haptics) { store.updateSettings { current -> current.copy(haptics = it) } }; SettingSwitch("Sounds", settings.sounds) { store.updateSettings { current -> current.copy(sounds = it) } }; SettingSwitch("Auto-scroll to now", settings.autoScrollNow) { store.updateSettings { current -> current.copy(autoScrollNow = it) } }; SettingSwitch("Show completed", settings.showCompleted) { store.updateSettings { current -> current.copy(showCompleted = it) } }; Text("Default task: " + settings.defaultTaskMinutes + "m · Focus: " + settings.defaultFocusMinutes + "m", style = MaterialTheme.typography.bodySmall)
@@ -124,7 +104,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
 @Composable private fun ProjectEditDialog(project: com.raunak.daytimeline.features.OfflineProject?, store: OfflineProductivityStore, close: () -> Unit) {
     var name by remember { mutableStateOf(project?.name ?: "") }
     var deadline by remember { mutableStateOf(project?.deadline ?: "") }
-    AlertDialog(onDismissRequest = close, title = { Text(if (project == null) "New project" else "Edit project") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(name, { name = it }, label = { Text("Project") }); OutlinedTextField(deadline, { deadline = it }, label = { Text("Deadline YYYY-MM-DD") }) } }, confirmButton = { Button(onClick = { val d = runCatching { java.time.LocalDate.parse(deadline) }.getOrNull(); if (project == null) store.addProject(name) else store.updateProject(project.id, name, d, project.color); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
+    AlertDialog(onDismissRequest = close, title = { Text(if (project == null) "New project" else "Edit project") }, text = { Column(verticalArrangement = Arrangement.spacedBy(6.dp)) { OutlinedTextField(name, { name = it }, label = { Text("Project") }); com.raunak.daytimeline.ui.PickerField("Deadline", deadline, { deadline = it }, clearable = true) } }, confirmButton = { Button(onClick = { val d = runCatching { java.time.LocalDate.parse(deadline) }.getOrNull(); if (project == null) store.addProject(name) else store.updateProject(project.id, name, d, project.color); close() }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
 @Composable private fun ChallengeEditDialog(challenge: com.raunak.daytimeline.features.OfflineChallenge?, store: OfflineProductivityStore, close: () -> Unit) {
@@ -135,4 +115,3 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
 }
 
 @Composable private fun SettingSwitch(label: String, checked: Boolean, onChange: (Boolean) -> Unit) = SwitchRow(label, checked, onChange = onChange)
-private fun formatEpoch(epoch: Long): String = Instant.ofEpochMilli(epoch).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("dd MMM · HH:mm"))

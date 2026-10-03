@@ -27,7 +27,7 @@ private fun NumberStepper(label: String, value: Int, step: Int, min: Int, max: I
 
 /** Save everything to one file and restore it on a new phone. */
 @Composable
-private fun BackupCard() {
+internal fun BackupCard() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var includePrivate by remember { mutableStateOf(false) }

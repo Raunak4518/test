@@ -74,6 +74,7 @@ fun HabitList(habits: List<OfflineHabit>, store: OfflineProductivityStore, onEdi
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun HabitCard(habit: OfflineHabit, store: OfflineProductivityStore, today: LocalDate = LocalDate.now(), onEdit: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val color = Color(habit.color.takeIf { it != 0L } ?: HabitColors.first())
     var expanded by remember(habit.id) { mutableStateOf(false) }
     val strength = remember(habit, today) { HabitEngine.strength(habit, today) }
@@ -106,7 +107,7 @@ fun HabitCard(habit: OfflineHabit, store: OfflineProductivityStore, today: Local
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = onEdit) { Icon(Icons.Default.Edit, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Edit") }
                     TextButton(onClick = { store.archiveHabit(habit.id, !habit.archived) }) { Icon(Icons.Default.Archive, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text(if (habit.archived) "Restore" else "Archive") }
-                    TextButton(onClick = { store.deleteHabit(habit.id) }) { Icon(Icons.Default.Delete, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Delete") }
+                    TextButton(onClick = { confirm.ask("this habit and its history") { store.deleteHabit(habit.id) } }) { Icon(Icons.Default.Delete, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Delete") }
                 }
             } else {
                 Text("Tap the name for history and options", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)

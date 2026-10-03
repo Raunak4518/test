@@ -144,6 +144,7 @@ private fun Bar(label: String, minutes: Long, total: Long, color: Color) {
 
 @Composable
 private fun TimeEntryEditor(e: OfflineTimeEntry, projects: List<OfflineProject>, store: OfflineProductivityStore, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val zone = ZoneId.systemDefault()
     fun fmt(ms: Long) = LocalDateTime.ofInstant(Instant.ofEpochMilli(ms), zone).toString().take(16).replace('T', ' ')
     fun parse(s: String) = runCatching { LocalDateTime.parse(s.trim().replace(' ', 'T')).atZone(zone).toInstant().toEpochMilli() }.getOrNull()
@@ -157,14 +158,15 @@ private fun TimeEntryEditor(e: OfflineTimeEntry, projects: List<OfflineProject>,
     AlertDialog(onDismissRequest = close, title = { Text(if (e.id == 0L) "Add time" else "Edit entry") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(label, { label = it }, label = { Text("Description") }, singleLine = true)
-            OutlinedTextField(start, { start = it }, label = { Text("Start (YYYY-MM-DD HH:mm)") }, singleLine = true, isError = s == null)
-            OutlinedTextField(end, { end = it }, label = { Text("End (blank = still running)") }, singleLine = true, isError = end.isNotBlank() && (f == null || s == null || f <= s))
+            com.raunak.daytimeline.ui.PickerField("Start", start, { start = it }, time = true)
+            com.raunak.daytimeline.ui.PickerField(if (end.isBlank()) "End · still running" else "End", end, { end = it }, time = true, clearable = true)
+            if (end.isNotBlank() && (f == null || s == null || f <= s)) Text("End must be after start", color = Chronora.colors.bad, style = MaterialTheme.typography.labelSmall)
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(project == null, { project = null }, label = { Text("No project") })
                 projects.forEach { p -> FilterChip(project == p.id, { project = p.id }, label = { Text(p.name) }) }
             }
             OutlinedTextField(tags, { tags = it }, label = { Text("Tags") }, singleLine = true)
-            if (e.id != 0L) TextButton(onClick = { store.deleteTimeEntry(e.id); close() }) { Text("Delete entry", color = Chronora.colors.bad) }
+            if (e.id != 0L) TextButton(onClick = { confirm.ask("this entry") { store.deleteTimeEntry(e.id); close() } }) { Text("Delete entry", color = Chronora.colors.bad) }
         }
     }, confirmButton = {
         Button(enabled = ok, onClick = { store.saveTimeEntry(e.copy(label = label.trim(), startEpochMillis = s!!, endEpochMillis = f, projectId = project, tags = tags.split(',', ' ').map { it.trim().removePrefix("#") }.filter { it.isNotBlank() }.toSet())); close() }) { Text("Save") }

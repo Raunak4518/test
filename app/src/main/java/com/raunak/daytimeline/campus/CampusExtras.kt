@@ -93,6 +93,7 @@ internal fun SleepCard(data: CampusData, store: CampusStore) {
 /** Internal marks per subject → weighted percentage, predicted grade and what you need for the next grade. */
 @Composable
 internal fun MarksCard(data: CampusData, store: CampusStore) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var adding by remember { mutableStateOf<Long?>(null) }
     SectionCard("Internal marks", "Minors, mid-sems, quizzes, assignments → predicted grade") {
         if (data.subjects.isEmpty()) Text("Add subjects in the Timetable tab first.", style = MaterialTheme.typography.bodySmall)
@@ -113,7 +114,7 @@ internal fun MarksCard(data: CampusData, store: CampusStore) {
             list.forEach { a ->
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("  ${a.name} · ${a.obtained?.let { fmtNum(it) } ?: "—"}/${fmtNum(a.maxMarks)} · weight ${fmtNum(a.weightPercent)}%", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                    IconButton(onClick = { store.update { d -> d.copy(assessments = d.assessments.filterNot { it.id == a.id }) } }) { Icon(Icons.Default.Delete, "Delete") }
+                    IconButton(onClick = { confirm.ask("this assessment") { store.update { d -> d.copy(assessments = d.assessments.filterNot { it.id == a.id }) } } }) { Icon(Icons.Default.Delete, "Delete") }
                 }
             }
         }

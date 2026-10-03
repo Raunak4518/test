@@ -257,12 +257,13 @@ private fun FilterInsights(store: WebFilterStore, running: Boolean, now: Long) {
 /** Searchable log; tap an entry to always allow that site (the commitment lock still applies). */
 @Composable
 private fun BlockLogCard(store: WebFilterStore, config: WebFilterConfig, running: Boolean, now: Long, commit: (WebFilterConfig) -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var query by remember { mutableStateOf("") }
     var cleared by remember { mutableIntStateOf(0) }
     val log = remember(running, now / 10_000, cleared) { store.log() }
     val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale.getDefault()) }
     val shown = log.filter { query.isBlank() || it.domain.contains(query, true) || it.app.contains(query, true) || it.reason.contains(query, true) }.take(80)
-    SectionCard("Blocked log", "${log.size} recent · tap a site to allow it", action = { TextButton(onClick = { store.clearLog(); cleared++ }) { Text("Clear") } }) {
+    SectionCard("Blocked log", "${log.size} recent · tap a site to allow it", action = { TextButton(onClick = { confirm.ask("the blocked log") { store.clearLog(); cleared++ } }) { Text("Clear") } }) {
         OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search site, app or reason") }, modifier = Modifier.fillMaxWidth())
         if (shown.isEmpty()) Text(if (log.isEmpty()) "Nothing blocked yet" else "No matches", style = MaterialTheme.typography.bodySmall)
         shown.forEach { e ->

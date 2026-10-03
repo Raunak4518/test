@@ -127,7 +127,7 @@ private fun DaySchedule(vm: PlannerViewModel, tasks: List<TaskModel>, allTasks: 
                 Column(Modifier.padding(12.dp)) {
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text(task.title, fontWeight = FontWeight.SemiBold)
-                        if (blocked) AssistChip(onClick = {}, label = { Text("Blocked") })
+                        if (blocked) Text("Blocked", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelLarge)
                     }
                     Text(clock(task.startMinute) + "–" + clock(task.endMinute) + " · " + (task.endMinute - task.startMinute) + "m")
                     if (blocked) Text("Waiting for: " + graph.blockers(task, allTasks).joinToString { it.title }, color = MaterialTheme.colorScheme.error)
@@ -246,7 +246,7 @@ private fun StudyWorkspace(store: CompletionStore) {
         Text("Exam planner", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             OutlinedTextField(examName, { examName = it }, label = { Text("Exam") }, modifier = Modifier.weight(1f))
-            OutlinedTextField(examDate, { examDate = it }, label = { Text("YYYY-MM-DD") }, modifier = Modifier.weight(1f))
+            com.raunak.daytimeline.ui.PickerField("Date", examDate, { examDate = it }, modifier = Modifier.weight(1f))
             Button(onClick = { if (examName.isNotBlank() && runCatching { LocalDate.parse(examDate) }.isSuccess) { store.saveExam(ExamPlan(System.currentTimeMillis(), examName, examDate, emptyList())); examName = ""; examDate = "" } }) { Text("Add") }
         }
         store.exams().sortedBy { it.date }.take(4).forEach { Text(it.name + " · " + it.date) }
@@ -334,6 +334,7 @@ private fun ReviewWorkspace(store: CompletionStore) {
 
 @Composable
 private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<TaskModel>, store: CompletionStore) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var assistantQuery by remember { mutableStateOf("") }
     var assistantAnswer by remember { mutableStateOf("") }
     var templateName by remember { mutableStateOf("") }
@@ -422,7 +423,7 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
                             cursor += block.minutes + 10
                         }
                     }) { Text("Apply") }
-                    IconButton(onClick = { store.deleteTemplate(template.id) }) { Icon(Icons.Default.Delete, "Delete template") }
+                    IconButton(onClick = { confirm.ask("this template") { store.deleteTemplate(template.id) } }) { Icon(Icons.Default.Delete, "Delete template") }
                 }
             }
         } } }

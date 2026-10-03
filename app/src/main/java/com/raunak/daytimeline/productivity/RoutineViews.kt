@@ -122,6 +122,7 @@ fun RoutinePlayer(r: OfflineRoutine, onFinish: () -> Unit, close: () -> Unit) {
 
 @Composable
 fun RoutineEditor(initial: OfflineRoutine?, onSave: (OfflineRoutine) -> Unit, onDelete: (() -> Unit)? = null, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var name by remember { mutableStateOf(initial?.name ?: "") }
     val steps = remember { mutableStateListOf<OfflineRoutineStep>().apply { addAll(initial?.steps ?: listOf(OfflineRoutineStep("", 5))) } }
     AlertDialog(onDismissRequest = close, title = { Text(if (initial == null) "New routine" else "Edit routine") }, text = {
@@ -142,7 +143,7 @@ fun RoutineEditor(initial: OfflineRoutine?, onSave: (OfflineRoutine) -> Unit, on
             }
             OutlinedButton(onClick = { steps.add(OfflineRoutineStep("", 5)) }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Add, null); Text("Add step") }
             Text("Total ${steps.sumOf { it.minutes }} min", color = Chronora.muted)
-            if (onDelete != null) TextButton(onClick = onDelete) { Text("Delete routine", color = Chronora.colors.bad) }
+            if (onDelete != null) TextButton(onClick = { confirm.ask("this routine", onDelete) }) { Text("Delete routine", color = Chronora.colors.bad) }
         }
     }, confirmButton = {
         val clean = steps.filter { it.title.isNotBlank() }

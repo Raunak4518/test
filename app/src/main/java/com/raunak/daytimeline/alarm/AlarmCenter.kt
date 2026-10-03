@@ -236,6 +236,7 @@ private fun WakeRecordCard(history: List<WakeRecord>) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onDelete: (() -> Unit)?, onSave: (AlarmEditorModel) -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val references = remember { AlarmReferenceStore(context) }
     var cur by remember(model.id) { mutableStateOf(model) }
@@ -369,7 +370,7 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onDelete:
                 OutlinedButton(onClick = {
                     ok()?.let { m -> AlarmPersistentStore(context).save(m.toPersistent()); context.startActivity(Intent(context, AlarmRingingActivity::class.java).putExtra(AlarmTriggerReceiver.EXTRA_ALARM_ID, m.id).putExtra(AlarmRingingActivity.EXTRA_TEST_MODE, true)) }
                 }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.PlayArrow, null); Spacer(Modifier.width(4.dp)); Text("Preview") }
-                if (onDelete != null) OutlinedButton(onClick = onDelete, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Delete, null, tint = Chronora.colors.bad); Spacer(Modifier.width(4.dp)); Text("Delete", color = Chronora.colors.bad) }
+                if (onDelete != null) OutlinedButton(onClick = { confirm.ask("this alarm", onDelete) }, modifier = Modifier.weight(1f)) { Icon(Icons.Default.Delete, null, tint = Chronora.colors.bad); Spacer(Modifier.width(4.dp)); Text("Delete", color = Chronora.colors.bad) }
             }
         }
     }

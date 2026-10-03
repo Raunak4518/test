@@ -103,6 +103,7 @@ private fun QuickAddTab(vm: PlannerViewModel) {
 
 @Composable
 internal fun FocusGuardTab() {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val store = remember { FocusGuardStore(context) }
     val config by store.configFlow.collectAsState()
@@ -149,8 +150,9 @@ internal fun FocusGuardTab() {
                     trailingIcon = { if (phrase != config.unlockPhrase) TextButton(onClick = { store.update { it.copy(unlockPhrase = phrase.trim()) } }) { Text("Save") } })
                 if (config.unlockPhrase.isBlank()) TextButton(onClick = { phrase = "I am choosing distraction over my goals right now" }) { Text("Use a suggested phrase") }
                 SwitchRow("Allowlist mode", config.allowlistMode) { v -> store.update { it.copy(allowlistMode = v) } }
-                Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay} · wait ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
+                Text("Emergency unlocks per day: ${config.emergencyUnlocksPerDay}", style = MaterialTheme.typography.bodySmall)
                 Slider(config.emergencyUnlocksPerDay.toFloat(), { v -> store.update { it.copy(emergencyUnlocksPerDay = v.toInt()) } }, valueRange = 0f..5f, steps = 4)
+                Text("Wait before unlocking: ${config.unlockDelaySeconds}s", style = MaterialTheme.typography.bodySmall)
                 Slider(config.unlockDelaySeconds.toFloat(), { v -> store.update { it.copy(unlockDelaySeconds = v.toInt()) } }, valueRange = 5f..120f)
                 Stepper("Emergency unlock lasts", "${config.emergencyUnlockMinutes}m", { store.update { it.copy(emergencyUnlockMinutes = (it.emergencyUnlockMinutes - 1).coerceAtLeast(1)) } }, { store.update { it.copy(emergencyUnlockMinutes = it.emergencyUnlockMinutes + 1) } })
                 Stepper("Mindful pause length", "${config.interventionSeconds}s", { store.update { it.copy(interventionSeconds = (it.interventionSeconds - 1).coerceAtLeast(3)) } }, { store.update { it.copy(interventionSeconds = (it.interventionSeconds + 1).coerceAtMost(60)) } })
@@ -176,7 +178,7 @@ internal fun FocusGuardTab() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("$n (${pkgs.size})", Modifier.weight(1f))
                         TextButton(onClick = { store.update { it.copy(blockedPackages = pkgs) } }) { Text("Use") }
-                        IconButton(onClick = { store.update { it.copy(blockLists = it.blockLists - n) } }) { Icon(Icons.Default.Delete, "Delete list") }
+                        IconButton(onClick = { confirm.ask("this list") { store.update { it.copy(blockLists = it.blockLists - n) } } }) { Icon(Icons.Default.Delete, "Delete list") }
                     }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -212,7 +214,7 @@ internal fun FocusGuardTab() {
                             Text("${clock(s.startMinute)}–${clock(s.endMinute)} · " + s.days.sorted().joinToString(" ") { java.time.DayOfWeek.of(it).name.take(3).lowercase() }, style = MaterialTheme.typography.bodySmall)
                         }
                         Switch(s.enabled, { v -> store.update { c -> c.copy(schedules = c.schedules.map { if (it.id == s.id) it.copy(enabled = v) else it }) } })
-                        IconButton(onClick = { store.update { c -> c.copy(schedules = c.schedules.filterNot { it.id == s.id }) } }) { Icon(Icons.Default.Delete, "Delete schedule") }
+                        IconButton(onClick = { confirm.ask("this schedule") { store.update { c -> c.copy(schedules = c.schedules.filterNot { it.id == s.id }) } } }) { Icon(Icons.Default.Delete, "Delete schedule") }
                     }
                 }
                 ScheduleEditor { schedule -> store.update { it.copy(schedules = it.schedules + schedule) } }
@@ -271,8 +273,8 @@ private fun ScheduleEditor(onAdd: (BlockSchedule) -> Unit) {
     var days by remember { mutableStateOf(setOf(1, 2, 3, 4, 5)) }
     OutlinedTextField(name, { name = it }, label = { Text("Name") }, singleLine = true, modifier = Modifier.fillMaxWidth())
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(start, { start = it }, label = { Text("Start HH:MM") }, singleLine = true, modifier = Modifier.weight(1f))
-        OutlinedTextField(end, { end = it }, label = { Text("End HH:MM") }, singleLine = true, modifier = Modifier.weight(1f))
+        com.raunak.daytimeline.ui.PickerField("Start", start, { start = it }, date = false, time = true, modifier = Modifier.weight(1f))
+        com.raunak.daytimeline.ui.PickerField("End", end, { end = it }, date = false, time = true, modifier = Modifier.weight(1f))
     }
     Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
         (1..7).forEach { d ->
@@ -372,6 +374,7 @@ private object FocusSessionServiceSafe {
 
 @Composable
 private fun PlacesTab() {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val manager = remember { LocationReminderManager(context) }
     val store = remember { LocationReminderStore(context) }
@@ -445,7 +448,7 @@ private fun PlacesTab() {
                     Text("${r.trigger.label} · ${r.placeName} · ${r.radiusMeters.toInt()} m" + if (!r.repeat) " · once" else "", style = MaterialTheme.typography.bodySmall)
                 }
                 Switch(r.enabled, { v -> manager.save(r.copy(enabled = v)); reminders = store.all() })
-                IconButton(onClick = { manager.delete(r.id); reminders = store.all() }) { Icon(Icons.Default.Delete, "Delete") }
+                IconButton(onClick = { confirm.ask("this reminder") { manager.delete(r.id); reminders = store.all() } }) { Icon(Icons.Default.Delete, "Delete") }
             } }
         }
     }

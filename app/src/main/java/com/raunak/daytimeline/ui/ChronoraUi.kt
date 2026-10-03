@@ -421,3 +421,81 @@ fun PillTabs(options: List<String>, selected: Int, modifier: Modifier = Modifier
         }
     }
 }
+
+// ------------------------------------------------------------------ confirm before destroying
+
+/** Holds one pending destructive action; [ask] shows a confirm dialog and runs it only on "Delete". */
+class ConfirmState {
+    var pending by mutableStateOf<Pair<String, () -> Unit>?>(null)
+    fun ask(what: String, action: () -> Unit) { pending = what to action }
+}
+
+@Composable
+fun rememberConfirm(): ConfirmState {
+    val s = remember { ConfirmState() }
+    s.pending?.let { (what, action) ->
+        AlertDialog(
+            onDismissRequest = { s.pending = null },
+            title = { Text("Delete $what?") },
+            text = { Text("This can't be undone.") },
+            confirmButton = { TextButton(onClick = { s.pending = null; action(); Feedback.show("Deleted") }) { Text("Delete", color = Chronora.colors.bad) } },
+            dismissButton = { TextButton(onClick = { s.pending = null }) { Text("Cancel") } }
+        )
+    }
+    return s
+}
+
+// ------------------------------------------------------------------ date and time pickers instead of typing
+
+/**
+ * A button that shows [value] and opens the system date and/or time picker, so dates and times are never typed.
+ * The value is kept as text: "yyyy-MM-dd", "HH:mm" or "yyyy-MM-dd HH:mm" depending on [date] and [time].
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PickerField(label: String, value: String, onChange: (String) -> Unit, date: Boolean = true, time: Boolean = false, clearable: Boolean = false, modifier: Modifier = Modifier.fillMaxWidth()) {
+    var step by remember { mutableIntStateOf(0) }
+    val parts = value.trim().split(' ', 'T').filter { it.isNotBlank() }
+    val curDate = parts.firstNotNullOfOrNull { runCatching { java.time.LocalDate.parse(it) }.getOrNull() }
+    val curTime = parts.firstNotNullOfOrNull { p -> Regex("^(\\d{1,2}):(\\d{2})$").find(p)?.destructured?.let { (h, m) -> h.toInt() * 60 + m.toInt() } }
+    var pickedDate by remember { mutableStateOf<java.time.LocalDate?>(null) }
+    fun emit(d: java.time.LocalDate?, t: Int?) {
+        val ds = d?.toString() ?: ""
+        val ts = t?.let { "%02d:%02d".format(it / 60, it % 60) } ?: ""
+        onChange(listOf(if (date) ds else "", if (time) ts else "").filter { it.isNotBlank() }.joinToString(" "))
+    }
+    val shown = if (value.isBlank()) "Choose" else buildString {
+        if (date && curDate != null) append(curDate.format(java.time.format.DateTimeFormatter.ofPattern("EEE d MMM yyyy")))
+        if (time && curTime != null) { if (isNotEmpty()) append(" · "); append("%02d:%02d".format(curTime / 60, curTime % 60)) }
+        if (isEmpty()) append(value)
+    }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically) {
+        OutlinedButton(onClick = { step = if (date) 1 else 2 }, modifier = Modifier.weight(1f)) {
+            Column(Modifier.fillMaxWidth()) {
+                Text(label, style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
+                Text(shown)
+            }
+        }
+        if (clearable && value.isNotBlank()) IconButton(onClick = { onChange("") }) { Icon(Icons.Default.Close, "Clear $label") }
+    }
+    if (step == 1) {
+        val state = rememberDatePickerState(initialSelectedDateMillis = (curDate ?: java.time.LocalDate.now()).toEpochDay() * 86_400_000L)
+        DatePickerDialog(
+            onDismissRequest = { step = 0 },
+            confirmButton = {
+                TextButton(onClick = {
+                    val d = state.selectedDateMillis?.let { java.time.LocalDate.ofEpochDay(it / 86_400_000L) } ?: curDate
+                    if (time) { pickedDate = d; step = 2 } else { emit(d, null); step = 0 }
+                }) { Text(if (time) "Next" else "OK") }
+            },
+            dismissButton = { TextButton(onClick = { step = 0 }) { Text("Cancel") } }
+        ) { DatePicker(state) }
+    }
+    if (step == 2) {
+        val init = curTime ?: (java.time.LocalTime.now().let { it.hour * 60 + it.minute })
+        val state = rememberTimePickerState(init / 60, init % 60, true)
+        AlertDialog(onDismissRequest = { step = 0 }, text = { TimePicker(state) },
+            confirmButton = { TextButton(onClick = { emit(pickedDate ?: curDate ?: java.time.LocalDate.now(), state.hour * 60 + state.minute); step = 0 }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { step = 0 }) { Text("Cancel") } })
+    }
+}

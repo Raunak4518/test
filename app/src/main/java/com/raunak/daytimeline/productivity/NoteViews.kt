@@ -97,6 +97,7 @@ fun NoteCard(n: OfflineNote, store: OfflineProductivityStore, onOpen: () -> Unit
 /** Full-screen editor: title, body or checklist, colour, label, tags, pin, archive, links. */
 @Composable
 fun NoteEditor(note: OfflineNote, all: List<OfflineNote>, store: OfflineProductivityStore, close: () -> Unit) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     var title by remember { mutableStateOf(note.title) }
     var body by remember { mutableStateOf(note.body) }
     var folder by remember { mutableStateOf(note.folder.ifBlank { "General" }) }
@@ -114,7 +115,7 @@ fun NoteEditor(note: OfflineNote, all: List<OfflineNote>, store: OfflineProducti
                     IconButton(onClick = { body = NoteEngine.toggleChecklist(body) }) { Icon(Icons.Default.Checklist, "Checklist on/off") }
                     if (note.id != 0L) {
                         IconButton(onClick = { store.saveNote(current().copy(archived = !note.archived)); close() }) { Icon(if (note.archived) Icons.Default.Unarchive else Icons.Default.Archive, if (note.archived) "Unarchive" else "Archive") }
-                        IconButton(onClick = { store.deleteNote(note.id); close() }) { Icon(Icons.Default.Delete, "Delete") }
+                        IconButton(onClick = { confirm.ask("this note") { store.deleteNote(note.id); close() } }) { Icon(Icons.Default.Delete, "Delete") }
                     }
                 }
                 Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {

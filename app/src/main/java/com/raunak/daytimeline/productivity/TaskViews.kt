@@ -73,6 +73,7 @@ private fun recurrenceLabel(t: TaskModel) = when (t.recurrenceType) {
 /** One task: priority-coloured tick, title, time, repeat/reminder/focus markers, tags, and a menu. */
 @Composable
 fun TaskCard(task: TaskModel, vm: PlannerViewModel, onEdit: () -> Unit, onChecklist: () -> Unit = {}, showDate: Boolean = false, today: LocalDate = LocalDate.now()) {
+    val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val pColor = TaskPriority.color(task.priority)
     var menu by remember { mutableStateOf(false) }
     val overdue = !task.completed && task.date.isBefore(today)
@@ -121,7 +122,7 @@ fun TaskCard(task: TaskModel, vm: PlannerViewModel, onEdit: () -> Unit, onCheckl
                         }
                     }
                     DropdownMenuItem(text = { Text("Duplicate") }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) }, onClick = { menu = false; vm.duplicateTask(task) })
-                    DropdownMenuItem(text = { Text("Delete", color = Chronora.colors.bad) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = Chronora.colors.bad) }, onClick = { menu = false; vm.deleteTask(task) })
+                    DropdownMenuItem(text = { Text("Delete", color = Chronora.colors.bad) }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = Chronora.colors.bad) }, onClick = { menu = false; confirm.ask("this task") { vm.deleteTask(task) } })
                 }
             }
         }
