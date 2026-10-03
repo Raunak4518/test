@@ -219,7 +219,7 @@ internal fun FocusGuardTab() {
             } }
         }
         item {
-            val usage = remember(usageOn) { UsageAccess.today(context) }
+            val usage by produceState(emptyMap<String, Int>(), usageOn) { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { UsageAccess.today(context) } }
             Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text("Daily limits", fontWeight = FontWeight.Bold)
                 config.dailyLimits.forEach { (pkg, limit) ->

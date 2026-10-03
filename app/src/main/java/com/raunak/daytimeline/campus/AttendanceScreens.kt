@@ -143,7 +143,7 @@ private fun SubjectDialog(s: Subject, onSave: (Subject) -> Unit, onDelete: () ->
 @Composable
 internal fun PasteTimetableDialog(store: CampusStore, close: () -> Unit) {
     var text by remember { mutableStateOf("") }
-    val data = store.data.value
+    val data by store.data.collectAsStateWithLifecycle()
     val preview = remember(text) { AttendanceEngine.parseTimetable(text, data.subjects, 1, data.settings.afternoonBeforeHour) }
     AlertDialog(onDismissRequest = close, title = { Text("Paste weekly timetable") }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {

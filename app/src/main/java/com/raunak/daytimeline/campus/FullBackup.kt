@@ -17,7 +17,7 @@ object FullBackup {
     private val prefFiles = listOf(
         "chronora_campus", "chronora_completion", "chronora_dependencies", "chronora_focus_guard", "chronora_garden",
         "chronora_places", "chronora_planning", "chronora_sound", "chronora_study", "chronora_web_filter",
-        "chronora_wellbeing", "chronora_classroom", "chronora_focus_timer", "offline_alarms", "offline_productivity_v2", "productivity_features"
+        "chronora_wellbeing", "chronora_classroom", "chronora_focus_timer", "offline_alarms", "offline_productivity_v2", "productivity_features", "chronora_trackers"
     )
     private const val PRIVATE_FILE = "chronora_d"
     private const val IMPORTED_LIST = "filter_imported.txt"

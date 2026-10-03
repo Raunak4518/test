@@ -165,7 +165,7 @@ fun TrackersScreen() {
             if (active.isEmpty()) item { EmptyState("No trackers yet", "Add food, water, walks or your own.") }
             active.groupBy { it.group.ifBlank { "Other" } }.forEach { (group, list) ->
                 item(key = "g$group") { Text(group, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp)) }
-                items(list, key = { it.id }) { t -> TrackerCard(t, valueFor(t, entries, auto, date), TrackerEngine.scheduled(t, date), store, date) { detail = t.id } }
+                items(list, key = { it.id }) { t -> TrackerCard(t, valueFor(t, entries, auto, date), TrackerEngine.scheduled(t, date), store, entries, date) { detail = t.id } }
             }
         }
         ExtendedFloatingActionButton(onClick = { adding = true }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("Tracker") },
@@ -189,7 +189,7 @@ fun TrackersScreen() {
 }
 
 @Composable
-private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerStore, date: LocalDate, onOpen: () -> Unit) {
+private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerStore, entries: List<TrackerEntry>, date: LocalDate, onOpen: () -> Unit) {
     val haptics = LocalHapticFeedback.current
     val met = TrackerEngine.met(t, value)
     Card(Modifier.fillMaxWidth().clickable(onClick = onOpen), shape = RoundedCornerShape(22.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)) {
@@ -211,7 +211,7 @@ private fun TrackerCard(t: Tracker, value: Double, due: Boolean, store: TrackerS
                 }
             }
             if (!t.auto && t.type != TrackerType.CHECK) Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                val logged = TrackerEngine.dayEntries(t, store.entries.value, date)
+                val logged = TrackerEngine.dayEntries(t, entries, date)
                 TrackerReminders.actions(t).forEach { (label, v, choice) ->
                     val picked = t.type == TrackerType.CHOICE && logged.any { it.choice == choice }
                     val good = choice == null || t.goodChoices.isEmpty() || choice in t.goodChoices

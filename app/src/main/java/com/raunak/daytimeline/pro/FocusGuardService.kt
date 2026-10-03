@@ -50,6 +50,7 @@ class FocusGuardService : AccessibilityService() {
 
     override fun onDestroy() {
         hideBubble()
+        usageExecutor.shutdownNow()
         runCatching { unregisterReceiver(unlockReceiver) }
         handler.removeCallbacks(ticker)
         super.onDestroy()
@@ -64,7 +65,7 @@ class FocusGuardService : AccessibilityService() {
     private var lastShortCheck = 0L
     private var lastStrictCheck = 0L
     private var lastToastAt = 0L
-    private var totalsCache: Pair<Long, Pair<Map<String, Int>, Int>>? = null
+    @Volatile private var totalsCache: Pair<Long, Pair<Map<String, Int>, Int>>? = null
 
     /** Re-checks limits every 20 s so an app is stopped when its time runs out, not only when reopened. */
     private val ticker = object : Runnable {
@@ -303,11 +304,24 @@ class FocusGuardService : AccessibilityService() {
         bubble = null
     }
 
+    private val usageExecutor = java.util.concurrent.Executors.newSingleThreadExecutor()
+    @Volatile private var usageRefreshing = false
+
+    /**
+     * Today's usage per app. Scanning a day of usage events is slow, so it runs on a background thread;
+     * callers get the last result (at most ~30 s old) and never block the UI thread.
+     */
     private fun todayTotals(nowMillis: Long): Pair<Map<String, Int>, Int> {
-        totalsCache?.let { (at, v) -> if (nowMillis - at < 30_000) return v }
-        val v = UsageRepository.todayTotals(this)
-        totalsCache = nowMillis to v
-        return v
+        val cached = totalsCache
+        if (cached != null && nowMillis - cached.first < 30_000) return cached.second
+        if (!usageRefreshing) {
+            usageRefreshing = true
+            usageExecutor.execute {
+                runCatching { totalsCache = System.currentTimeMillis() to UsageRepository.todayTotals(this) }
+                usageRefreshing = false
+            }
+        }
+        return cached?.second ?: (emptyMap<String, Int>() to 0)
     }
 
     private fun tick() {
@@ -321,8 +335,10 @@ class FocusGuardService : AccessibilityService() {
         }
         runCatching { updateBubble(foreground) }
         if (committed()) {
-            val guarded = com.raunak.daytimeline.campus.Commitment.guardClock(commit(), System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
-            if (guarded != commit()) discipline.update { it.copy(commit = guarded) }
+            val c = commit()
+            val guarded = com.raunak.daytimeline.campus.Commitment.guardClock(c, System.currentTimeMillis(), android.os.SystemClock.elapsedRealtime())
+            // Save only when the end date moved, after a reboot, or every 10 minutes, not on every tick.
+            if (guarded.until != c.until || c.lastWall == 0L || guarded.lastElapsed < c.lastElapsed || guarded.lastWall - c.lastWall > 600_000L) discipline.update { it.copy(commit = guarded) }
         }
         if (committed() && commit().keepFilterOn && !com.raunak.daytimeline.filter.WebFilterVpnService.running && android.net.VpnService.prepare(this) == null)
             runCatching { com.raunak.daytimeline.filter.WebFilterVpnService.start(this) }
@@ -418,7 +434,9 @@ class FocusGuardService : AccessibilityService() {
         private val clockApps = setOf("com.google.android.deskclock", "com.android.deskclock", "com.sec.android.app.clockpackage", "com.oneplus.deskclock", "com.miui.clock", "com.coloros.alarmclock")
         private val strictPackages = setOf(
             "com.android.settings", "com.android.packageinstaller", "com.google.android.packageinstaller",
-            "com.android.permissioncontroller", "com.google.android.permissioncontroller", "com.samsung.android.lool", "com.miui.securitycenter"
+            "com.android.permissioncontroller", "com.google.android.permissioncontroller", "com.samsung.android.lool", "com.miui.securitycenter",
+            // The system "Disconnect VPN" dialog.
+            "com.android.vpndialogs"
         )
 
         /** Address-bar view ids of popular browsers. */

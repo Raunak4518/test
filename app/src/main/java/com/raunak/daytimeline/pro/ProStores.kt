@@ -25,7 +25,7 @@ class FocusGuardStore(context: Context) {
     val configFlow: StateFlow<FocusGuardConfig> get() = state
 
     private inline fun <reified T> read(key: String): T? = try {
-        prefs.getString(key, null)?.let { gson.fromJson<T>(it, object : TypeToken<T>() {}.type) }
+        com.raunak.daytimeline.ui.ParsedCache.get("fg:$key", prefs.getString(key, null)) { gson.fromJson<T>(it, object : TypeToken<T>() {}.type) }
     } catch (_: Exception) { null }
 
     private fun write(key: String, value: Any) { prefs.edit().putString(key, gson.toJson(value)).apply() }

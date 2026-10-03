@@ -50,7 +50,7 @@ class FocusPrefs(context: Context) {
     private val gson = Gson()
 
     var config: FocusConfig
-        get() = runCatching { gson.fromJson(prefs.getString("config", null), FocusConfig::class.java) }.getOrNull()?.normalized() ?: FocusConfig()
+        get() = runCatching { com.raunak.daytimeline.ui.ParsedCache.get("focus:config", prefs.getString("config", null)) { gson.fromJson(it, FocusConfig::class.java)?.normalized() } }.getOrNull() ?: FocusConfig()
         set(v) = prefs.edit().putString("config", gson.toJson(v)).apply()
 
     fun update(transform: (FocusConfig) -> FocusConfig) { config = transform(config) }

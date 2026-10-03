@@ -80,7 +80,6 @@ private fun distractingApps(context: android.content.Context): List<Pair<String,
  */
 @Composable
 internal fun CommitmentCard(s: DisciplineState, store: DisciplineStore) {
-    val context = LocalContext.current
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(30_000) } }
     if (Commitment.active(s.commit, now)) LockedView(s, store, now) else SetupView(s, store)
@@ -155,6 +154,7 @@ private fun SetupView(s: DisciplineState, store: DisciplineStore) {
     var days by remember { mutableIntStateOf(30) }
     var confirming by remember { mutableStateOf(false) }
     var pickNight by remember { mutableStateOf(false) }
+    var pickAllowed by remember { mutableStateOf(false) }
     val browsers = remember {
         val pm = context.packageManager
         pm.queryIntentActivities(Intent(Intent.ACTION_VIEW, Uri.parse("https://example.com")), 0).map { it.activityInfo.packageName }.distinct()
@@ -197,6 +197,7 @@ private fun SetupView(s: DisciplineState, store: DisciplineStore) {
         SwitchRow("Night shield", c.nightShield) { c = c.copy(nightShield = it) }
         if (c.nightShield) {
             SwitchRow("Night ends at my alarm", c.nightFromAlarm) { c = c.copy(nightFromAlarm = it) }
+            OutlinedButton(onClick = { pickAllowed = true }, shape = RoundedCornerShape(14.dp)) { Text("Allowed at night · ${c.nightAllowed.size}") }
             if (!c.nightFromAlarm) Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { pickNight = true }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Night", Modifier.weight(1f)); Text("${clock(c.nightStart)} – ${clock(c.nightEnd)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
             }
@@ -228,11 +229,36 @@ private fun SetupView(s: DisciplineState, store: DisciplineStore) {
             }) { Text("Lock") } },
             dismissButton = { TextButton(onClick = { confirming = false }) { Text("Not now") } })
     }
+    if (pickAllowed) AllowedAtNight(c.nightAllowed, { pickAllowed = false }) { c = c.copy(nightAllowed = it); pickAllowed = false }
     // Night times: pick the start, then the end.
     var nightStep by remember { mutableIntStateOf(0) }
     if (pickNight) com.raunak.daytimeline.trackers.TimeDialog(if (nightStep == 0) c.nightStart else c.nightEnd, { pickNight = false; nightStep = 0 }) { m ->
         if (nightStep == 0) { c = c.copy(nightStart = m); nightStep = 1 } else { c = c.copy(nightEnd = m); nightStep = 0; pickNight = false }
     }
+}
+
+/** Apps that still open during the night shield (the phone and clock always do). Only editable before locking. */
+@Composable
+private fun AllowedAtNight(selected: Set<String>, close: () -> Unit, onSave: (Set<String>) -> Unit) {
+    val context = LocalContext.current
+    val apps = remember {
+        val pm = context.packageManager
+        pm.queryIntentActivities(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0).map { it.activityInfo.applicationInfo }.distinctBy { it.packageName }
+            .filter { it.packageName != context.packageName }.map { it.packageName to pm.getApplicationLabel(it).toString() }.sortedBy { it.second.lowercase() }
+    }
+    var chosen by remember { mutableStateOf(selected) }
+    AlertDialog(onDismissRequest = close, title = { Text("Allowed at night") }, text = {
+        androidx.compose.foundation.lazy.LazyColumn(Modifier.heightIn(max = 420.dp)) {
+            items(apps.size) { i ->
+                val (pkg, label) = apps[i]
+                Row(Modifier.fillMaxWidth().clickable { chosen = if (pkg in chosen) chosen - pkg else chosen + pkg }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    com.raunak.daytimeline.wellbeing.AppIcon(pkg, 30.dp)
+                    Text(label, Modifier.weight(1f).padding(start = 10.dp))
+                    Checkbox(pkg in chosen, { chosen = if (pkg in chosen) chosen - pkg else chosen + pkg })
+                }
+            }
+        }
+    }, confirmButton = { Button(onClick = { onSave(chosen) }) { Text("Save") } }, dismissButton = { TextButton(onClick = close) { Text("Cancel") } })
 }
 
 /** What makes the lock hard to get around; each opens the right settings page. */

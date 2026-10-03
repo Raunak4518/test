@@ -88,6 +88,8 @@ object AppUpdater {
         var c: HttpURLConnection
         var hops = 0
         while (true) {
+            // Never follow a redirect to plain HTTP: the APK must arrive over HTTPS.
+            require(url.protocol == "https") { "Insecure download link" }
             c = url.openConnection() as HttpURLConnection
             c.instanceFollowRedirects = false
             c.connectTimeout = 20_000; c.readTimeout = 60_000

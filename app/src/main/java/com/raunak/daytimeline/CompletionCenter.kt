@@ -452,13 +452,17 @@ private fun ToolsWorkspace(context: Context, vm: PlannerViewModel, tasks: List<T
         item { Card { Column(Modifier.padding(12.dp)) {
             Text("Cloud / cross-device path", fontWeight = FontWeight.Bold)
         } } }
-        item { Card { Column(Modifier.padding(12.dp)) { Text("Usage snapshot", fontWeight = FontWeight.Bold); Text(usageSummary(context)) } } }
+        item { Card { Column(Modifier.padding(12.dp)) { Text("Usage snapshot", fontWeight = FontWeight.Bold); val summary by produceState("…") { value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { usageSummary(context) } }; Text(summary) } } }
     }
 }
 
 private fun usageSummary(context: Context): String {
     val ops = context.getSystemService(AppOpsManager::class.java)
-    val mode = runCatching { ops?.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName) }.getOrNull()
+    // unsafeCheckOpNoThrow only exists from Android 10; older phones use the deprecated equivalent.
+    val mode = runCatching {
+        if (android.os.Build.VERSION.SDK_INT >= 29) ops?.unsafeCheckOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+        else @Suppress("DEPRECATION") ops?.checkOpNoThrow(AppOpsManager.OPSTR_GET_USAGE_STATS, android.os.Process.myUid(), context.packageName)
+    }.getOrNull()
     if (mode != AppOpsManager.MODE_ALLOWED) return "Grant Usage Access to inspect foreground usage."
     val manager = context.getSystemService(UsageStatsManager::class.java) ?: return "Usage stats unavailable."
     val end = System.currentTimeMillis()
