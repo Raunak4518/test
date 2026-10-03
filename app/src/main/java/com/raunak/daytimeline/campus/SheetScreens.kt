@@ -128,6 +128,7 @@ private fun NewSheetDialog(store: CampusStore, data: CampusData, close: () -> Un
 
 @Composable
 private fun SheetDetail(sheet: StudySheet, store: CampusStore, back: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = back)
     val confirm = com.raunak.daytimeline.ui.rememberConfirm()
     val context = LocalContext.current
     val today = LocalDate.now()
@@ -276,6 +277,7 @@ private fun AddItemsDialog(sheet: StudySheet, store: CampusStore, close: () -> U
 
 @Composable
 private fun ReviewQueue(sheets: List<StudySheet>, store: CampusStore, back: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = back)
     val context = LocalContext.current
     val today = LocalDate.now()
     val queue = SheetEngine.reviewQueue(sheets, today)

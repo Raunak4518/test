@@ -33,7 +33,8 @@ val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
         MoreItem("Screen time", Icons.Default.PhoneAndroid, 0xFF2F8FE0, "wellbeing:0"),
         MoreItem("App blocker", Icons.Default.Block, 0xFFE0434C, "wellbeing:2"),
         MoreItem("Limits", Icons.Default.HourglassBottom, 0xFFDB8F12, "wellbeing:3"),
-        MoreItem("Web filter", Icons.Default.Shield, 0xFF7C5CE6, "wellbeing:4")
+        MoreItem("Bedtime", Icons.Default.Bedtime, 0xFF4F5BD5, "wellbeing:4"),
+        MoreItem("Web filter", Icons.Default.Shield, 0xFF7C5CE6, "wellbeing:5")
     ),
     "Habits & goals" to listOf(
         MoreItem("Trackers", Icons.Default.DonutLarge, 0xFF0E9F9A, "trackers"),
@@ -61,7 +62,7 @@ val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
 @Composable
 fun MoreScreen(onOpen: (String) -> Unit) {
     val locked = com.raunak.daytimeline.campus.rememberLockedUntil() != null
-    val lockedRoutes = setOf("wellbeing:2", "wellbeing:3", "wellbeing:4")
+    val lockedRoutes = setOf("wellbeing:2", "wellbeing:3", "wellbeing:4", "wellbeing:5")
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item { com.raunak.daytimeline.wellbeing.TodayUsageStrip { onOpen("wellbeing:0") } }
         MoreSections.map { (t, list) -> t to if (locked) list.filterNot { it.route in lockedRoutes } else list }.forEach { (title, items) ->

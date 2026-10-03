@@ -46,6 +46,7 @@ fun CompletionCenter(vm: PlannerViewModel, productivity: OfflineProductivityStor
     val store = remember(context) { CompletionStore(context.applicationContext) }
     var tab by remember { mutableIntStateOf(0) }
 
+    androidx.activity.compose.BackHandler(onBack = close)
     Scaffold(
         topBar = { ChronoraTopBar("Command center", close) },
         bottomBar = {

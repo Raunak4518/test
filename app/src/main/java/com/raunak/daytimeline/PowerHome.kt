@@ -79,6 +79,11 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         }
     }
 
+    // Back always steps out one level: dialog → page → Today tab, and only then leaves the app.
+    androidx.activity.compose.BackHandler(enabled = tab != 0) { tab = 0 }
+    androidx.activity.compose.BackHandler(enabled = page != null) { page = null }
+    androidx.activity.compose.BackHandler(enabled = dialog != null) { dialog = null }
+
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(Unit) {
         Feedback.messages.collect { m ->

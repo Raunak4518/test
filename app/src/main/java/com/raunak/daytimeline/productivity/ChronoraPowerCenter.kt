@@ -89,6 +89,7 @@ object ChronoraExport {
 @Composable
 fun ChronoraPowerCenter(tasks: List<TaskModel>, store: OfflineProductivityStore, onClose: () -> Unit, onSelectDate: (LocalDate) -> Unit = {}) {
     var tab by remember { mutableIntStateOf(0) }
+    androidx.activity.compose.BackHandler(onBack = onClose)
     Scaffold(
         topBar = { ChronoraTopBar("Insights", onClose) },
         bottomBar = {

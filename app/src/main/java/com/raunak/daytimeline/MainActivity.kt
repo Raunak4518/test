@@ -172,12 +172,14 @@ class MainActivity : FragmentActivity() {
         }
 
         if (alarms) {
+            androidx.activity.compose.BackHandler { alarms = false }
             AlarmCenter(this@MainActivity) {
                 alarms = false
             }
         }
 
         if (completion) {
+            androidx.activity.compose.BackHandler { completion = false }
             CompletionCenter(vm, productivity) {
                 completion = false
             }

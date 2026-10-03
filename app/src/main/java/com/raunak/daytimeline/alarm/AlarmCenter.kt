@@ -88,6 +88,7 @@ fun AlarmCenter(context: Context, onClose: () -> Unit) {
     val next = remember(alarms, tick) {
         regular.filter { it.enabled }.map { it to AlarmSchedulePlanner.nextOccurrence(it, LocalDateTime.now()) }.filter { it.second != Long.MAX_VALUE }.minByOrNull { it.second }
     }
+    androidx.activity.compose.BackHandler(onBack = onClose)
     Scaffold(
         topBar = { ChronoraTopBar("Alarms", onClose) { IconButton(onClick = { settings = true }) { Icon(Icons.Default.Settings, "Alarm settings") } } },
         floatingActionButton = { ExtendedFloatingActionButton(onClick = { editing = AlarmEditorModel(id = System.currentTimeMillis()) }, icon = { Icon(Icons.Default.Add, null) }, text = { Text("Alarm") }) }
@@ -264,6 +265,7 @@ private fun AlarmEditor(model: AlarmEditorModel, onCancel: () -> Unit, onDelete:
     val nextAt = remember(cur) { runCatching { AlarmSchedulePlanner.nextOccurrence(cur.copy(label = cur.label.ifBlank { "Alarm" }).toPersistent(), LocalDateTime.now()) }.getOrDefault(Long.MAX_VALUE) }
     fun ok() = cur.copy(label = cur.label.ifBlank { "Alarm" }, snoozeMinutes = cur.snoozeMinutes.coerceIn(1, 60)).let { if (it.validate().isEmpty()) it else null }
 
+    androidx.activity.compose.BackHandler(onBack = onCancel)
     Scaffold(topBar = {
         ChronoraTopBar(if (onDelete == null) "New alarm" else "Edit alarm", onCancel, subtitle = if (nextAt != Long.MAX_VALUE) "Rings in ${inText(nextAt)}" else null) {
             TextButton(onClick = { ok()?.let(onSave) }, enabled = ok() != null) { Text("Save", fontWeight = FontWeight.Bold) }
@@ -443,6 +445,7 @@ private fun AlarmSettingsPage(context: Context, close: () -> Unit) {
     var phrases by remember { mutableStateOf(prefs.phrases) }
     var idle by remember { mutableIntStateOf(prefs.idleSeconds) }
     var keepOnTop by remember { mutableStateOf(prefs.keepOnTop) }
+    androidx.activity.compose.BackHandler(onBack = close)
     Scaffold(topBar = { ChronoraTopBar("Alarm settings", close) }) { p ->
         LazyColumn(Modifier.fillMaxSize().padding(p), contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item {
