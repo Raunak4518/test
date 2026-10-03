@@ -7,8 +7,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.raunak.daytimeline.ui.FullScreenPage
 
-/** Screen time, the app blocker, limits and the web filter as one page with tabs. */
-val WellbeingTabs = listOf("Overview", "Timeline", "Blocker", "Limits", "Web filter")
+/** Screen time, the app blocker, limits, bedtime and the web filter as one page with tabs. */
+val WellbeingTabs = listOf("Overview", "Timeline", "Blocker", "Limits", "Bedtime", "Web filter")
 
 @Composable
 fun WellbeingHub(initialTab: Int = 0, onClose: () -> Unit) {
@@ -24,8 +24,9 @@ fun WellbeingHub(initialTab: Int = 0, onClose: () -> Unit) {
         when (tab) {
             0 -> ScreenTimeDashboard()
             1 -> ScreenTimeDashboard(timelineMode = true)
-            2 -> com.raunak.daytimeline.pro.FocusGuardTab()
-            3 -> WellbeingScreen()
+            2 -> BlockerTab()
+            3 -> LimitsTab()
+            4 -> BedtimeTab()
             else -> com.raunak.daytimeline.filter.WebFilterScreen()
         }
     }

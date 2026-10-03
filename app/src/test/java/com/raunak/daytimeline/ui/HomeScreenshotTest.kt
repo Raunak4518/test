@@ -97,6 +97,16 @@ class HomeScreenshotTest {
         compose.onAllNodesWithText("Give up")[0].performClick()
         nav("Campus"); save("campus")
         nav("You"); save("you")
+        // System back steps out one level instead of closing the app.
+        fun systemBack() { scenario.onActivity { it.onBackPressedDispatcher.onBackPressed() }; compose.waitForIdle() }
+        compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Alarms"))[0].performClick(); compose.waitForIdle()
+        systemBack()
+        assertThat(activity!!.isFinishing).isFalse()
+        assertThat(compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Settings")).fetchSemanticsNodes()).isNotEmpty()
+        systemBack()
+        assertThat(activity!!.isFinishing).isFalse()
+        assertThat(compose.onAllNodes(androidx.compose.ui.test.hasContentDescription("Settings")).fetchSemanticsNodes()).isEmpty()
+        nav("You")
         compose.onAllNodesWithText("Habits")[0].performClick(); save("home-habits")
         assertThat(compose.onAllNodesWithText("Solve 2 DSA problems").fetchSemanticsNodes()).isNotEmpty()
         listOf("Goals", "Notes", "Journal", "Time log").forEach { t -> compose.onAllNodesWithText(t)[0].performClick(); save("home-" + t.lowercase().replace(' ', '-')) }

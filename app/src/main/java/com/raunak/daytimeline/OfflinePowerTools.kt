@@ -44,6 +44,7 @@ fun OfflinePowerTools(store: OfflineProductivityStore, onClose: () -> Unit) {
     var newChallenge by remember { mutableStateOf(false) }
     var projectEditor by remember { mutableStateOf<com.raunak.daytimeline.features.OfflineProject?>(null) }
     var newProjectDialog by remember { mutableStateOf(false) }
+    androidx.activity.compose.BackHandler(onBack = onClose)
     Scaffold(topBar = { ChronoraTopBar("Settings", onClose) }) { padding ->
         LazyColumn(Modifier.fillMaxSize().padding(padding).padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             item { Card { Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {

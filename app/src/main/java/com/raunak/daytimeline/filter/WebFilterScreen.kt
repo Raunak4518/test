@@ -5,6 +5,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import com.raunak.daytimeline.ui.*
+import com.raunak.daytimeline.wellbeing.Expandable
 
 import android.app.Activity
 import android.content.Intent
@@ -18,8 +19,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -45,7 +45,7 @@ fun WebFilterScreen() {
     val context = LocalContext.current
     val store = remember { WebFilterStore(context) }
     var config by remember { mutableStateOf(store.config) }
-    var message by remember { mutableStateOf("") }
+    val confirm = rememberConfirm()
     var running by remember { mutableStateOf(WebFilterVpnService.running) }
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val scope = rememberCoroutineScope()
@@ -55,17 +55,16 @@ fun WebFilterScreen() {
     fun commit(next: WebFilterConfig) {
         val old = store.config
         if (FilterLock.isLoosening(old, next) && !FilterLock.canLoosen(old, System.currentTimeMillis())) {
-            message = "Protection is locked. Request an unlock and wait ${old.lockDelayMinutes} min to loosen it."
+            Feedback.show(if (old.commitUntil > System.currentTimeMillis()) "Locked: only stricter changes" else "Locked: request an unlock and wait ${old.lockDelayMinutes} min")
             return
         }
         store.config = next
         config = next
-        message = ""
         if (next.enabled) WebFilterVpnService.start(context, reload = true) else WebFilterVpnService.stop(context)
     }
 
     val consent = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) commit(config.copy(enabled = true)) else message = "VPN permission is needed for the filter to see DNS lookups."
+        if (result.resultCode == Activity.RESULT_OK) commit(config.copy(enabled = true)) else Feedback.show("The filter needs VPN permission to work")
     }
 
     fun turnOn() {
@@ -79,149 +78,172 @@ fun WebFilterScreen() {
             val domains = withContext(Dispatchers.IO) {
                 runCatching { context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { DomainFilter.parseList(it.readText()) } }.getOrNull()
             }
-            if (domains.isNullOrEmpty()) { message = "No domains found in that file"; return@launch }
+            if (domains.isNullOrEmpty()) { Feedback.show("No sites found in that file"); return@launch }
             withContext(Dispatchers.IO) { store.addImported(domains.take(MAX_IMPORT).toSet(), uri.lastPathSegment ?: "file") }
-            message = "Imported ${domains.size} domains"
+            Feedback.show("Imported ${domains.size} sites")
             if (config.enabled) WebFilterVpnService.start(context, reload = true)
             config = store.config
         }
     }
 
-    LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        if (config.commitUntil > System.currentTimeMillis()) item {
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(MaterialTheme.colorScheme.errorContainer).padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Lock, null, tint = MaterialTheme.colorScheme.onErrorContainer)
-                Text("  Locked until ${com.raunak.daytimeline.campus.Commitment.dateText(config.commitUntil)} · only stricter changes", color = MaterialTheme.colorScheme.onErrorContainer, style = MaterialTheme.typography.labelLarge)
+    val locked = config.commitUntil > now
+    ScreenList {
+        item {
+            HeroCard {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(if (config.enabled) Icons.Default.Shield else Icons.Default.RemoveModerator, null, Modifier.size(44.dp))
+                    Column(Modifier.weight(1f).padding(start = 14.dp)) {
+                        Text("Web filter", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text(when {
+                            !config.enabled -> "Off"
+                            !running -> "Starting…"
+                            else -> "On · ${store.blockedToday()} blocked today"
+                        }, color = Chronora.colors.heroMuted)
+                    }
+                    Switch(config.enabled, { on -> if (on) turnOn() else commit(config.copy(enabled = false)) },
+                        colors = SwitchDefaults.colors(checkedTrackColor = androidx.compose.ui.graphics.Color.White.copy(alpha = .35f), checkedThumbColor = androidx.compose.ui.graphics.Color.White))
+                }
+                if (locked) Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Lock, null, Modifier.size(16.dp))
+                    Text("  Locked until ${com.raunak.daytimeline.campus.Commitment.dateText(config.commitUntil)} · only stricter changes", style = MaterialTheme.typography.labelLarge)
+                }
             }
         }
         item {
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text("Web filter & firewall", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text(if (running) "Active · ${store.blockedToday()} blocked today · ${store.blockedTotal()} total" else "Off", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(config.enabled && running, { on -> if (on) turnOn() else commit(config.copy(enabled = false)) })
-                }
-                if (message.isNotBlank()) Text(message, color = MaterialTheme.colorScheme.error)
-            } }
-        }
-        item {
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Make it hard to bypass", fontWeight = FontWeight.Bold)
-                Text("1. Set Private DNS to Off or Automatic (a custom Private DNS hostname skips the filter).", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }) { Text("Open network settings") }
-                Text("2. In VPN settings, tap ⚙ next to Chronora and turn on Always-on VPN and Block connections without VPN.", style = MaterialTheme.typography.bodySmall)
-                OutlinedButton(onClick = { runCatching { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }) { Text("Open VPN settings") }
-                Text("3. Set a lock delay below so switching off takes time, and enable Chronora Protection (device admin) to resist uninstalling.", style = MaterialTheme.typography.bodySmall)
-            } }
-        }
-        item {
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Block categories", fontWeight = FontWeight.Bold)
+            SectionCard("What to block", icon = Icons.Default.Block) {
                 FilterCategory.values().forEach { c ->
                     SwitchRow(c.label, c in config.categories) { on -> commit(config.copy(categories = if (on) config.categories + c else config.categories - c)) }
                 }
-                HorizontalDivider()
-                SwitchRow("Keyword detection", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
-                SwitchRow("Force SafeSearch", config.safeSearch) { commit(config.copy(safeSearch = it)) }
+            }
+        }
+        item {
+            SectionCard("Safe browsing", icon = Icons.Default.VerifiedUser) {
+                SwitchRow("SafeSearch on Google, Bing, DuckDuckGo", config.safeSearch) { commit(config.copy(safeSearch = it)) }
                 SwitchRow("YouTube Restricted Mode", config.youtubeRestricted) { commit(config.copy(youtubeRestricted = it)) }
-                SwitchRow("Block bypass services", config.blockBypass) { commit(config.copy(blockBypass = it)) }
-            } }
+                SwitchRow("Block sites by keyword", config.keywordBlocking) { commit(config.copy(keywordBlocking = it)) }
+                SwitchRow("Block VPNs and proxies", config.blockBypass) { commit(config.copy(blockBypass = it)) }
+            }
         }
-        item {
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text("Upstream DNS", fontWeight = FontWeight.Bold)
-                UpstreamDns.values().forEach { u ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(config.upstream == u, { commit(config.copy(upstream = u)) })
-                        Column { Text(u.label, style = MaterialTheme.typography.bodyMedium); Text("${u.primary} · ${u.secondary}", style = MaterialTheme.typography.labelSmall) }
-                    }
-                }
-            } }
-        }
-        item {
-            DomainListCard("Always block", "Your own blocked domains (subdomains included)", config.customBlocked,
-                onAdd = { d -> commit(config.copy(customBlocked = config.customBlocked + d)) },
-                onRemove = { d -> commit(config.copy(customBlocked = config.customBlocked - d)) })
-        }
-        item {
-            DomainListCard("Always allow", "Never blocked, even if a list or keyword matches", config.allowed,
-                onAdd = { d -> commit(config.copy(allowed = config.allowed + d)) },
-                onRemove = { d -> commit(config.copy(allowed = config.allowed - d)) })
-        }
-        item {
-            var busy by remember { mutableStateOf(false) }
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Bigger blocklists", fontWeight = FontWeight.Bold)
-                Text("Imported: ${store.importedCount()} domains" + if (config.importedSources.isNotEmpty()) " from ${config.importedSources.size} source(s)" else "", style = MaterialTheme.typography.bodySmall)
-                config.listSources.forEach { src ->
-                    OutlinedButton(enabled = !busy, onClick = {
-                        busy = true; message = "Downloading ${src.label}…"
-                        scope.launch {
-                            val domains = withContext(Dispatchers.IO) { runCatching { download(src.url) }.getOrNull() }
-                            if (domains.isNullOrEmpty()) message = "Download failed — check the connection"
-                            else {
-                                withContext(Dispatchers.IO) { store.addImported(domains.take(MAX_IMPORT).toSet(), src.label) }
-                                message = "Added ${domains.size} domains from ${src.label}"
-                                config = store.config
-                                if (config.enabled) WebFilterVpnService.start(context, reload = true)
-                            }
-                            busy = false
-                        }
-                    }, modifier = Modifier.fillMaxWidth()) { Text(src.label) }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { fileImport.launch(arrayOf("text/*", "application/octet-stream", "*/*")) }) { Text("Import file") }
-                    TextButton(onClick = {
-                        val old = store.config
-                        if (old.lockDelayMinutes > 0 && !FilterLock.canLoosen(old, System.currentTimeMillis())) { message = "Locked: request an unlock first"; return@TextButton }
-                        store.clearImported(); config = store.config
-                        if (config.enabled) WebFilterVpnService.start(context, reload = true)
-                    }) { Text("Clear imported") }
-                }
-            } }
-        }
-        item { ListOverridesCard(config, store) { commit(it) } }
-        item { AppFirewallCard(config) { rules -> commit(config.copy(appRules = rules)) } }
-        item {
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Commitment lock", fontWeight = FontWeight.Bold)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    listOf(0, 5, 30, 120, 1440).forEach { m ->
-                        FilterChip(config.lockDelayMinutes == m, { commit(config.copy(lockDelayMinutes = m)) }, label = { Text(if (m == 0) "Off" else if (m >= 60) "${m / 60}h" else "${m}m") })
-                    }
-                }
-                if (config.lockDelayMinutes > 0) {
-                    val at = config.pendingUnlockAt
-                    when {
-                        FilterLock.canLoosen(config, now) -> Text("Unlocked for ${((at + 10 * 60_000L - now) / 60_000L).coerceAtLeast(0)} more minutes — make your changes now.", color = MaterialTheme.colorScheme.primary)
-                        at > now -> Text("Unlocks in ${formatWait(at - now)}")
-                        else -> OutlinedButton(onClick = { commit(FilterLock.requestUnlock(config, System.currentTimeMillis())) }) { Text("Request unlock") }
-                    }
-                }
-            } }
-        }
+        item { SitesCard(config, ::commit) }
+        item { FilterInsights(store, running, now) }
         item {
             var test by remember { mutableStateOf("") }
             val verdict = remember(test, config) { if (test.contains('.')) store.buildFilter(config).decide(test) else null }
-            Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text("Test a website", fontWeight = FontWeight.Bold)
-                OutlinedTextField(test, { test = it.trim() }, label = { Text("example.com") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            SectionCard("Test a site", icon = Icons.Default.TravelExplore) {
+                OutlinedTextField(test, { test = it.trim() }, placeholder = { Text("example.com") }, singleLine = true, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small)
                 verdict?.let {
-                    Text(
+                    StatusText(
                         when (it) {
-                            is FilterVerdict.Block -> "Blocked — ${it.reason}"
-                            is FilterVerdict.Rewrite -> "Allowed in safe mode via ${it.target}"
-                            FilterVerdict.Allow -> "Allowed by Chronora" + if (config.upstream.name.contains("FAMILY")) " (the family DNS may still block it)" else ""
+                            is FilterVerdict.Block -> "Blocked · ${it.reason}"
+                            is FilterVerdict.Rewrite -> "Allowed in safe mode"
+                            FilterVerdict.Allow -> "Allowed"
                         },
-                        color = if (it is FilterVerdict.Block) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        ok = it !is FilterVerdict.Block
                     )
                 }
-            } }
+            }
         }
-        item { FilterInsights(store, running, now) }
         item { BlockLogCard(store, config, running, now) { commit(it) } }
+        item {
+            SectionCard("Hard to switch off", icon = Icons.Default.Lock) {
+                Step(1, "Private DNS: set to Off or Automatic") { runCatching { context.startActivity(Intent(Settings.ACTION_WIRELESS_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                Step(2, "Always-on VPN and Block connections without VPN") { runCatching { context.startActivity(Intent(Settings.ACTION_VPN_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
+                Text("Wait before loosening", style = MaterialTheme.typography.bodyLarge)
+                val delays = listOf(0, 5, 30, 120, 1440)
+                PillTabs(delays.map { m -> if (m == 0) "None" else if (m >= 60) "${m / 60}h" else "${m}m" }, delays.indexOf(config.lockDelayMinutes).coerceAtLeast(0)) { i -> commit(config.copy(lockDelayMinutes = delays[i])) }
+                if (config.lockDelayMinutes > 0) {
+                    val at = config.pendingUnlockAt
+                    when {
+                        FilterLock.canLoosen(config, now) -> StatusText("Unlocked for ${((at + 10 * 60_000L - now) / 60_000L).coerceAtLeast(0)} more minutes", ok = true)
+                        at > now -> StatusText("Unlocks in ${formatWait(at - now)}", ok = null)
+                        !locked -> OutlinedButton(onClick = { commit(FilterLock.requestUnlock(config, System.currentTimeMillis())) }) { Text("Request unlock") }
+                    }
+                }
+            }
+        }
+        item {
+            SectionCard("Advanced", icon = Icons.Default.Tune) {
+                Expandable("DNS server") {
+                    UpstreamDns.values().forEach { u ->
+                        Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable { commit(config.copy(upstream = u)) }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                            RadioButton(config.upstream == u, { commit(config.copy(upstream = u)) })
+                            Text(u.label, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+                Expandable("Bigger blocklists · ${store.importedCount()} sites") {
+                    var busy by remember { mutableStateOf(false) }
+                    config.listSources.forEach { src ->
+                        OutlinedButton(enabled = !busy, onClick = {
+                            busy = true; Feedback.show("Downloading ${src.label}…")
+                            scope.launch {
+                                val domains = withContext(Dispatchers.IO) { runCatching { download(src.url) }.getOrNull() }
+                                if (domains.isNullOrEmpty()) Feedback.show("Download failed. Check the connection.")
+                                else {
+                                    withContext(Dispatchers.IO) { store.addImported(domains.take(MAX_IMPORT).toSet(), src.label) }
+                                    Feedback.show("Added ${domains.size} sites from ${src.label}")
+                                    config = store.config
+                                    if (config.enabled) WebFilterVpnService.start(context, reload = true)
+                                }
+                                busy = false
+                            }
+                        }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.Download, null, Modifier.size(18.dp)); Text("  ${src.label}") }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilledTonalButton(onClick = { fileImport.launch(arrayOf("text/*", "application/octet-stream", "*/*")) }) { Text("Import file") }
+                        if (store.importedCount() > 0) TextButton(onClick = {
+                            val old = store.config
+                            if (!FilterLock.canLoosen(old, System.currentTimeMillis())) Feedback.show("Locked: request an unlock first")
+                            else confirm.ask("all imported sites") {
+                                store.clearImported(); config = store.config
+                                if (config.enabled) WebFilterVpnService.start(context, reload = true)
+                            }
+                        }) { Text("Clear imported", color = Chronora.colors.bad) }
+                    }
+                }
+                Expandable("Edit the built-in lists") { ListOverridesCard(config, store) { commit(it) } }
+                Expandable("App firewall") { AppFirewallCard(config) { rules -> commit(config.copy(appRules = rules)) } }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Step(n: Int, text: String, open: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(26.dp).clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+            Text("$n", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+        }
+        Text(text, Modifier.weight(1f).padding(horizontal = 10.dp), style = MaterialTheme.typography.bodyMedium)
+        TextButton(onClick = open) { Text("Open") }
+    }
+}
+
+/** The user's own block and allow lists, as chips. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun SitesCard(config: WebFilterConfig, commit: (WebFilterConfig) -> Unit) {
+    var tab by remember { mutableIntStateOf(0) }
+    var input by remember { mutableStateOf("") }
+    val list = if (tab == 0) config.customBlocked else config.allowed
+    SectionCard("Your sites", icon = Icons.Default.Language) {
+        PillTabs(listOf("Always block", "Always allow"), tab) { tab = it }
+        if (list.isEmpty()) Text(if (tab == 0) "Sites you add are blocked with all their subdomains" else "Sites here are never blocked", color = Chronora.muted)
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            list.sorted().forEach { d ->
+                InputChip(selected = false, onClick = {}, label = { Text(d) }, trailingIcon = {
+                    IconButton(onClick = { commit(if (tab == 0) config.copy(customBlocked = config.customBlocked - d) else config.copy(allowed = config.allowed - d)) }, Modifier.size(24.dp)) { Icon(Icons.Default.Close, "Remove $d", Modifier.size(16.dp)) }
+                })
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            OutlinedTextField(input, { input = it }, placeholder = { Text("site.com") }, singleLine = true, modifier = Modifier.weight(1f), shape = MaterialTheme.shapes.small)
+            FilledTonalIconButton(onClick = {
+                val d = DomainFilter.parseList(input.removePrefix("https://").removePrefix("http://").substringBefore('/')).firstOrNull()?.removePrefix("www.")
+                if (d == null) Feedback.show("Type a site like example.com")
+                else { commit(if (tab == 0) config.copy(customBlocked = config.customBlocked + d) else config.copy(allowed = config.allowed + d)); input = "" }
+            }) { Icon(Icons.Default.Add, "Add site") }
+        }
     }
 }
 
@@ -234,11 +256,11 @@ private fun FilterInsights(store: WebFilterStore, running: Boolean, now: Long) {
     val apps = remember(running, now / 10_000) { store.appQueriesToday() }
     val today = remember(running, now / 10_000) { store.log().filter { java.time.Instant.ofEpochMilli(it.time).atZone(java.time.ZoneId.systemDefault()).toLocalDate() == java.time.LocalDate.now() } }
     fun label(pkg: String) = runCatching { context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(pkg, 0)).toString() }.getOrDefault(pkg.substringAfterLast('.'))
-    SectionCard("Today") {
+    SectionCard("Today", icon = Icons.Default.Insights) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Stat("Lookups", "$queries", Modifier.weight(1f))
-            Stat("Blocked", "$blocked", Modifier.weight(1f), color = Chronora.colors.bad)
-            Stat("Blocked share", if (queries > 0) "${100 * blocked / queries}%" else "—", Modifier.weight(1f))
+            StatTile("Lookups", "$queries", Modifier.weight(1f))
+            StatTile("Blocked", "$blocked", Modifier.weight(1f))
+            StatTile("Share", if (queries > 0) "${100 * blocked / queries}%" else "—", Modifier.weight(1f))
         }
         val topDomains = today.groupingBy { it.domain }.eachCount().entries.sortedByDescending { it.value }.take(5)
         if (topDomains.isNotEmpty()) {
@@ -263,22 +285,26 @@ private fun BlockLogCard(store: WebFilterStore, config: WebFilterConfig, running
     val log = remember(running, now / 10_000, cleared) { store.log() }
     val fmt = remember { SimpleDateFormat("d MMM HH:mm", Locale.getDefault()) }
     val shown = log.filter { query.isBlank() || it.domain.contains(query, true) || it.app.contains(query, true) || it.reason.contains(query, true) }.take(80)
-    SectionCard("Blocked log", "${log.size} recent · tap a site to allow it", action = { TextButton(onClick = { confirm.ask("the blocked log") { store.clearLog(); cleared++ } }) { Text("Clear") } }) {
-        OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search site, app or reason") }, modifier = Modifier.fillMaxWidth())
+    SectionCard("Blocked log", "Tap a site to allow it", icon = Icons.Default.History, action = { TextButton(onClick = { confirm.ask("the blocked log") { store.clearLog(); cleared++ } }) { Text("Clear") } }) {
+        OutlinedTextField(query, { query = it }, singleLine = true, placeholder = { Text("Search") }, modifier = Modifier.fillMaxWidth(), shape = MaterialTheme.shapes.small)
         if (shown.isEmpty()) Text(if (log.isEmpty()) "Nothing blocked yet" else "No matches", style = MaterialTheme.typography.bodySmall)
-        shown.forEach { e ->
-            var menu by remember(e.time, e.domain) { mutableStateOf(false) }
-            Box {
-                Column(Modifier.fillMaxWidth().clickable { menu = true }.padding(vertical = 4.dp)) {
-                    Text(e.domain, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
-                    Text("${fmt.format(Date(e.time))} · ${e.reason}" + if (e.app.isNotBlank()) " · ${e.app.substringAfterLast('.')}" else "", style = MaterialTheme.typography.bodySmall)
+        var limit by remember { mutableIntStateOf(10) }
+        var allow by remember { mutableStateOf<String?>(null) }
+        shown.take(limit).forEach { e ->
+            val base = e.domain.removePrefix("www.")
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).clickable(enabled = base !in config.allowed) { allow = base }.padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(e.domain, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium, maxLines = 1)
+                    Text("${fmt.format(Date(e.time))} · ${e.reason}" + if (e.app.isNotBlank()) " · ${e.app.substringAfterLast('.')}" else "", style = MaterialTheme.typography.bodySmall, color = Chronora.muted, maxLines = 1)
                 }
-                DropdownMenu(menu, { menu = false }) {
-                    val base = e.domain.removePrefix("www.")
-                    if (base !in config.allowed) DropdownMenuItem(text = { Text("Always allow $base") }, onClick = { menu = false; commit(config.copy(allowed = config.allowed + base)) })
-                    DropdownMenuItem(text = { Text("Keep blocking") }, onClick = { menu = false })
-                }
+                if (base in config.allowed) Text("Allowed", style = MaterialTheme.typography.labelSmall, color = Chronora.colors.good)
             }
+        }
+        if (shown.size > limit) TextButton(onClick = { limit += 20 }) { Text("Show more") }
+        allow?.let { d ->
+            AlertDialog(onDismissRequest = { allow = null }, title = { Text("Always allow $d?") }, text = { Text("It won't be blocked again.") },
+                confirmButton = { TextButton(onClick = { commit(config.copy(allowed = config.allowed + d)); allow = null }) { Text("Allow") } },
+                dismissButton = { TextButton(onClick = { allow = null }) { Text("Keep blocking") } })
         }
     }
 }
@@ -297,28 +323,6 @@ private fun download(url: String): Set<String> {
 
 
 @Composable
-private fun DomainListCard(title: String, subtitle: String, domains: Set<String>, onAdd: (String) -> Unit, onRemove: (String) -> Unit) {
-    var input by remember { mutableStateOf("") }
-    Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(title, fontWeight = FontWeight.Bold)
-        Text(subtitle, style = MaterialTheme.typography.bodySmall)
-        domains.sorted().forEach { d ->
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(d, Modifier.weight(1f))
-                IconButton(onClick = { onRemove(d) }) { Icon(Icons.Default.Close, "Remove") }
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            OutlinedTextField(input, { input = it }, label = { Text("domain.com") }, singleLine = true, modifier = Modifier.weight(1f))
-            IconButton(onClick = {
-                val d = DomainFilter.parseList(input.removePrefix("https://").removePrefix("http://").substringBefore('/')).firstOrNull()
-                if (d != null) { onAdd(d.removePrefix("www.")); input = "" }
-            }) { Icon(Icons.Default.Add, "Add") }
-        }
-    } }
-}
-
-@Composable
 private fun AppFirewallCard(config: WebFilterConfig, onChange: (Map<String, AppRule>) -> Unit) {
     val context = LocalContext.current
     var query by remember { mutableStateOf("") }
@@ -331,13 +335,8 @@ private fun AppFirewallCard(config: WebFilterConfig, onChange: (Map<String, AppR
             .map { it.packageName to pm.getApplicationLabel(it).toString() }
             .sortedBy { it.second.lowercase() }
     }
-    Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("App firewall", fontWeight = FontWeight.Bold)
-        Text(
-            if (Build.VERSION.SDK_INT >= 29) "Cut an app off from the internet entirely, or allow it only on Wi-Fi or only on mobile data. Apps can't look up any server while blocked."
-            else "Per-app rules need Android 10 or newer.",
-            style = MaterialTheme.typography.bodySmall
-        )
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(if (Build.VERSION.SDK_INT >= 29) "Cut an app off the internet, or allow only Wi-Fi or mobile data" else "Needs Android 10 or newer", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
         val ruled = apps.filter { config.appRules[it.first]?.let { r -> r != AppRule.ALLOW } == true }
         ruled.forEach { (pkg, label) -> AppRuleRow(label, config.appRules[pkg] ?: AppRule.ALLOW) { r -> onChange(if (r == AppRule.ALLOW) config.appRules - pkg else config.appRules + (pkg to r)) } }
         TextButton(onClick = { expanded = !expanded }) { Text(if (expanded) "Hide app list" else "Add rules for apps (${apps.size})") }
@@ -347,14 +346,14 @@ private fun AppFirewallCard(config: WebFilterConfig, onChange: (Map<String, AppR
                 AppRuleRow(label, config.appRules[pkg] ?: AppRule.ALLOW) { r -> onChange(if (r == AppRule.ALLOW) config.appRules - pkg else config.appRules + (pkg to r)) }
             }
         }
-    } }
+    }
 }
 
 @Composable
 private fun AppRuleRow(label: String, rule: AppRule, onRule: (AppRule) -> Unit) {
     var menu by remember { mutableStateOf(false) }
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, Modifier.weight(1f))
+        Text(label, Modifier.weight(1f), maxLines = 1)
         Box {
             AssistChip({ menu = true }, label = { Text(rule.label) })
             DropdownMenu(menu, { menu = false }) {
@@ -368,8 +367,7 @@ private fun AppRuleRow(label: String, rule: AppRule, onRule: (AppRule) -> Unit) 
 @Composable
 private fun ListOverridesCard(config: WebFilterConfig, store: WebFilterStore, commit: (WebFilterConfig) -> Unit) {
     var editing by remember { mutableStateOf<String?>(null) }
-    Card { Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text("Edit the built-in lists", fontWeight = FontWeight.Bold)
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
         FilterCategory.values().forEach { c ->
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("${c.label} · ${store.effectiveCategory(c, config).size} sites", Modifier.weight(1f))
@@ -379,7 +377,7 @@ private fun ListOverridesCard(config: WebFilterConfig, store: WebFilterStore, co
         Row(verticalAlignment = Alignment.CenterVertically) { Text("Adult keywords · ${store.effectiveKeywords(config).size}", Modifier.weight(1f)); TextButton(onClick = { editing = "keywords" }) { Text("Edit") } }
         Row(verticalAlignment = Alignment.CenterVertically) { Text("Bypass services · ${store.effectiveBypass(config).size}", Modifier.weight(1f)); TextButton(onClick = { editing = "bypass" }) { Text("Edit") } }
         Row(verticalAlignment = Alignment.CenterVertically) { Text("Download sources · ${config.listSources.size}", Modifier.weight(1f)); TextButton(onClick = { editing = "sources" }) { Text("Edit") } }
-    } }
+    }
     when (val e = editing) {
         null -> Unit
         "keywords" -> OverrideDialog("Adult keywords", DomainFilter.defaultAdultWords.toSet(), config.keywordsAdded, config.keywordsRemoved, isValid = { it.length >= 3 && it.all(Char::isLetterOrDigit) },
