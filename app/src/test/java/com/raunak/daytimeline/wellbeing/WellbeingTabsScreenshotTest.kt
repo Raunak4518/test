@@ -3,6 +3,7 @@ package com.raunak.daytimeline.wellbeing
 import android.graphics.Bitmap
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.raunak.daytimeline.pro.FocusGuardStore
@@ -28,6 +29,10 @@ class WellbeingTabsScreenshotTest {
         compose.setContent { ChronoraThemeBase(false) { SectionTheme(Palette.sky) { content() } } }
         compose.mainClock.advanceTimeBy(2500)
         compose.waitForIdle()
+        capture(name)
+    }
+
+    private fun capture(name: String) {
         val dir = File("build/screens").apply { mkdirs() }
         val view = compose.activity.window.decorView
         val bmp = Bitmap.createBitmap(view.width, view.height, Bitmap.Config.ARGB_8888)
@@ -109,9 +114,14 @@ class WellbeingTabsScreenshotTest {
             fun s(a: Double, days: Long, cat: Long, note: String) = com.raunak.daytimeline.money.Txn(store.nextId() + days * 7 + cat, a, categoryId = cat, walletId = 1, date = today.minusDays(days).toString(), minute = 600, note = note)
             d.copy(txns = listOf(s(60.0, 0, 1, "Canteen"), s(15.0, 0, 2, "Chai"), s(240.0, 1, 7, "Movie"), s(80.0, 2, 3, "Auto"), s(450.0, 4, 1, "Dominos"), s(120.0, 6, 5, "Notebook")),
                 debts = listOf(com.raunak.daytimeline.money.Debt(1, "Aman", 150.0, "Dominos", today.toString())),
-                detected = listOf(com.raunak.daytimeline.money.Detected(9, 99.0, "Zepto", "GPay", System.currentTimeMillis())))
+                detected = listOf(com.raunak.daytimeline.money.Detected(9, 99.0, "Zepto", "GPay", System.currentTimeMillis())),
+                goals = listOf(com.raunak.daytimeline.money.SavingsGoal(1, "Headphones", "🎧", 3000.0, 1900.0, today.plusDays(30).toString()), com.raunak.daytimeline.money.SavingsGoal(2, "Goa trip", "✈️", 8000.0, 1200.0)),
+                wallets = listOf(com.raunak.daytimeline.money.Wallet(1, "UPI / Bank", "🏦", 4200.0), com.raunak.daytimeline.money.Wallet(2, "Cash", "💵", 650.0)))
         }
         shot("money") { SectionTheme(Palette.green) { com.raunak.daytimeline.money.MoneyScreen() } }
-        assertThat(compose.onAllNodesWithText("Safe to spend today").fetchSemanticsNodes()).isNotEmpty()
+        assertThat(compose.onAllNodesWithText("SAFE TODAY").fetchSemanticsNodes()).isNotEmpty()
+        compose.onAllNodesWithText("Plan")[0].performClick()
+        compose.mainClock.advanceTimeBy(2500); compose.waitForIdle()
+        capture("money-plan")
     }
 }

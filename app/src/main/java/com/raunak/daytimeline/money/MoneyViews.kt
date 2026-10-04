@@ -70,11 +70,11 @@ fun MoneyStrip(modifier: Modifier = Modifier, onOpen: () -> Unit) {
 
 /** Money: overview, activity, plans and friends. */
 @Composable
-fun MoneyScreen() {
+fun MoneyScreen(initialTab: Int = 0) {
     val context = LocalContext.current
     val store = remember { MoneyStore.get(context) }
     val d by store.data.collectAsStateWithLifecycle()
-    var tab by rememberSaveable { mutableIntStateOf(0) }
+    var tab by rememberSaveable { mutableIntStateOf(initialTab) }
     var adding by remember { mutableStateOf<Txn?>(null) }
     var split by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) {
@@ -134,29 +134,19 @@ private fun Overview(d: MoneyData, store: MoneyStore, onAdd: (Txn?) -> Unit, onT
         }, dismissButton = { TextButton(onClick = { setBalance = null }) { Text("Cancel") } })
     }
     LazyColumn(contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 6.dp, bottom = 100.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item { BudgetHero(spentMonth, d.settings.monthlyBudget, safe, MoneyEngine.daysLeft(d, today), projected, cur) }
         item {
-            HeroCard {
-                Text("Safe to spend today", style = MaterialTheme.typography.labelLarge, color = Chronora.colors.heroMuted)
-                Text(f(safe), style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Black)
-                val p by animateFloatAsState((spentMonth / d.settings.monthlyBudget.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f), tween(800), label = "month")
-                LinearProgressIndicator(progress = { p }, Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
-                    color = if (left < 0) Color(0xFFFF8A80) else Color.White, trackColor = Color.White.copy(alpha = .22f), drawStopIndicator = {})
-                Text(if (left >= 0) "${f(left)} left this month · ${MoneyEngine.daysLeft(d, today)} days to go" else "${f(-left)} over budget this month", color = Chronora.colors.heroMuted)
-                if (spentMonth > 0 && projected > d.settings.monthlyBudget * 1.02) Text("⚠️ At this pace: ${f(projected)} by month end", style = MaterialTheme.typography.labelLarge)
-            }
-        }
-        item {
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()).padding(top = 22.dp), horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
                 d.settings.quick.forEach { q ->
                     val cat = d.categories.firstOrNull { it.id == q.categoryId }
-                    AssistChip(onClick = {
+                    QuickSpendButton(q, cat, cur) {
                         val t = Txn(store.nextId(), q.amount, TxnType.EXPENSE, q.categoryId, d.wallets.first().id, date = today.toString(), minute = nowMinute(), note = q.label)
                         store.add(t); haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                        Feedback.show("${q.label} ${f(q.amount)} · ${f(MoneyEngine.safeToSpendToday(store.data.value, today))} still safe today") { store.remove(t.id) }
+                        Feedback.show("${q.label} ${f(q.amount)} · ${f(kotlin.math.floor(MoneyEngine.safeToSpendToday(store.data.value, today)))} still safe today") { store.remove(t.id) }
                         MoneyReminders.checkAlerts(context)
-                    }, label = { Text("${cat?.emoji ?: ""} ${q.label} ${f(q.amount)}") }, shape = RoundedCornerShape(50))
+                    }
                 }
-                AssistChip(onClick = { onAdd(null) }, label = { Text("Other") }, leadingIcon = { Icon(Icons.Default.Add, null, Modifier.size(16.dp)) }, shape = RoundedCornerShape(50))
+                Box(Modifier.size(46.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant).clickable { onAdd(null) }, contentAlignment = Alignment.Center) { Icon(Icons.Default.Add, "Other amount") }
             }
         }
         if (d.detected.isNotEmpty()) item {
@@ -179,20 +169,13 @@ private fun Overview(d: MoneyData, store: MoneyStore, onAdd: (Txn?) -> Unit, onT
         item {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 val streak = MoneyEngine.noSpendStreak(d, today, includeToday = false)
-                StatTile("Spent today", f(MoneyEngine.spentOn(d, today)), Modifier.weight(1f))
-                StatTile("No-spend streak", if (streak > 0) "🔥 $streak" else "—", Modifier.weight(1f), detail = if (MoneyEngine.spentOn(d, today) == 0.0) "Today still clean" else null)
+                MoneyTile("💸", "Spent today", f(MoneyEngine.spentOn(d, today)), Color(0xFF6366F1), Modifier.weight(1f))
+                MoneyTile("🔥", "No-spend streak", if (streak > 0) "$streak days" else "0", Color(0xFFF97316), Modifier.weight(1f), note = if (MoneyEngine.spentOn(d, today) == 0.0) "Today still clean ✨" else null)
             }
         }
         item {
             Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                d.wallets.forEach { w ->
-                    Column(Modifier.width(150.dp).clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface).clickable { setBalance = w }.padding(14.dp)) {
-                        Text("${w.emoji} ${w.name}", style = MaterialTheme.typography.labelLarge, color = Chronora.muted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        val bal = MoneyEngine.balance(d, w)
-                        Text(f(bal), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = if (bal < 0) Chronora.colors.bad else MaterialTheme.colorScheme.onSurface)
-                        if (bal < 0 && w.opening == 0.0) Text("Tap to set balance", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
-                    }
-                }
+                d.wallets.forEachIndexed { i, w -> WalletCard(w, MoneyEngine.balance(d, w), i, cur) { setBalance = w } }
             }
         }
         item { CategoryCard(d, month) }
@@ -237,42 +220,20 @@ private fun CategoryCard(d: MoneyData, month: Pair<LocalDate, LocalDate>) {
     val total = rows.sumOf { it.second }
     SectionCard("Where it went", icon = Icons.Default.PieChart) {
         if (total <= 0) { Text("Nothing spent yet this month", color = Chronora.muted); return@SectionCard }
-        val sweep by animateFloatAsState(1f, tween(900), label = "donut")
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(130.dp), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize()) {
-                    var start = -90f
-                    val w = 22.dp.toPx(); val sz = Size(size.width - w, size.height - w)
-                    rows.filter { it.second > 0 }.forEach { (c, v) ->
-                        val a = (v / total * 360f).toFloat() * sweep
-                        drawArc(Color(c.color), start, (a - 2f).coerceAtLeast(.5f), false, Offset(w / 2, w / 2), sz, style = Stroke(w))
-                        start += a
-                    }
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(MoneyEngine.format(total, cur), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
-                    Text("this month", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
-                }
-            }
-            Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SpendDonut(rows.filter { it.second > 0 }.map { Color(it.first.color) to it.second }, total, cur)
+            Column(Modifier.weight(1f).padding(start = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 rows.filter { it.second > 0 }.take(5).forEach { (c, v) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(Color(c.color)))
-                        Text("  ${c.emoji} ${c.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text("${(v / total * 100).toInt()}%", style = MaterialTheme.typography.labelMedium, color = Chronora.muted)
+                        Box(Modifier.size(12.dp).clip(RoundedCornerShape(4.dp)).background(Color(c.color)))
+                        Text("  ${c.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text("${(v / total * 100).toInt()}%", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
                     }
                 }
             }
         }
-        rows.filter { it.first.budget > 0 }.forEach { (c, v) ->
-            Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                Row {
-                    Text("${c.emoji} ${c.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium)
-                    Text("${MoneyEngine.format(v, cur)} / ${MoneyEngine.format(c.budget, cur)}", style = MaterialTheme.typography.labelMedium, color = if (v > c.budget) Chronora.colors.bad else Chronora.muted)
-                }
-                com.raunak.daytimeline.wellbeing.UsageBar(v.toInt(), c.budget.toInt())
-            }
-        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .5f))
+        rows.forEach { (c, v) -> BudgetRow(c, v, cur) }
     }
 }
 
@@ -285,17 +246,13 @@ private fun DailyChart(d: MoneyData, today: LocalDate) {
     val perDay = d.settings.monthlyBudget / (java.time.temporal.ChronoUnit.DAYS.between(month.first, month.second) + 1)
     val max = (values.maxOrNull() ?: 0.0).coerceAtLeast(perDay * 1.2).coerceAtLeast(1.0)
     var picked by remember { mutableIntStateOf(13) }
-    val bar = MaterialTheme.colorScheme.primary; val over = Chronora.colors.bad; val grid = MaterialTheme.colorScheme.outlineVariant
     SectionCard("Last 14 days", icon = Icons.Default.BarChart) {
-        Text("${days[picked].format(DateTimeFormatter.ofPattern("EEE d MMM"))} · ${MoneyEngine.format(values[picked], d.settings.currency)}", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
-        Row(Modifier.fillMaxWidth().height(110.dp), horizontalArrangement = Arrangement.spacedBy(3.dp), verticalAlignment = Alignment.Bottom) {
-            values.forEachIndexed { i, v ->
-                Box(Modifier.weight(1f).fillMaxHeight((v / max).toFloat().coerceIn(.02f, 1f)).clip(RoundedCornerShape(topStart = 4.dp, topEnd = 4.dp))
-                    .background((if (v > perDay) over else bar).copy(alpha = if (i == picked) 1f else .55f)).clickable { picked = i })
-            }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(days[picked].format(DateTimeFormatter.ofPattern("EEEE, d MMM")), Modifier.weight(1f), style = MaterialTheme.typography.labelLarge)
+            Text(if (values[picked] > perDay) "over daily budget" else "within budget", style = MaterialTheme.typography.labelMedium, color = if (values[picked] > perDay) Chronora.colors.bad else Chronora.colors.good)
         }
-        Canvas(Modifier.fillMaxWidth().height(1.dp)) { drawLine(grid, Offset(0f, 0f), Offset(size.width, 0f)) }
-        Text("Daily budget ${MoneyEngine.format(perDay, d.settings.currency)} · red = over", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
+        SpendBars(values, days.map { it.dayOfWeek.name.take(1) }, perDay, d.settings.currency, picked) { picked = it }
+        Text("- - daily budget ${MoneyEngine.format(perDay, d.settings.currency)}", style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
     }
 }
 
@@ -372,17 +329,19 @@ private fun AddSheet(initial: Txn, d: MoneyData, store: MoneyStore, startSplit: 
                 }
             }
             item {
-                Text(cur + (amount.ifBlank { "0" }), Modifier.fillMaxWidth(), textAlign = TextAlign.Center, fontSize = 52.sp, fontWeight = FontWeight.Black,
-                    color = if (t.type == TxnType.INCOME) Chronora.colors.good else MaterialTheme.colorScheme.onSurface)
+                BouncyAmount(cur + (amount.ifBlank { "0" }), if (t.type == TxnType.INCOME) Chronora.colors.good else Color(d.categories.firstOrNull { it.id == t.categoryId }?.color ?: 0xFF16A34A).takeIf { t.type == TxnType.EXPENSE } ?: MaterialTheme.colorScheme.onSurface)
                 if (splitOn && friends.isNotEmpty() && value > 0) Text("Your share ${MoneyEngine.format(value - MoneyEngine.share(value, friends.size) * friends.size, cur)} · each friend owes ${MoneyEngine.format(MoneyEngine.share(value, friends.size), cur)}",
                     Modifier.fillMaxWidth(), textAlign = TextAlign.Center, color = Chronora.muted, style = MaterialTheme.typography.bodySmall)
             }
             item { Keypad { k -> amount = when (k) { "⌫" -> amount.dropLast(1); "." -> if ("." in amount) amount else amount.ifBlank { "0" } + "."; else -> if (amount.substringAfter('.', "").length >= 2 && "." in amount) amount else (amount + k).trimStart('0').ifBlank { "0" }.let { if (it.startsWith(".")) "0$it" else it } } } }
             if (t.type != TxnType.TRANSFER) item {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    d.categories.filter { it.income == (t.type == TxnType.INCOME) }.forEach { c ->
-                        FilterChip(t.categoryId == c.id, { t = t.copy(categoryId = c.id) }, label = { Text("${c.emoji} ${c.name}") }, shape = RoundedCornerShape(50),
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(c.color).copy(alpha = .22f)))
+                val cats = d.categories.filter { it.income == (t.type == TxnType.INCOME) }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    cats.chunked(4).forEach { row ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            row.forEach { c -> CategoryTile(c, t.categoryId == c.id, Modifier.weight(1f)) { t = t.copy(categoryId = c.id) } }
+                            repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+                        }
                     }
                 }
             }
@@ -512,17 +471,19 @@ private fun PlanTab(d: MoneyData, store: MoneyStore) {
             SectionCard("Savings goals", icon = Icons.Default.Flag, action = { TextButton(onClick = { newGoal = true }) { Text("Add") } }) {
                 if (d.goals.isEmpty()) Text("Save up for something you want", color = Chronora.muted)
                 d.goals.forEach { g ->
-                    val p by animateFloatAsState((g.saved / g.target.coerceAtLeast(1.0)).toFloat().coerceIn(0f, 1f), tween(700), label = "goal")
-                    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable { addToGoal = g }.padding(vertical = 4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("${g.emoji} ${g.name}", Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
-                            Text("${f(g.saved)} / ${f(g.target)}", style = MaterialTheme.typography.labelMedium, color = Chronora.muted)
-                        }
-                        LinearProgressIndicator(progress = { p }, Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)), color = Chronora.colors.good, drawStopIndicator = {})
-                        if (g.saved >= g.target) Text("🎉 Reached!", color = Chronora.colors.good, style = MaterialTheme.typography.labelLarge)
-                        else if (g.deadline.isNotBlank()) runCatching { LocalDate.parse(g.deadline) }.getOrNull()?.let { dl ->
-                            val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), dl).coerceAtLeast(1)
-                            Text("Put aside ${f((g.target - g.saved) / days)} a day to make it by ${dl.format(DateTimeFormatter.ofPattern("d MMM"))}", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                    Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable { addToGoal = g }.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                        SavingsJar((g.saved / g.target.coerceAtLeast(1.0)).toFloat(), if (g.saved >= g.target) Color(0xFFF59E0B) else MoneyGreen, g.emoji)
+                        Column(Modifier.weight(1f).padding(start = 14.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text(g.name, style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text(f(g.saved), fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium, color = MoneyGreen)
+                                Text("  of ${f(g.target)}", style = MaterialTheme.typography.labelMedium, color = Chronora.muted)
+                            }
+                            if (g.saved >= g.target) Text("🎉 Reached!", color = Color(0xFFF59E0B), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+                            else if (g.deadline.isNotBlank()) runCatching { LocalDate.parse(g.deadline) }.getOrNull()?.let { dl ->
+                                val days = java.time.temporal.ChronoUnit.DAYS.between(LocalDate.now(), dl).coerceAtLeast(1)
+                                Text("${f((g.target - g.saved) / days)}/day to make it by ${dl.format(DateTimeFormatter.ofPattern("d MMM"))}", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
+                            } else Text("Tap to add money", style = MaterialTheme.typography.bodySmall, color = Chronora.muted)
                         }
                     }
                 }
@@ -768,8 +729,8 @@ private fun FriendsTab(d: MoneyData, store: MoneyStore, onSplit: () -> Unit) {
         item {
             val owed = ledger.values.filter { it > 0 }.sum(); val mine = -ledger.values.filter { it < 0 }.sum()
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile("They owe you", MoneyEngine.format(owed, cur), Modifier.weight(1f))
-                StatTile("You owe", MoneyEngine.format(mine, cur), Modifier.weight(1f))
+                MoneyTile("🤝", "They owe you", MoneyEngine.format(owed, cur), MoneyGreen, Modifier.weight(1f))
+                MoneyTile("🙏", "You owe", MoneyEngine.format(mine, cur), Color(0xFFEF4444), Modifier.weight(1f))
             }
         }
         item { OutlinedButton(onClick = { owe = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Default.SwapHoriz, null); Text("  Record money borrowed or lent") } }
@@ -778,7 +739,7 @@ private fun FriendsTab(d: MoneyData, store: MoneyStore, onSplit: () -> Unit) {
             val history = d.debts.filter { it.person.trim() == person && !it.settled }.sortedByDescending { it.date }
             Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(MaterialTheme.colorScheme.surface).padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) { Text(person.take(1).uppercase(), fontWeight = FontWeight.Bold) }
+                    Avatar(person)
                     Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                         Text(person, style = MaterialTheme.typography.titleMedium)
                         Text(if (net > 0) "owes you ${MoneyEngine.format(net, cur)}" else "you owe ${MoneyEngine.format(-net, cur)}", color = if (net > 0) Chronora.colors.good else Chronora.colors.bad, fontWeight = FontWeight.SemiBold)
