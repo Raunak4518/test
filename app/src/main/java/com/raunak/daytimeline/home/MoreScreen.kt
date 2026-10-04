@@ -48,6 +48,7 @@ val MoreSections: List<Pair<String, List<MoreItem>>> = listOf(
         MoreItem("Private journal", Icons.Default.Lock, 0xFF4F5BD5, "tool:JOURNAL")
     ),
     "Track & review" to listOf(
+        MoreItem("Money", Icons.Default.AccountBalanceWallet, 0xFF22A06B, "money"),
         MoreItem("Time log", Icons.Default.Timer, 0xFF0E9F9A, "prod:5"),
         MoreItem("Week review", Icons.Default.DateRange, 0xFF4F5BD5, "tool:WEEK"),
         MoreItem("Insights", Icons.Default.Insights, 0xFFE5486B, "power")

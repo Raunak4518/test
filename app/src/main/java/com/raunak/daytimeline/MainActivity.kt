@@ -95,6 +95,10 @@ class MainActivity : FragmentActivity() {
             com.raunak.daytimeline.update.UpdateNav.requested.value = true
             intent.removeExtra(com.raunak.daytimeline.update.AppUpdater.EXTRA_OPEN)
         }
+        if (intent?.getStringExtra("chronora.open") == "money") {
+            com.raunak.daytimeline.money.MoneyNav.open.value = true
+            intent.removeExtra("chronora.open")
+        }
         if (intent?.getStringExtra("chronora.open") == "trackers") {
             com.raunak.daytimeline.trackers.TrackerNav.open.value = true
             intent.removeExtra("chronora.open")

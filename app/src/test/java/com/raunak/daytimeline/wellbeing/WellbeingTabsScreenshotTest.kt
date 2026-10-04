@@ -100,4 +100,18 @@ class WellbeingTabsScreenshotTest {
         assertThat(compose.onAllNodesWithText("Keep going 🔥").fetchSemanticsNodes()).isNotEmpty()
         com.raunak.daytimeline.trackers.TrackerCelebration.event.value = null
     }
+
+    @Test fun money() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val store = com.raunak.daytimeline.money.MoneyStore.get(ctx)
+        val today = java.time.LocalDate.now()
+        store.update { d ->
+            fun s(a: Double, days: Long, cat: Long, note: String) = com.raunak.daytimeline.money.Txn(store.nextId() + days * 7 + cat, a, categoryId = cat, walletId = 1, date = today.minusDays(days).toString(), minute = 600, note = note)
+            d.copy(txns = listOf(s(60.0, 0, 1, "Canteen"), s(15.0, 0, 2, "Chai"), s(240.0, 1, 7, "Movie"), s(80.0, 2, 3, "Auto"), s(450.0, 4, 1, "Dominos"), s(120.0, 6, 5, "Notebook")),
+                debts = listOf(com.raunak.daytimeline.money.Debt(1, "Aman", 150.0, "Dominos", today.toString())),
+                detected = listOf(com.raunak.daytimeline.money.Detected(9, 99.0, "Zepto", "GPay", System.currentTimeMillis())))
+        }
+        shot("money") { SectionTheme(Palette.green) { com.raunak.daytimeline.money.MoneyScreen() } }
+        assertThat(compose.onAllNodesWithText("Safe to spend today").fetchSemanticsNodes()).isNotEmpty()
+    }
 }
