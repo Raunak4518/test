@@ -202,6 +202,7 @@ class WellbeingNotificationListener : NotificationListenerService() {
         sbn ?: return
         if (sbn.packageName == packageName || sbn.isOngoing || sbn.notification.flags and android.app.Notification.FLAG_GROUP_SUMMARY != 0) return
         runCatching { com.raunak.daytimeline.classroom.ClassroomCapture.onPosted(this, sbn.packageName, sbn.notification.extras, sbn.postTime) }
+        runCatching { com.raunak.daytimeline.money.MoneyCapture.onPosted(this, sbn.packageName, sbn.notification.extras, sbn.postTime) }
         val store = WellbeingStore(this)
         store.recordNotification(sbn.packageName)
         if (NotificationDigest.shouldHold(store.config, sbn.packageName, WellbeingModes.focusOrBedtime(this))) {

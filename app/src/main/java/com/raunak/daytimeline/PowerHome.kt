@@ -67,6 +67,8 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
     var editTask by remember { mutableStateOf<TaskModel?>(null) }
     val updateRequested by com.raunak.daytimeline.update.UpdateNav.requested.collectAsStateWithLifecycle()
     val trackerOpen by com.raunak.daytimeline.trackers.TrackerNav.open.collectAsStateWithLifecycle()
+    val moneyOpen by com.raunak.daytimeline.money.MoneyNav.open.collectAsStateWithLifecycle()
+    LaunchedEffect(moneyOpen) { if (moneyOpen) { page = "money"; com.raunak.daytimeline.money.MoneyNav.open.value = false } }
     LaunchedEffect(trackerOpen) { if (trackerOpen) { page = "trackers"; com.raunak.daytimeline.trackers.TrackerNav.open.value = false } }
     LaunchedEffect(openQuickAdd) { if (openQuickAdd) { page = "tool:QUICK_ADD"; onQuickAddHandled() } }
     val open: (String) -> Unit = { route ->
@@ -121,7 +123,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         Box(Modifier.fillMaxSize().padding(padding)) {
             androidx.compose.animation.Crossfade(tab, label = "tab") { t ->
                 when (t) {
-                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }, onOpenFocusMode = { tab = 2 }, onOpenHabits = { page = "prod:0" }, onOpenTrackers = { page = "trackers" }) { tab = 2 }
+                    0 -> com.raunak.daytimeline.home.HomeScreen(vm, { editTask = it }, { d, m -> addAt = d to m }, onOpenFocusMode = { tab = 2 }, onOpenHabits = { page = "prod:0" }, onOpenTrackers = { page = "trackers" }, onOpenMoney = { page = "money" }) { tab = 2 }
                     1 -> com.raunak.daytimeline.home.PlanScreen(vm, productivity, { editTask = it }, { d, m -> addAt = d to m }) { page = "calendar" }
                     2 -> com.raunak.daytimeline.productivity.FocusTab(pomo, tasks, allTasks, vm)
                     3 -> com.raunak.daytimeline.campus.CampusScreen(Modifier)
@@ -138,6 +140,7 @@ fun PowerHome(onOpenAlarms: () -> Unit = {}, onOpenCommandCenter: () -> Unit = {
         null -> Unit
         "calendar" -> com.raunak.daytimeline.productivity.CalendarPage(vm, date, { editTask = it }) { page = null }
         "trackers" -> FullScreenPage("Trackers", { page = null }, accent = Palette.teal) { com.raunak.daytimeline.trackers.TrackersScreen() }
+        "money" -> FullScreenPage("Money", { page = null }, accent = Palette.green) { com.raunak.daytimeline.money.MoneyScreen() }
         "focusmode" -> FullScreenPage("Focus mode", { page = null }, accent = Palette.coral) { com.raunak.daytimeline.pro.FocusModeScreen() }
         "settingsPage" -> FullScreenPage("Settings", { page = null }, accent = Palette.amber) { com.raunak.daytimeline.home.SettingsList { r -> page = null; open(r) } }
         "power" -> ChronoraPowerCenter(allTasks, productivity, { page = null }) { vm.selectDate(it); page = null }
