@@ -2,3 +2,7 @@
 build/
 **/build/
 local.properties
+
+# Signing keys live in GitHub secrets, never in the repo
+*.jks
+*.keystore

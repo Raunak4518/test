@@ -15,14 +15,17 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "UPDATE_REPO", "\"Raunak4518/test\"")
     }
-    // One fixed key for every build, so a new APK installs over the previous one without uninstalling.
-    // This is a development key committed on purpose; use a private release key for Play Store uploads.
-    signingConfigs {
-        getByName("debug") {
-            storeFile = file("chronora-debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+    // CI signs every build with the private key held in GitHub secrets, so each APK installs over the last one.
+    // Local builds without those variables fall back to the standard Android debug key.
+    val keystorePath = System.getenv("CHRONORA_KEYSTORE_FILE")
+    if (!keystorePath.isNullOrBlank()) {
+        signingConfigs {
+            getByName("debug") {
+                storeFile = file(keystorePath)
+                storePassword = System.getenv("CHRONORA_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("CHRONORA_KEY_ALIAS")
+                keyPassword = System.getenv("CHRONORA_KEY_PASSWORD")
+            }
         }
     }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }

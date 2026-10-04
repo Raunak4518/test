@@ -179,6 +179,8 @@ class UpdateInstallReceiver : BroadcastReceiver() {
                 confirm?.let { runCatching { context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) } }
             }
             PackageInstaller.STATUS_SUCCESS -> Unit
+            PackageInstaller.STATUS_FAILURE_CONFLICT, PackageInstaller.STATUS_FAILURE_INCOMPATIBLE ->
+                UpdateStatus.lastError = "This update is signed with a new key. Back up (Settings → Backup), uninstall Chronora, install the new APK from the release page, then restore."
             else -> UpdateStatus.lastError = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "Install failed"
         }
     }
