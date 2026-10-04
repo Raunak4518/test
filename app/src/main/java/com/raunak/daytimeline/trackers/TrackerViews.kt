@@ -139,6 +139,7 @@ fun TrackersScreen() {
     var detail by remember { mutableStateOf<Long?>(null) }
     var custom by remember { mutableStateOf(false) }
     var askReminders by remember { mutableStateOf<List<Tracker>?>(null) }
+    var celebrations by remember { mutableStateOf(false) }
     val active = trackers.filter { !it.archived }
     val due = active.filter { TrackerEngine.scheduled(it, date) }
     val onTrack = due.count { TrackerEngine.met(it, valueFor(it, entries, auto, date)) }
@@ -150,6 +151,7 @@ fun TrackersScreen() {
                     IconButton(onClick = { date = date.minusDays(1) }) { Icon(Icons.Default.ChevronLeft, "Previous day") }
                     Text(com.raunak.daytimeline.productivity.relativeDay(date) + " · " + date.format(DateTimeFormatter.ofPattern("d MMM")), Modifier.weight(1f), textAlign = TextAlign.Center, style = MaterialTheme.typography.titleMedium)
                     IconButton(onClick = { date = date.plusDays(1) }, enabled = date < LocalDate.now()) { Icon(Icons.Default.ChevronRight, "Next day") }
+                    IconButton(onClick = { celebrations = true }) { Icon(Icons.Default.Celebration, "Celebrations") }
                 }
             }
             if (due.isNotEmpty()) item {
@@ -196,6 +198,7 @@ fun TrackersScreen() {
     if (custom) TrackerEditor(null, existingGroups = trackers.map { it.group }.filter { it.isNotBlank() }.distinct(), onClose = { custom = false }) { t -> store.save(t); TrackerReminders.scheduleAll(context); custom = false; if (!t.auto && t.reminders.isEmpty()) askReminders = listOf(t) else Feedback.show("${t.emoji} ${t.name} added. Day one starts now!") }
     editing?.let { e -> TrackerEditor(e, trackers.map { it.group }.filter { it.isNotBlank() }.distinct(), onClose = { editing = null }, onDelete = { TrackerReminders.cancelAll(context, e); store.delete(e.id); editing = null; detail = null }) { t ->
         TrackerReminders.cancelAll(context, e); store.save(t); TrackerReminders.scheduleAll(context); editing = null } }
+    if (celebrations) CelebrationSettings { celebrations = false }
     askReminders?.let { list ->
         ReminderPrompt(list, close = { askReminders = null; Feedback.show("Added. Day one starts now! 💪") }) { updated ->
             list.forEach { TrackerReminders.cancelAll(context, it) }
