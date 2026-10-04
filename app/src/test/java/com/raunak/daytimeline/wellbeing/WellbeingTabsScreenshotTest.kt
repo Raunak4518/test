@@ -26,7 +26,7 @@ class WellbeingTabsScreenshotTest {
 
     private fun shot(name: String, content: @androidx.compose.runtime.Composable () -> Unit) {
         compose.setContent { ChronoraThemeBase(false) { SectionTheme(Palette.sky) { content() } } }
-        compose.mainClock.advanceTimeBy(1500)
+        compose.mainClock.advanceTimeBy(2500)
         compose.waitForIdle()
         val dir = File("build/screens").apply { mkdirs() }
         val view = compose.activity.window.decorView
@@ -77,5 +77,27 @@ class WellbeingTabsScreenshotTest {
         store.config = store.config.copy(enabled = true)
         shot("tab-webfilter-on") { com.raunak.daytimeline.filter.WebFilterScreen() }
         assertThat(compose.onAllNodesWithText("ON", substring = true).fetchSemanticsNodes()).isNotEmpty()
+    }
+
+    @Test fun celebration() {
+        val ctx = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val store = com.raunak.daytimeline.trackers.TrackerStore.get(ctx)
+        val today = java.time.LocalDate.now()
+        val created = today.minusDays(30).atStartOfDay(java.time.ZoneId.systemDefault()).toInstant().toEpochMilli()
+        val walk = com.raunak.daytimeline.trackers.Tracker(created + 7, "Morning walk", "🚶", 0xFF0E9F9A, "Health")
+        store.save(walk)
+        (1L..6L).forEach { store.log(walk, today.minusDays(it), 1.0) }
+        val before = com.raunak.daytimeline.trackers.TrackerEngine.streak(walk, store.entries.value, today)
+        store.log(walk, today, 1.0)
+        com.raunak.daytimeline.trackers.afterLog(store, walk, before, today, "done")
+        val win = com.raunak.daytimeline.trackers.TrackerCelebration.event.value
+        // Completing it fires the full-screen win with the new 7-day streak (a milestone).
+        assertThat(win).isNotNull()
+        assertThat(win!!.streak).isEqualTo(7)
+        assertThat(win.milestone).isTrue()
+        shot("celebration") { com.raunak.daytimeline.trackers.CelebrationScreen(win) {} }
+        compose.mainClock.advanceTimeBy(3000)
+        assertThat(compose.onAllNodesWithText("Keep going 🔥").fetchSemanticsNodes()).isNotEmpty()
+        com.raunak.daytimeline.trackers.TrackerCelebration.event.value = null
     }
 }

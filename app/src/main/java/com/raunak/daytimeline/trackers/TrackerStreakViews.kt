@@ -39,25 +39,6 @@ import java.time.LocalDate
 private val Flame = Color(0xFFFF7A1A)
 private val Ice = Color(0xFF4FB3FF)
 
-/** A milestone to celebrate, shown by [CelebrationHost] wherever it happened. */
-object TrackerCelebration { val event = MutableStateFlow<Pair<Tracker, Int>?>(null) }
-
-/**
- * Call after a log: cheers with the new streak when the log completed today's goal, and opens the big
- * celebration on milestones. Otherwise just confirms with [label].
- */
-fun afterLog(store: TrackerStore, t: Tracker, before: Int, date: LocalDate, label: String, undo: (() -> Unit)? = null) {
-    val today = LocalDate.now()
-    if (date != today || t.auto) { Feedback.show(label, undo); return }
-    val entries = store.entries.value
-    val met = TrackerEngine.met(t, TrackerEngine.periodValue(t, entries, today))
-    val now = TrackerEngine.streak(t, entries, today)
-    if (met && now > before && t.goal != TrackerGoal.AT_MOST) {
-        if (t.celebrate && now in TrackerEngine.milestones) TrackerCelebration.event.value = t to now
-        Feedback.show(TrackerEngine.cheer(now, t.name), undo)
-    } else Feedback.show(label, undo)
-}
-
 /** The flame and count; grey at zero, flickering when today still needs doing. */
 @Composable
 fun StreakBadge(streak: Int, atRisk: Boolean, modifier: Modifier = Modifier) {
@@ -86,38 +67,6 @@ fun StreakChain(t: Tracker, chain: List<Pair<LocalDate, TrackerEngine.Dot>>) {
                     TrackerEngine.Dot.OFF, TrackerEngine.Dot.BEFORE -> Box(m.background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = .35f)))
                 }
                 Text(if (i == chain.lastIndex) "Today" else d.dayOfWeek.name.take(1), style = MaterialTheme.typography.labelSmall, color = Chronora.muted)
-            }
-        }
-    }
-}
-
-/** Shows the milestone celebration from anywhere in the app. */
-@Composable
-fun CelebrationHost() {
-    val event by TrackerCelebration.event.collectAsStateWithLifecycle()
-    val (t, n) = event ?: return
-    Dialog(onDismissRequest = { TrackerCelebration.event.value = null }) {
-        var start by remember { mutableStateOf(false) }
-        LaunchedEffect(Unit) { start = true }
-        val scale by animateFloatAsState(if (start) 1f else .4f, spring(dampingRatio = .45f, stiffness = 260f), label = "scale")
-        val fall by rememberInfiniteTransition(label = "confetti").animateFloat(0f, 1f, infiniteRepeatable(tween(2600, easing = LinearEasing)), label = "fall")
-        val pieces = remember { List(36) { Triple(Math.random().toFloat(), Math.random().toFloat(), listOf(Flame, Color(t.color), Color(0xFFFFD23F), Color(0xFF22C55E), Ice).random()) } }
-        Box(Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(MaterialTheme.colorScheme.surface)) {
-            Canvas(Modifier.matchParentSize()) {
-                pieces.forEach { (x, offset, col) ->
-                    val y = ((fall + offset) % 1f) * size.height
-                    drawCircle(col, radius = 5.dp.toPx(), center = Offset(x * size.width, y))
-                }
-            }
-            Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("🔥", fontSize = 76.sp, modifier = Modifier.scale(scale))
-                Text("$n-day streak!", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold, color = Flame)
-                Text("${t.emoji} ${t.name}", style = MaterialTheme.typography.titleMedium)
-                Text(TrackerEngine.cheer(n, t.name).drop(2).trim(), textAlign = TextAlign.Center, color = Chronora.muted)
-                if (t.why.isNotBlank()) Text("“${t.why}”", textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
-                val next = TrackerEngine.milestones.firstOrNull { it > n }
-                if (next != null) Text("Next milestone: $next days", style = MaterialTheme.typography.labelLarge, color = Chronora.muted)
-                Button(onClick = { TrackerCelebration.event.value = null }, modifier = Modifier.fillMaxWidth().height(50.dp), colors = ButtonDefaults.buttonColors(containerColor = Flame)) { Text("Keep going") }
             }
         }
     }

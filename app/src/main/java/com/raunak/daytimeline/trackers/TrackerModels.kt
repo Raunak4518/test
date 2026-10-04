@@ -275,6 +275,15 @@ object TrackerTemplates {
     )
 }
 
+/** How wins are celebrated: every completion, only milestones, or not at all. */
+enum class CelebrateMode(val label: String) { EVERY("Every win"), MILESTONES("Milestones"), OFF("Off") }
+
+/** Celebration settings; [cheers] are the user's own lines, mixed in with the built-in ones. */
+data class CelebrationPrefs(val mode: CelebrateMode = CelebrateMode.EVERY, val cheers: List<String> = emptyList(), val autoCloseSeconds: Int = 6) {
+    @Suppress("SENSELESS_COMPARISON", "USELESS_ELVIS")
+    fun normalized() = copy(mode = mode ?: CelebrateMode.EVERY, cheers = cheers ?: emptyList())
+}
+
 class TrackerStore private constructor(context: Context) {
     private val prefs = context.applicationContext.getSharedPreferences("chronora_trackers", Context.MODE_PRIVATE)
     private val gson = Gson()
@@ -282,6 +291,9 @@ class TrackerStore private constructor(context: Context) {
     private val _entries = MutableStateFlow(read<List<TrackerEntry>>("entries").orEmpty())
     val trackers: StateFlow<List<Tracker>> = _trackers
     val entries: StateFlow<List<TrackerEntry>> = _entries
+    private val _celebration = MutableStateFlow(read<CelebrationPrefs>("celebration")?.normalized() ?: CelebrationPrefs())
+    val celebration: StateFlow<CelebrationPrefs> = _celebration
+    fun saveCelebration(p: CelebrationPrefs) { _celebration.value = p; write("celebration", p) }
 
     private inline fun <reified T> read(key: String): T? = runCatching { prefs.getString(key, null)?.let { gson.fromJson<T>(it, object : TypeToken<T>() {}.type) } }.getOrNull()
     private fun write(key: String, v: Any) = prefs.edit().putString(key, gson.toJson(v)).apply()
